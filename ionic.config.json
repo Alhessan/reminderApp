@@ -1,0 +1,7 @@
+{
+  "name": "reminderApp",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "angular"
+}
