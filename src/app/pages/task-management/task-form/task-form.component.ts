@@ -4,7 +4,9 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, NavController, IonicModule } from '@ionic/angular';
 import { TaskService } from '../../../services/task.service';
 import { CustomerService } from '../../../services/customer.service';
-import { Task, TaskType, Frequency, NotificationType } from '../../../models/task.model';
+import { TaskTypeService } from '../../../services/task-type.service';
+import { Task, Frequency, NotificationType } from '../../../models/task.model';
+import { TaskType } from '../../../services/task-type.service';
 import { Customer } from '../../../models/customer.model';
 import { DatabaseService } from '../../../services/database.service';
 import { CommonModule } from '@angular/common';
@@ -17,18 +19,18 @@ import { CommonModule } from '@angular/common';
   imports: [IonicModule, CommonModule, ReactiveFormsModule, FormsModule]
 })
 export class TaskFormComponent implements OnInit {
-  taskForm: FormGroup; // Initialize in constructor instead of ngOnInit
+  taskForm: FormGroup;
   isEditMode = false;
   taskId?: number;
   customers: Customer[] = [];
-  formInitialized = false; // Flag to track form initialization
+  formInitialized = false;
 
-  // To make enum values accessible in the template if needed, though direct binding is used here
-  taskTypes: TaskType[] = ['Payment', 'Update', 'Custom'];
   frequencies: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly'];
   notificationTypes: NotificationType[] = ['push/local', 'silent reminder'];
+  taskTypes$ = this.taskTypeService.getTaskTypes();
 
   constructor(
+    private taskTypeService: TaskTypeService,
     private fb: FormBuilder,
     private taskService: TaskService,
     private customerService: CustomerService,
@@ -40,13 +42,14 @@ export class TaskFormComponent implements OnInit {
     // Initialize form in constructor to ensure it's available before template renders
     this.taskForm = this.fb.group({
       title: ['', Validators.required],
-      type: [null as TaskType | null, Validators.required],
-      customerId: [null as number | null], // Optional
+      type: ['', Validators.required],
+      customerId: [null as number | null],
       frequency: [null as Frequency | null, Validators.required],
-      startDate: [new Date().toISOString().substring(0, 10), Validators.required], // Default to today, format for <input type="date">
+      startDate: [new Date().toISOString().substring(0, 10), Validators.required],
+      notificationTime: ['09:00', [Validators.required, Validators.pattern('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')]],
       notificationType: [null as NotificationType | null, Validators.required],
-      notes: [''],
-      isCompleted: [false] // Not directly on form, but part of model
+      notes: [''], // Optional field for notes
+      isCompleted: [false]
     });
     this.formInitialized = true;
   }
@@ -78,11 +81,12 @@ export class TaskFormComponent implements OnInit {
     try {
       const task = await this.taskService.getTaskById(id);
       if (task) {
-        // Adjust for form binding, especially date
         const taskDataForForm = {
           ...task,
           startDate: task.startDate ? new Date(task.startDate).toISOString().substring(0, 10) : null,
-          customerId: task.customerId || null // Ensure null if undefined
+          notificationTime: task.notificationTime || '09:00',
+          notes: task.notes || '',
+          customerId: task.customerId || null
         };
         this.taskForm.patchValue(taskDataForForm);
       } else {
@@ -98,19 +102,31 @@ export class TaskFormComponent implements OnInit {
 
   async onSubmit() {
     if (this.taskForm.invalid) {
-      this.taskForm.markAllAsTouched(); // Mark all fields as touched to show errors
+      this.taskForm.markAllAsTouched();
       return;
     }
 
-    const formValues = this.taskForm.value;
-    const taskData: Task = {
-      ...formValues,
-      startDate: new Date(formValues.startDate).toISOString(), // Ensure ISO string for DB
-      isCompleted: this.isEditMode && this.taskId ? (await this.taskService.getTaskById(this.taskId))?.isCompleted : false, // Preserve completion status on edit
-      lastCompletedDate: this.isEditMode && this.taskId ? (await this.taskService.getTaskById(this.taskId))?.lastCompletedDate : undefined
-    };
-
     try {
+      const formValues = this.taskForm.value;
+      
+      // Validate and format notification time
+      const notificationTime = formValues.notificationTime || '09:00';
+      if (!notificationTime.match('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')) {
+        this.presentErrorAlert('Invalid notification time format. Please use HH:mm format.');
+        return;
+      }
+
+      const taskData: Task = {
+        ...formValues,
+        startDate: new Date(formValues.startDate).toISOString(),
+        notificationTime,
+        notes: formValues.notes || '',  // Ensure notes is a string
+        isCompleted: this.isEditMode && this.taskId ? 
+          (await this.taskService.getTaskById(this.taskId))?.isCompleted : false,
+        lastCompletedDate: this.isEditMode && this.taskId ? 
+          (await this.taskService.getTaskById(this.taskId))?.lastCompletedDate : undefined
+      };
+
       if (this.isEditMode && this.taskId) {
         taskData.id = this.taskId;
         await this.taskService.updateTask(taskData);
@@ -140,6 +156,70 @@ export class TaskFormComponent implements OnInit {
       header: 'Success',
       message: message,
       buttons: ['OK']
+    });
+    await alert.present();
+  }
+
+  async addNewTaskType() {
+    const alert = await this.alertController.create({
+      header: 'Add Task Type',
+      inputs: [
+        {
+          name: 'name',
+          type: 'text',
+          placeholder: 'Name',
+          label: 'Name'
+        },
+        {
+          name: 'description',
+          type: 'text',
+          placeholder: 'Description',
+          label: 'Description'
+        },
+        {
+          name: 'icon',
+          type: 'text',
+          placeholder: 'Icon name (e.g., create-outline)',
+          label: 'Icon'
+        },
+        {
+          name: 'color',
+          type: 'text',
+          placeholder: 'Color (e.g., #FF0000)',
+          label: 'Color'
+        }
+      ],
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Add',
+          handler: async (data) => {
+            if (!data.name) {
+              this.presentErrorAlert('Name is required for task type.');
+              return false;
+            }
+            try {
+              await this.taskTypeService.addTaskType({
+                name: data.name,
+                description: data.description || '',
+                isDefault: 0,
+                icon: data.icon || 'create-outline',
+                color: data.color || '#3880ff'
+              });
+              // Set the new type as the selected type
+              this.taskForm.patchValue({ type: data.name });
+              return true;
+            } catch (error) {
+              console.error('Error creating task type:', error);
+              this.presentErrorAlert('Failed to create task type. Please try again.');
+              return false;
+            }
+          }
+        }
+      ]
     });
     await alert.present();
   }

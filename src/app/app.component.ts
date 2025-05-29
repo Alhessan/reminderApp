@@ -15,7 +15,7 @@ export class AppComponent {
   public appPages = [
     { title: 'Customers', url: '/customer-list', icon: 'people' },
     { title: 'Tasks', url: '/task-list', icon: 'checkbox' },
-    // Add more pages here as needed
+    { title: 'Task Types', url: '/task-management/task-types', icon: 'settings' }
   ];
 
   constructor(

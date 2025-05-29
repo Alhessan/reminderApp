@@ -14,7 +14,7 @@ export class TaskService {
   ) { }
 
   async addTask(task: Task): Promise<number | undefined> {
-    const query = "INSERT INTO tasks (title, type, customerId, frequency, startDate, notificationType, notes, isCompleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    const query = "INSERT INTO tasks (title, type, customerId, frequency, startDate, notificationType, notificationTime, notes, isCompleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
     const values: any[] = [
       task.title,
       task.type,
@@ -22,6 +22,7 @@ export class TaskService {
       task.frequency,
       task.startDate,
       task.notificationType,
+      task.notificationTime,
       task.notes,
       task.isCompleted ? 1 : 0
     ];
@@ -81,7 +82,7 @@ export class TaskService {
     if (!task.id) {
       throw new Error("Task ID is required for update");
     }
-    const query = "UPDATE tasks SET title = ?, type = ?, customerId = ?, frequency = ?, startDate = ?, notificationType = ?, notes = ?, isCompleted = ?, lastCompletedDate = ? WHERE id = ?";
+    const query = "UPDATE tasks SET title = ?, type = ?, customerId = ?, frequency = ?, startDate = ?, notificationType = ?, notificationTime = ?, notes = ?, isCompleted = ?, lastCompletedDate = ? WHERE id = ?";
     const values: any[] = [
       task.title,
       task.type,
@@ -89,6 +90,7 @@ export class TaskService {
       task.frequency,
       task.startDate,
       task.notificationType,
+      task.notificationTime,
       task.notes,
       task.isCompleted ? 1 : 0,
       task.lastCompletedDate,

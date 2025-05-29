@@ -45,6 +45,10 @@ const routes: Routes = [
     path: 'task-form/:id',
     component: TaskFormComponent
   },
+  {
+    path: 'task-management/task-types',
+    loadChildren: () => import('./pages/task-management/task-types/task-types.module').then(m => m.TaskTypesPageModule)
+  },
 ];
 
 @NgModule({

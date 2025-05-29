@@ -97,6 +97,35 @@ export class DatabaseService {
       if (!this.webStore['task_history']) {
         this.webStore['task_history'] = [];
       }
+      if (!this.webStore['task_types']) {
+        // Initialize with default task types
+        this.webStore['task_types'] = [
+          {
+            id: 1,
+            name: 'Payment',
+            description: 'Payment reminder tasks',
+            isDefault: 1,
+            icon: 'cash-outline',
+            color: '#2dd36f'
+          },
+          {
+            id: 2,
+            name: 'Update',
+            description: 'General update tasks',
+            isDefault: 1,
+            icon: 'refresh-outline',
+            color: '#3880ff'
+          },
+          {
+            id: 3,
+            name: 'Custom',
+            description: 'Custom reminder tasks',
+            isDefault: 1,
+            icon: 'create-outline',
+            color: '#5260ff'
+          }
+        ];
+      }
       
       // Save to ensure structure is correct
       this.saveWebStoreToLocalStorage();
@@ -113,7 +142,33 @@ export class DatabaseService {
     this.webStore = {
       'customers': [],
       'tasks': [],
-      'task_history': []
+      'task_history': [],
+      'task_types': [
+        {
+          id: 1,
+          name: 'Payment',
+          description: 'Payment reminder tasks',
+          isDefault: 1,
+          icon: 'cash-outline',
+          color: '#2dd36f'
+        },
+        {
+          id: 2,
+          name: 'Update',
+          description: 'General update tasks',
+          isDefault: 1,
+          icon: 'refresh-outline',
+          color: '#3880ff'
+        },
+        {
+          id: 3,
+          name: 'Custom',
+          description: 'Custom reminder tasks',
+          isDefault: 1,
+          icon: 'create-outline',
+          color: '#5260ff'
+        }
+      ]
     };
     
     // Add some sample data for testing in web mode
@@ -156,18 +211,29 @@ export class DatabaseService {
         phone TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS task_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        description TEXT,
+        isDefault INTEGER DEFAULT 0,
+        icon TEXT,
+        color TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        type TEXT NOT NULL CHECK(type IN ('Payment', 'Update', 'Custom')),
+        type TEXT NOT NULL,
         customerId INTEGER,
         frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
         startDate TEXT NOT NULL, -- ISO 8601
+        notificationTime TEXT NOT NULL DEFAULT '09:00', -- 24-hour format HH:mm
         notificationType TEXT NOT NULL CHECK(notificationType IN ('push/local', 'silent reminder')),
         notes TEXT,
         isCompleted INTEGER DEFAULT 0, -- 0 for false, 1 for true
         lastCompletedDate TEXT, -- ISO 8601
-        FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
+        FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL,
+        FOREIGN KEY (type) REFERENCES task_types(name) ON DELETE RESTRICT
       );
 
       CREATE TABLE IF NOT EXISTS task_history (
@@ -178,6 +244,12 @@ export class DatabaseService {
         details TEXT,
         FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
       );
+
+      -- Insert default task types if they don't exist
+      INSERT OR IGNORE INTO task_types (name, description, isDefault, icon, color) VALUES
+        ('Payment', 'Payment reminder tasks', 1, 'cash-outline', '#2dd36f'),
+        ('Update', 'General update tasks', 1, 'refresh-outline', '#3880ff'),
+        ('Custom', 'Custom reminder tasks', 1, 'create-outline', '#5260ff');
     `;
     await this.db.execute(schema);
   }
@@ -294,6 +366,8 @@ export class DatabaseService {
       table = 'tasks';
     } else if (statement.includes('FROM task_history')) {
       table = 'task_history';
+    } else if (statement.includes('FROM task_types')) {
+      table = 'task_types';
     }
     
     if (table) {
@@ -322,6 +396,8 @@ export class DatabaseService {
       table = 'tasks';
     } else if (statement.includes('INTO task_history')) {
       table = 'task_history';
+    } else if (statement.includes('INTO task_types')) {
+      table = 'task_types';
     }
     
     if (table) {
@@ -348,9 +424,10 @@ export class DatabaseService {
           customerId: values[2],
           frequency: values[3],
           startDate: values[4],
-          notificationType: values[5],
-          notes: values[6],
-          isCompleted: values[7] === 1
+          notificationTime: values[5],
+          notificationType: values[6],
+          notes: values[7],
+          isCompleted: values[8] === 1
         };
       } else if (table === 'task_history') {
         newRecord = {
@@ -359,6 +436,15 @@ export class DatabaseService {
           timestamp: values[1],
           action: values[2],
           details: values[3]
+        };
+      } else if (table === 'task_types') {
+        newRecord = {
+          ...newRecord,
+          name: values[0],
+          description: values[1],
+          isDefault: values[2] || 0,
+          icon: values[3],
+          color: values[4]
         };
       }
       
@@ -403,10 +489,20 @@ export class DatabaseService {
             customerId: values[2],
             frequency: values[3],
             startDate: values[4],
-            notificationType: values[5],
-            notes: values[6],
-            isCompleted: values[7] === 1,
-            lastCompletedDate: values[8]
+            notificationTime: values[5],
+            notificationType: values[6],
+            notes: values[7],
+            isCompleted: values[8] === 1,
+            lastCompletedDate: values[9]
+          };
+        } else if (table === 'task_types') {
+          this.webStore[table][index] = {
+            ...this.webStore[table][index],
+            name: values[0],
+            description: values[1],
+            isDefault: values[2],
+            icon: values[3],
+            color: values[4]
           };
         }
         console.log(`Updated record in ${table}:`, this.webStore[table][index]);
@@ -427,6 +523,8 @@ export class DatabaseService {
       table = 'tasks';
     } else if (statement.includes('FROM task_history')) {
       table = 'task_history';
+    } else if (statement.includes('FROM task_types')) {
+      table = 'task_types';
     }
     
     if (table && values.length > 0) {

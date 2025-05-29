@@ -19,14 +19,21 @@
 
     <ion-item>
       <ion-label position="stacked">Type <ion-text color="danger">*</ion-text></ion-label>
-      <ion-select formControlName="type" placeholder="Select task type">
-        <ion-select-option value="Payment">Payment</ion-select-option>
-        <ion-select-option value="Update">Update</ion-select-option>
-        <ion-select-option value="Custom">Custom</ion-select-option>
-      </ion-select>
+      <div class="type-selection-wrapper">
+        <ion-select formControlName="type" placeholder="Select task type">
+          <ion-select-option *ngFor="let type of taskTypes$ | async" [value]="type.name">
+            <ion-icon [name]="type.icon" [style.color]="type.color"></ion-icon>
+            {{ type.name }}
+          </ion-select-option>
+        </ion-select>
+        <ion-button fill="clear" (click)="addNewTaskType()">
+          <ion-icon name="add-circle-outline"></ion-icon>
+          New Type
+        </ion-button>
+      </div>
     </ion-item>
-    <div *ngIf="taskForm.get(	'type	')?.invalid && (taskForm.get(	'type	')?.dirty || taskForm.get(	'type	')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get(	'type	')?.errors?.[	'required	']">Type is required.</small>
+    <div *ngIf="taskForm.get('type')?.invalid && (taskForm.get('type')?.dirty || taskForm.get('type')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get('type')?.errors?.['required']">Type is required.</small>
     </div>
 
     <ion-item>
@@ -53,16 +60,17 @@
     <ion-item>
       <ion-label position="stacked">Start Date <ion-text color="danger">*</ion-text></ion-label>
       <ion-input formControlName="startDate" type="date"></ion-input>
-      <!-- Or use ion-datetime -->
-      <!-- <ion-datetime-button datetime="datetime"></ion-datetime-button>
-      <ion-modal [keepContentsMounted]="true">
-        <ng-template>
-          <ion-datetime id="datetime" formControlName="startDate" presentation="date"></ion-datetime>
-        </ng-template>
-      </ion-modal> -->
     </ion-item>
-    <div *ngIf="taskForm.get(	'startDate	')?.invalid && (taskForm.get(	'startDate	')?.dirty || taskForm.get(	'startDate	')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get(	'startDate	')?.errors?.[	'required	']">Start date is required.</small>
+    <div *ngIf="taskForm.get('startDate')?.invalid && (taskForm.get('startDate')?.dirty || taskForm.get('startDate')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get('startDate')?.errors?.['required']">Start date is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Notification Time <ion-text color="danger">*</ion-text></ion-label>
+      <ion-input formControlName="notificationTime" type="time"></ion-input>
+    </ion-item>
+    <div *ngIf="taskForm.get('notificationTime')?.invalid && (taskForm.get('notificationTime')?.dirty || taskForm.get('notificationTime')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get('notificationTime')?.errors?.['required']">Notification time is required.</small>
     </div>
 
     <ion-item>
