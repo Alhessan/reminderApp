@@ -1,0 +1,38 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/customer-list"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ isEditMode ? 'Edit Customer' : 'Add Customer' }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <form [formGroup]="customerForm" (ngSubmit)="onSubmit()">
+    <ion-item>
+      <ion-label position="stacked">Name <ion-text color="danger">*</ion-text></ion-label>
+      <ion-input formControlName="name" type="text" placeholder="Enter customer name"></ion-input>
+    </ion-item>
+    <div *ngIf="customerForm.get('name')?.invalid && (customerForm.get('name')?.dirty || customerForm.get('name')?.touched)" class="error-message">
+      <small *ngIf="customerForm.get('name')?.errors?.['required']">Name is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Email</ion-label>
+      <ion-input formControlName="email" type="email" placeholder="Enter email address"></ion-input>
+    </ion-item>
+    <div *ngIf="customerForm.get('email')?.invalid && (customerForm.get('email')?.dirty || customerForm.get('email')?.touched)" class="error-message">
+      <small *ngIf="customerForm.get('email')?.errors?.['email']">Please enter a valid email.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Phone</ion-label>
+      <ion-input formControlName="phone" type="tel" placeholder="Enter phone number"></ion-input>
+    </ion-item>
+
+    <ion-button type="submit" expand="block" [disabled]="customerForm.invalid" class="ion-margin-top">
+      {{ isEditMode ? 'Update Customer' : 'Save Customer' }}
+    </ion-button>
+  </form>
+</ion-content>
+

@@ -1,0 +1,74 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/task-list"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ task?.title || 	"Task Detail" }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="navigateToEditTask()" *ngIf="task">
+        <ion-icon slot="icon-only" name="create-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div *ngIf="isLoading" class="ion-text-center ion-padding-top">
+    <ion-spinner name="crescent"></ion-spinner>
+  </div>
+
+  <div *ngIf="!isLoading && !task" class="ion-text-center ion-padding">
+    <p>Task not found or failed to load.</p>
+  </div>
+
+  <ion-card *ngIf="!isLoading && task">
+    <ion-card-header>
+      <ion-card-title>{{ task.title }}</ion-card-title>
+      <ion-card-subtitle>
+        Status: {{ task.isCompleted ? (	"Completed on " + (task.lastCompletedDate | date:	"medium")) : 	"Pending" }}
+      </ion-card-subtitle>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-list lines="none">
+        <ion-item>
+          <ion-label><strong>Type:</strong> {{ task.type }}</ion-label>
+        </ion-item>
+        <ion-item *ngIf="task.customer?.name">
+          <ion-label><strong>Customer:</strong> {{ task.customer?.name }}</ion-label>
+        </ion-item>
+         <ion-item *ngIf="!task.customer?.name && task.customerId">
+          <ion-label><strong>Customer ID:</strong> {{ task.customerId }} (Name not found)</ion-label>
+        </ion-item>
+        <ion-item>
+          <ion-label><strong>Frequency:</strong> {{ task.frequency }}</ion-label>
+        </ion-item>
+        <ion-item>
+          <ion-label><strong>Start Date:</strong> {{ task.startDate | date:	"fullDate" }}</ion-label>
+        </ion-item>
+        <ion-item>
+          <ion-label><strong>Notification:</strong> {{ task.notificationType }}</ion-label>
+        </ion-item>
+        <ion-item *ngIf="task.notes">
+          <ion-label class="ion-text-wrap"><strong>Notes:</strong> {{ task.notes }}</ion-label>
+        </ion-item>
+      </ion-list>
+    </ion-card-content>
+  </ion-card>
+
+  <ion-list-header *ngIf="!isLoading && taskHistory.length > 0">
+    <ion-label>Task History</ion-label>
+  </ion-list-header>
+  <ion-list *ngIf="!isLoading && taskHistory.length > 0">
+    <ion-item *ngFor="let entry of taskHistory">
+      <ion-label>
+        <h2>{{ entry.action }}</h2>
+        <p>{{ entry.timestamp | date:	"medium" }}</p>
+        <p *ngIf="entry.details">{{ entry.details }}</p>
+      </ion-label>
+    </ion-item>
+  </ion-list>
+  <div *ngIf="!isLoading && task && taskHistory.length === 0" class="ion-text-center ion-padding">
+    <p>No history available for this task.</p>
+  </div>
+
+</ion-content>

@@ -1,0 +1,89 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/task-list"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ isEditMode ? (	'Edit Task	') : (	'Add Task	') }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+    <ion-item>
+      <ion-label position="stacked">Title <ion-text color="danger">*</ion-text></ion-label>
+      <ion-input formControlName="title" type="text" placeholder="Enter task title"></ion-input>
+    </ion-item>
+    <div *ngIf="taskForm.get(	'title	')?.invalid && (taskForm.get(	'title	')?.dirty || taskForm.get(	'title	')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get(	'title	')?.errors?.[	'required	']">Title is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Type <ion-text color="danger">*</ion-text></ion-label>
+      <ion-select formControlName="type" placeholder="Select task type">
+        <ion-select-option value="Payment">Payment</ion-select-option>
+        <ion-select-option value="Update">Update</ion-select-option>
+        <ion-select-option value="Custom">Custom</ion-select-option>
+      </ion-select>
+    </ion-item>
+    <div *ngIf="taskForm.get(	'type	')?.invalid && (taskForm.get(	'type	')?.dirty || taskForm.get(	'type	')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get(	'type	')?.errors?.[	'required	']">Type is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Customer (Optional)</ion-label>
+      <ion-select formControlName="customerId" placeholder="Select customer">
+        <ion-select-option [value]="null">None</ion-select-option> <!-- Allow no customer -->
+        <ion-select-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ion-item>
+      <ion-label position="stacked">Frequency <ion-text color="danger">*</ion-text></ion-label>
+      <ion-select formControlName="frequency" placeholder="Select frequency">
+        <ion-select-option value="daily">Daily</ion-select-option>
+        <ion-select-option value="weekly">Weekly</ion-select-option>
+        <ion-select-option value="monthly">Monthly</ion-select-option>
+        <ion-select-option value="yearly">Yearly</ion-select-option>
+      </ion-select>
+    </ion-item>
+    <div *ngIf="taskForm.get(	'frequency	')?.invalid && (taskForm.get(	'frequency	')?.dirty || taskForm.get(	'frequency	')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get(	'frequency	')?.errors?.[	'required	']">Frequency is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Start Date <ion-text color="danger">*</ion-text></ion-label>
+      <ion-input formControlName="startDate" type="date"></ion-input>
+      <!-- Or use ion-datetime -->
+      <!-- <ion-datetime-button datetime="datetime"></ion-datetime-button>
+      <ion-modal [keepContentsMounted]="true">
+        <ng-template>
+          <ion-datetime id="datetime" formControlName="startDate" presentation="date"></ion-datetime>
+        </ng-template>
+      </ion-modal> -->
+    </ion-item>
+    <div *ngIf="taskForm.get(	'startDate	')?.invalid && (taskForm.get(	'startDate	')?.dirty || taskForm.get(	'startDate	')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get(	'startDate	')?.errors?.[	'required	']">Start date is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Notification Type <ion-text color="danger">*</ion-text></ion-label>
+      <ion-select formControlName="notificationType" placeholder="Select notification type">
+        <ion-select-option value="push/local">Push/Local Notification</ion-select-option>
+        <ion-select-option value="silent reminder">Silent Reminder (in-app)</ion-select-option>
+      </ion-select>
+    </ion-item>
+    <div *ngIf="taskForm.get(	'notificationType	')?.invalid && (taskForm.get(	'notificationType	')?.dirty || taskForm.get(	'notificationType	')?.touched)" class="error-message">
+      <small *ngIf="taskForm.get(	'notificationType	')?.errors?.[	'required	']">Notification type is required.</small>
+    </div>
+
+    <ion-item>
+      <ion-label position="stacked">Notes (Optional)</ion-label>
+      <ion-textarea formControlName="notes" placeholder="Enter any notes for the task" [autoGrow]="true"></ion-textarea>
+    </ion-item>
+
+    <ion-button type="submit" expand="block" [disabled]="taskForm.invalid" class="ion-margin-top">
+      {{ isEditMode ? (	'Update Task	') : (	'Save Task	') }}
+    </ion-button>
+  </form>
+</ion-content>
+
