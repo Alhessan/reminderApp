@@ -47,29 +47,11 @@ export class TaskTypeService {
     await this.loadTaskTypes();
   }
 
-  private async isTaskTypeInUse(taskTypeName: string): Promise<boolean> {
-    const result = await this.db.executeQuery(
-      'SELECT COUNT(*) as count FROM tasks WHERE type = ?',
-      [taskTypeName]
-    );
-    return result.values[0].count > 0;
-  }
-
   async deleteTaskType(id: number): Promise<void> {
-    // Check if it's a default task type
-    const typeResult = await this.db.executeQuery('SELECT name, isDefault FROM task_types WHERE id = ?', [id]);
-    if (typeResult.values.length === 0) {
-      throw new Error('Task type not found');
-    }
-
-    const taskType = typeResult.values[0];
-    if (taskType.isDefault === 1) {
+    // Only allow deletion of non-default task types
+    const result = await this.db.executeQuery('SELECT isDefault FROM task_types WHERE id = ?', [id]);
+    if (result.values.length > 0 && result.values[0].isDefault === 1) {
       throw new Error('Cannot delete a default task type');
-    }
-
-    // Check if the task type is in use
-    if (await this.isTaskTypeInUse(taskType.name)) {
-      throw new Error('Cannot delete task type that is in use');
     }
     
     await this.db.executeQuery('DELETE FROM task_types WHERE id = ?', [id]);

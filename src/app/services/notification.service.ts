@@ -12,77 +12,112 @@ export class NotificationService {
   constructor(private platform: Platform) { }
 
   async hasNotificationPermissions(): Promise<boolean> {
-    if (!this.platform.is('capacitor')) {
-      console.warn('Local notifications not available on this platform.');
-      return false;
+    if (this.platform.is('capacitor')) {
+      const status: LocalNotificationPermissionStatus = await LocalNotifications.checkPermissions();
+      return status.display === 'granted';
+    } else {
+      return 'Notification' in window && Notification.permission === 'granted';
     }
-    const status: LocalNotificationPermissionStatus = await LocalNotifications.checkPermissions();
-    return status.display === 'granted';
   }
 
   async requestNotificationPermissions(): Promise<boolean> {
-    if (!this.platform.is('capacitor')) {
-      console.warn('Local notifications not available on this platform.');
-      return false;
+    if (this.platform.is('capacitor')) {
+      const status: LocalNotificationPermissionStatus = await LocalNotifications.requestPermissions();
+      return status.display === 'granted';
+    } else if ('Notification' in window) {
+      const permission = await Notification.requestPermission();
+      return permission === 'granted';
     }
-    const status: LocalNotificationPermissionStatus = await LocalNotifications.requestPermissions();
-    return status.display === 'granted';
+    return false;
   }
 
   async scheduleNotification(task: Task): Promise<number | null> {
-    if (!this.platform.is('capacitor')) {
-      console.warn('Cannot schedule notification: Not a capacitor platform.');
-      return null;
-    }
+    console.log('Starting notification scheduling process...', {
+      task,
+      currentTime: new Date().toLocaleString(),
+      platform: this.platform.platforms()
+    });
 
-    if (!await this.hasNotificationPermissions()) {
-      const permissionGranted = await this.requestNotificationPermissions();
-      if (!permissionGranted) {
-        console.warn('Notification permission not granted. Cannot schedule notification.');
+    try {
+      // Ensure we have notification permissions
+      let hasPermission = await this.hasNotificationPermissions();
+      if (!hasPermission) {
+        console.log('Requesting notification permissions...');
+        hasPermission = await this.requestNotificationPermissions();
+        if (!hasPermission) {
+          console.warn('Notification permission not granted');
+          return null;
+        }
+      }
+
+      if (!task.id) {
+        throw new Error('Task ID is undefined');
+      }
+
+      // Parse notification time
+      const [hours, minutes] = task.notificationTime.split(':').map(Number);
+      if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        throw new Error('Invalid notification time format');
+      }
+
+      // Create notification date by combining start date with notification time
+      const scheduleDate = new Date(task.startDate);
+      scheduleDate.setHours(hours, minutes, 0, 0);
+
+      console.log('Notification timing details:', {
+        taskId: task.id,
+        title: task.title,
+        scheduledFor: scheduleDate.toLocaleString(),
+        timeUntilNotification: Math.round((scheduleDate.getTime() - new Date().getTime()) / 1000 / 60) + ' minutes'
+      });
+
+      if (scheduleDate.getTime() <= new Date().getTime()) {
+        console.warn(`Task "${task.title}" notification time is in the past`);
         return null;
       }
-    }
 
-    if (!task.id) {
-      console.error('Task ID is undefined. Cannot schedule notification.');
-      return null;
-    }
+      const notificationId = task.id;
 
-    const scheduleDate = new Date(task.startDate);
-    if (isNaN(scheduleDate.getTime())) {
-      console.error('Invalid start date for task. Cannot schedule notification.');
-      return null;
-    }
+      if (!this.platform.is('capacitor')) {
+        const timeoutMs = scheduleDate.getTime() - new Date().getTime();
+        console.log(`Setting browser notification timeout for ${timeoutMs}ms from now`);
+        
+        setTimeout(() => {
+          new Notification(`Reminder: ${task.title}`, {
+            body: `Your task "${task.title}" is due now. Type: ${task.type}. Notes: ${task.notes || 'N/A'}`,
+            icon: '/assets/icon/favicon.png'
+          });
+        }, timeoutMs);
+        
+        return notificationId;
+      }
 
-    if (scheduleDate.getTime() <= new Date().getTime()) {
-        console.warn(`Task "${task.title}" is in the past. Notification will not be scheduled.`);
-        return null;
-    }
-
-    const notificationId = task.id; // Notification ID is a number
-
-    const options: ScheduleOptions = {
-      notifications: [
-        {
-          id: notificationId, // API expects number here
+      const options: ScheduleOptions = {
+        notifications: [{
+          id: notificationId,
           title: `Reminder: ${task.title}`,
-          body: `Your task "${task.title}" is due today. Type: ${task.type}. Notes: ${task.notes || 'N/A'}`,
+          body: `Your task "${task.title}" is due now. Type: ${task.type}. Notes: ${task.notes || 'N/A'}`,
           schedule: { at: scheduleDate },
           sound: undefined,
           attachments: undefined,
           actionTypeId: '',
           extra: { taskId: task.id },
           smallIcon: 'res://mipmap/ic_launcher',
-        }
-      ]
-    };
+        }]
+      };
 
-    try {
-      const result: ScheduleResult = await LocalNotifications.schedule(options);
-      console.log('Notification scheduled:', result.notifications);
+      console.log('Scheduling notification with options:', options);
+
+      const result = await LocalNotifications.schedule(options);
+      console.log('Notification scheduled successfully:', {
+        taskId: task.id,
+        notificationId: result.notifications[0]?.id,
+        scheduledTime: scheduleDate.toLocaleString()
+      });
+      
       const scheduledNotif = result.notifications[0];
-      // The ID returned by schedule can be a string or number, ensure we return number if task.id was number
-      return scheduledNotif?.id ? (typeof scheduledNotif.id === 'string' ? parseInt(scheduledNotif.id, 10) : scheduledNotif.id) : null; 
+      return scheduledNotif?.id ? (typeof scheduledNotif.id === 'string' ? parseInt(scheduledNotif.id, 10) : scheduledNotif.id) : null;
+
     } catch (error) {
       console.error('Error scheduling notification:', error);
       return null;

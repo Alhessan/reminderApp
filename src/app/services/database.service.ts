@@ -97,35 +97,6 @@ export class DatabaseService {
       if (!this.webStore['task_history']) {
         this.webStore['task_history'] = [];
       }
-      if (!this.webStore['task_types']) {
-        // Initialize with default task types
-        this.webStore['task_types'] = [
-          {
-            id: 1,
-            name: 'Payment',
-            description: 'Payment reminder tasks',
-            isDefault: 1,
-            icon: 'cash-outline',
-            color: '#2dd36f'
-          },
-          {
-            id: 2,
-            name: 'Update',
-            description: 'General update tasks',
-            isDefault: 1,
-            icon: 'refresh-outline',
-            color: '#3880ff'
-          },
-          {
-            id: 3,
-            name: 'Custom',
-            description: 'Custom reminder tasks',
-            isDefault: 1,
-            icon: 'create-outline',
-            color: '#5260ff'
-          }
-        ];
-      }
       
       // Save to ensure structure is correct
       this.saveWebStoreToLocalStorage();

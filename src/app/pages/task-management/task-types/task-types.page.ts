@@ -129,8 +129,7 @@ export class TaskTypesPage implements OnInit {
     if (taskType.isDefault) {
       const alert = await this.alertCtrl.create({
         header: 'Cannot Delete',
-        subHeader: 'Default Task Type',
-        message: 'Default task types are built into the system and cannot be deleted.',
+        message: 'Default task types cannot be deleted.',
         buttons: ['OK']
       });
       await alert.present();
@@ -139,8 +138,7 @@ export class TaskTypesPage implements OnInit {
 
     const confirmAlert = await this.alertCtrl.create({
       header: 'Confirm Delete',
-      subHeader: taskType.name,
-      message: 'Are you sure you want to delete this task type? This action cannot be undone.',
+      message: 'Are you sure you want to delete this task type?',
       buttons: [
         {
           text: 'Cancel',
@@ -148,30 +146,8 @@ export class TaskTypesPage implements OnInit {
         },
         {
           text: 'Delete',
-          role: 'destructive',
           handler: async () => {
-            try {
-              await this.taskTypeService.deleteTaskType(taskType.id!);
-            } catch (error) {
-              // Show appropriate error message based on the error type
-              let errorMessage = 'Failed to delete task type. Please try again.';
-              if (error instanceof Error) {
-                if (error.message.includes('in use')) {
-                  errorMessage = 'This task type cannot be deleted because it is currently being used by one or more tasks. Please reassign those tasks to a different type first.';
-                } else if (error.message.includes('default task type')) {
-                  errorMessage = 'Default task types cannot be deleted as they are built into the system.';
-                } else if (error.message.includes('not found')) {
-                  errorMessage = 'Task type could not be found. It may have been already deleted.';
-                }
-              }
-              const errorAlert = await this.alertCtrl.create({
-                header: 'Cannot Delete',
-                subHeader: 'Action Failed',
-                message: errorMessage,
-                buttons: ['OK']
-              });
-              await errorAlert.present();
-            }
+            await this.taskTypeService.deleteTaskType(taskType.id!);
           }
         }
       ]
