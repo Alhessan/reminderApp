@@ -136,10 +136,10 @@ export class TaskService {
     try {
       if (task.notificationType === 'push' && this.platform.is('capacitor')) {
         console.log('TaskService: Scheduling local push notification');
-        await this.notificationService.scheduleNotification(task);
+        await this.notificationService.scheduleNotification(task, false);
       } else if (task.notificationType === 'push') {
         console.log('TaskService: Scheduling web push notification');
-          await this.notificationService.scheduleNotification(task);
+          await this.notificationService.scheduleNotification(task, true);
       } else if (task.notificationType !== 'silent') {
         console.log('TaskService: Sending notification through API');
         // Send other types of notifications through the API

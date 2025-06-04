@@ -89,7 +89,7 @@ export class NotificationService {
     }
   }
 
-  async scheduleNotification(task: Task): Promise<void> {
+  async scheduleNotification(task: Task, isTestMode: boolean = false): Promise<void> {
     try {
       console.log('NotificationService: Starting notification scheduling for task:', task);
 
@@ -112,45 +112,48 @@ export class NotificationService {
         console.log('NotificationService: Notification permission granted');
       }
 
-      // Parse the notification date and time
-      const [hours, minutes] = task.notificationTime.split(':').map(Number);
-      const notificationDate = new Date(task.startDate);
-      notificationDate.setHours(hours, minutes, 0, 0);
-
-      console.log('NotificationService: Calculated notification time:', notificationDate.toLocaleString());
-      
-      // Check if the notification time is in the past
       const now = new Date();
-      if (notificationDate < now) {
-        console.log('NotificationService: Notification time is in the past:', {
-          notificationTime: notificationDate.toLocaleString(),
-          currentTime: now.toLocaleString()
+      let notificationDate: Date;
+      let repeatInterval: number | null = null;
+
+      if (isTestMode) {
+        // In test mode:
+        // - First notification after 10 seconds
+        // - For daily tasks, repeat every minute for testing
+        notificationDate = new Date(now.getTime() + 10000); // 10 seconds
+        if (task.frequency === 'daily') {
+          repeatInterval = 60000; // 1 minute
+        }
+        console.log('NotificationService: Test Mode -', {
+          firstNotification: notificationDate.toLocaleString(),
+          repeating: !!repeatInterval,
+          repeatInterval: repeatInterval ? 'every minute' : 'none'
         });
-        return;
+      } else {
+        // Normal mode - use the task's scheduled time
+        const [hours, minutes] = task.notificationTime.split(':').map(Number);
+        notificationDate = new Date(task.startDate);
+        notificationDate.setHours(hours, minutes, 0, 0);
+
+        // If the time is in the past and it's a daily task, adjust to today/tomorrow
+        if (notificationDate < now) {
+          if (task.frequency === 'daily') {
+            notificationDate = new Date(now);
+            notificationDate.setHours(hours, minutes, 0, 0);
+            if (notificationDate < now) {
+              notificationDate.setDate(notificationDate.getDate() + 1);
+            }
+          } else {
+            console.log('NotificationService: Non-daily notification time is in the past, skipping');
+            return;
+          }
+        }
       }
 
       if (!this.platform.is('capacitor')) {
         // Handle web browser notifications
-        console.log('NotificationService: Scheduling browser notification');
-        const timeoutMs = notificationDate.getTime() - now.getTime();
-        const timeoutMinutes = Math.floor(timeoutMs / (1000 * 60));
-        const timeoutSeconds = Math.floor((timeoutMs % (1000 * 60)) / 1000);
-        
-        console.log('NotificationService: Scheduling notification for:', {
-          timeoutMs,
-          timeoutMinutes,
-          timeoutSeconds,
-          scheduledTime: notificationDate.toLocaleString(),
-          currentTime: now.toLocaleString()
-        });
-
-        // For testing purposes, show notification after 10 seconds
-        const testTimeoutMs = 10000; // 10 seconds
-        console.log('NotificationService: Using test timeout of 10 seconds instead of actual time for testing');
-        
-        // Store the timeout ID so we can clear it if needed
-        const timeoutId = setTimeout(async () => {
-          console.log('NotificationService: Creating browser notification now');
+        const scheduleNextNotification = async () => {
+          console.log('NotificationService: Creating notification now at:', new Date().toLocaleString());
           try {
             await this.showBrowserNotification(task.title, {
               body: task.notes || 'Task reminder',
@@ -163,18 +166,55 @@ export class NotificationService {
               }
             });
             console.log('NotificationService: Browser notification created successfully');
+            
+            // Schedule next notification based on mode and frequency
+            if (task.frequency === 'daily') {
+              if (isTestMode && repeatInterval) {
+                // In test mode, schedule next notification after the repeat interval
+                const nextNotification = new Date(Date.now() + repeatInterval);
+                console.log('NotificationService: Test Mode - Scheduling next notification for:', nextNotification.toLocaleString());
+                const timeoutId = setTimeout(scheduleNextNotification, repeatInterval);
+                this.notificationTimeouts.set(task.id!, timeoutId);
+              } else {
+                // In normal mode, schedule for next day
+                const nextNotification = new Date(notificationDate);
+                nextNotification.setDate(nextNotification.getDate() + 1);
+                const nextTask = { ...task, startDate: nextNotification.toISOString() };
+                await this.scheduleNotification(nextTask, false);
+              }
+            }
           } catch (error) {
             console.error('NotificationService: Error creating browser notification:', error);
           }
-        }, testTimeoutMs);
+        };
 
-        // Store the timeout ID in case we need to cancel it later
+        // Calculate initial timeout
+        const timeoutMs = notificationDate.getTime() - now.getTime();
+        
+        console.log('NotificationService: Scheduling notification:', {
+          mode: isTestMode ? 'TEST' : 'NORMAL',
+          timeoutMs,
+          scheduledTime: notificationDate.toLocaleString(),
+          currentTime: now.toLocaleString(),
+          repeating: !!repeatInterval
+        });
+
+        // Clear any existing timeout for this task
+        const existingTimeoutId = this.notificationTimeouts.get(task.id!);
+        if (existingTimeoutId) {
+          clearTimeout(existingTimeoutId);
+          this.notificationTimeouts.delete(task.id!);
+          console.log('NotificationService: Cleared existing timeout for task:', task.id);
+        }
+
+        // Schedule the initial notification
+        const timeoutId = setTimeout(scheduleNextNotification, timeoutMs);
         this.notificationTimeouts.set(task.id!, timeoutId);
         return;
       }
 
       // Handle mobile notifications using Capacitor
-      console.log('NotificationService: Scheduling Capacitor notification');
+      console.log('NotificationService: Scheduling Capacitor notification for:', notificationDate.toLocaleString());
       await LocalNotifications.schedule({
         notifications: [{
           id: task.id!,
@@ -188,7 +228,7 @@ export class NotificationService {
         }]
       });
 
-      console.log('NotificationService: Successfully scheduled notification for:', notificationDate.toLocaleString());
+      console.log('NotificationService: Successfully scheduled notification');
     } catch (error) {
       console.error('NotificationService: Error scheduling notification:', error);
       throw error;
