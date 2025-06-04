@@ -3,7 +3,7 @@
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/task-list"></ion-back-button>
     </ion-buttons>
-    <ion-title>{{ task?.title || 	"Task Detail" }}</ion-title>
+    <ion-title>{{ task?.title || "Routine Detail" }}</ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="navigateToEditTask()" *ngIf="task">
         <ion-icon slot="icon-only" name="create-outline"></ion-icon>
@@ -18,7 +18,7 @@
   </div>
 
   <div *ngIf="!isLoading && !task" class="ion-text-center ion-padding">
-    <p>Task not found or failed to load.</p>
+    <p>Routine not found or failed to load.</p>
   </div>
 
   <ion-card *ngIf="!isLoading && task">

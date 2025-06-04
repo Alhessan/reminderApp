@@ -4,7 +4,7 @@
       <ion-menu-button></ion-menu-button> <!-- Or back button if appropriate -->
     </ion-buttons>
     <ion-title>
-      Upcoming Tasks
+      Upcoming Routines
     </ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="navigateAddTask()">
@@ -16,7 +16,7 @@
     </ion-buttons>
   </ion-toolbar>
   <ion-toolbar *ngIf="customerNameFilter">
-      <ion-title size="small">Tasks for {{ customerNameFilter }}</ion-title>
+      <ion-title size="small">Routines for {{ customerNameFilter }}</ion-title>
       <ion-buttons slot="end">
         <ion-button (click)="clearCustomerFilter()" fill="clear" color="danger">
           Clear Filter
@@ -41,7 +41,7 @@
 <ion-content [fullscreen]="true">
   <ion-header collapse="condense">
     <ion-toolbar>
-      <ion-title size="large">{{ customerNameFilter ? (	"Tasks for " + customerNameFilter) : 	"Upcoming Tasks" }}</ion-title>
+      <ion-title size="large">{{ customerNameFilter ? ("Routines for " + customerNameFilter) : "Upcoming Routines" }}</ion-title>
     </ion-toolbar>
   </ion-header>
 
@@ -50,7 +50,7 @@
   </div>
 
   <div *ngIf="!isLoading && (!filteredTasks || filteredTasks.length === 0)" class="ion-text-center ion-padding">
-    <p>No tasks found. <span *ngIf="!customerNameFilter">Click the + button to add a new task.</span><span *ngIf="customerNameFilter">No tasks found for this customer.</span></p>
+    <p>No routines found. <span *ngIf="!customerNameFilter">Click the + button to add a new routine.</span><span *ngIf="customerNameFilter">No routines found for this customer.</span></p>
   </div>
 
   <ion-list *ngIf="!isLoading && filteredTasks && filteredTasks.length > 0">

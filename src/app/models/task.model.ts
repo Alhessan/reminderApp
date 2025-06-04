@@ -1,6 +1,6 @@
 import { Customer } from './customer.model';
 
-export type NotificationType = 'push/local' | 'silent reminder';
+export type NotificationType = string; // This allows any notification type key
 export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 export interface Task {
@@ -13,6 +13,7 @@ export interface Task {
   startDate: string; // ISO 8601 date string
   notificationType: NotificationType;
   notificationTime: string; // HH:mm format for notification time
+  notificationValue?: string; // Email for email notifications, phone for SMS, etc.
   notes?: string;
   isCompleted?: boolean;
   lastCompletedDate?: string; // ISO 8601 date string
@@ -24,5 +25,16 @@ export interface TaskHistoryEntry {
   timestamp: string; // ISO 8601 date string
   action: string; // e.g., "Created", "Completed", "Updated"
   details?: string;
+}
+
+// Add interface for notification payload
+export interface NotificationPayload {
+  title: string;
+  body: string;
+  icon?: string;
+  receiver?: string;
+  notificationType: string;
+  taskId?: number;
+  customerId?: number;
 }
 

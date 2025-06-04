@@ -2,6 +2,7 @@ import { Injectable } from "@angular/core";
 import { DatabaseService } from "./database.service";
 import { Task, TaskHistoryEntry } from "../models/task.model";
 import { NotificationService } from "./notification.service"; // Import NotificationService
+import { Platform } from '@ionic/angular';
 
 @Injectable({
   providedIn: "root"
@@ -10,35 +11,42 @@ export class TaskService {
 
   constructor(
     private dbService: DatabaseService,
-    private notificationService: NotificationService // Inject NotificationService
+    private notificationService: NotificationService, // Inject NotificationService
+    private platform: Platform
   ) { }
 
-  async addTask(task: Task): Promise<number | undefined> {
-    const query = "INSERT INTO tasks (title, type, customerId, frequency, startDate, notificationTime, notificationType, notes, isCompleted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    const values: any[] = [
+  async addTask(task: Task): Promise<void> {
+    console.log('TaskService: Adding new task:', task);
+    try {
+      const query = `
+        INSERT INTO tasks (
+          title, type, customerId, frequency, startDate, 
+          notificationTime, notificationType, notes, isCompleted
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      const params = [
       task.title,
       task.type,
-      task.customerId,
+        task.customerId || null,
       task.frequency,
       task.startDate,
-      task.notificationTime,
+        task.notificationTime,
       task.notificationType,
-      task.notes,
+        task.notes || '',
       task.isCompleted ? 1 : 0
     ];
-    try {
-      const result = await this.dbService.executeQuery(query, values);
+      const result = await this.dbService.executeQuery(query, params);
       const taskId = result.changes?.lastId;
+      
       if (taskId) {
-        await this.addHistoryEntry(taskId, "Created", `Task "${task.title}" created.`);
-        const newTask = await this.getTaskById(taskId); // Fetch the full task to pass to notification service
-        if (newTask && newTask.notificationType === "push/local") {
-          await this.notificationService.scheduleNotification(newTask);
-        }
+        console.log('TaskService: Task added successfully with ID:', taskId);
+        task.id = taskId;
+        await this.scheduleTaskNotification(task);
+      } else {
+        console.error('TaskService: Failed to get task ID after insert');
       }
-      return taskId;
     } catch (error) {
-      console.error("Error adding task:", error);
+      console.error('TaskService: Error adding task:', error);
       throw error;
     }
   }
@@ -78,37 +86,77 @@ export class TaskService {
     }
   }
 
-  async updateTask(task: Task): Promise<number | undefined> {
-    if (!task.id) {
-      throw new Error("Task ID is required for update");
+  async updateTask(task: Task): Promise<void> {
+    console.log('TaskService: Updating task:', task);
+    try {
+      // First cancel any existing notification
+      if (task.id) {
+        console.log('TaskService: Cancelling existing notification for task:', task.id);
+        await this.notificationService.cancelNotification(task.id);
     }
-    const query = "UPDATE tasks SET title = ?, type = ?, customerId = ?, frequency = ?, startDate = ?, notificationTime = ?, notificationType = ?, notes = ?, isCompleted = ?, lastCompletedDate = ? WHERE id = ?";
-    const values: any[] = [
+
+      const query = `
+        UPDATE tasks 
+        SET title = ?, 
+            type = ?, 
+            customerId = ?, 
+            frequency = ?, 
+            startDate = ?, 
+            notificationTime = ?,
+            notificationType = ?,
+            notes = ?, 
+            isCompleted = ?
+        WHERE id = ?
+      `;
+      const params = [
       task.title,
       task.type,
-      task.customerId,
+        task.customerId || null,
       task.frequency,
       task.startDate,
-      task.notificationTime,
+        task.notificationTime,
       task.notificationType,
-      task.notes,
+        task.notes || '',
       task.isCompleted ? 1 : 0,
-      task.lastCompletedDate,
       task.id
     ];
-    try {
-      const result = await this.dbService.executeQuery(query, values);
-      if (result.changes?.changes) {
-        await this.addHistoryEntry(task.id, "Updated", `Task "${task.title}" updated.`);
-        // Cancel previous notification and schedule new one if applicable
-        await this.notificationService.cancelNotification(task.id);
-        if (!task.isCompleted && task.notificationType === "push/local") {
-          await this.notificationService.scheduleNotification(task);
-        }
-      }
-      return result.changes?.changes;
+      await this.dbService.executeQuery(query, params);
+      console.log('TaskService: Task updated successfully');
+      
+      // Schedule new notification
+      await this.scheduleTaskNotification(task);
     } catch (error) {
-      console.error("Error updating task:", error);
+      console.error('TaskService: Error updating task:', error);
+      throw error;
+    }
+  }
+
+  private async scheduleTaskNotification(task: Task): Promise<void> {
+    console.log('TaskService: Starting scheduleTaskNotification for task:', task);
+    try {
+      if (task.notificationType === 'push' && this.platform.is('capacitor')) {
+        console.log('TaskService: Scheduling local push notification');
+        await this.notificationService.scheduleNotification(task);
+      } else if (task.notificationType === 'push') {
+        console.log('TaskService: Scheduling web push notification');
+          await this.notificationService.scheduleNotification(task);
+      } else if (task.notificationType !== 'silent') {
+        console.log('TaskService: Sending notification through API');
+        // Send other types of notifications through the API
+        const payload = {
+          title: task.title,
+          body: task.notes || '',
+          notificationType: task.notificationType,
+          taskId: task.id,
+          customerId: task.customerId,
+          receiver: task.notificationValue // Email for notifications, phone for SMS, etc.
+        };
+        await this.notificationService.sendNotification(payload);
+      } else {
+        console.log('TaskService: Silent notification type, no notification scheduled');
+      }
+    } catch (error) {
+      console.error('TaskService: Error scheduling notification:', error);
       throw error;
     }
   }
@@ -127,17 +175,15 @@ export class TaskService {
     }
   }
 
-  async markTaskAsCompleted(taskId: number, completedDate: string): Promise<number | undefined> {
+  async markTaskAsCompleted(taskId: number, completedDate: string): Promise<void> {
     const task = await this.getTaskById(taskId);
     if (!task) {
       throw new Error(`Task with ID ${taskId} not found.`);
     }
     task.isCompleted = true;
     task.lastCompletedDate = completedDate;
-    const result = await this.updateTask(task); // updateTask will handle history and notification cancellation
-    // No need to add history entry here as updateTask does it.
-    // updateTask also cancels notification if task is completed.
-    return result;
+    await this.updateTask(task);
+    await this.addHistoryEntry(taskId, "Completed", `Task completed on ${completedDate}`);
   }
 
   async addHistoryEntry(taskId: number, action: string, details?: string): Promise<number | undefined> {

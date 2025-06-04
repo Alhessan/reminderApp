@@ -3,32 +3,41 @@
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/task-list"></ion-back-button>
     </ion-buttons>
-    <ion-title>{{ isEditMode ? (	'Edit Task	') : (	'Add Task	') }}</ion-title>
+    <ion-title>{{ isEditMode ? 'Edit Routine' : 'New Routine' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
   <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+    <!-- Basic Task Information -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          Routine Details
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
     <ion-item>
-      <ion-label position="stacked">Title <ion-text color="danger">*</ion-text></ion-label>
-      <ion-input formControlName="title" type="text" placeholder="Enter task title"></ion-input>
+          <ion-label position="stacked">What needs to be done? <ion-text color="danger">*</ion-text></ion-label>
+          <ion-input formControlName="title" type="text" placeholder="Enter your routine"></ion-input>
     </ion-item>
-    <div *ngIf="taskForm.get(	'title	')?.invalid && (taskForm.get(	'title	')?.dirty || taskForm.get(	'title	')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get(	'title	')?.errors?.[	'required	']">Title is required.</small>
+        <div *ngIf="taskForm.get('title')?.invalid && (taskForm.get('title')?.dirty || taskForm.get('title')?.touched)" class="error-message">
+          <small *ngIf="taskForm.get('title')?.errors?.['required']">Title is required.</small>
     </div>
 
     <ion-item>
-      <ion-label position="stacked">Type <ion-text color="danger">*</ion-text></ion-label>
+          <ion-label position="stacked">Category <ion-text color="danger">*</ion-text></ion-label>
       <div class="type-selection-wrapper">
-        <ion-select formControlName="type" placeholder="Select task type">
+            <ion-select formControlName="type" placeholder="Select routine category" interface="action-sheet">
           <ion-select-option *ngFor="let type of taskTypes$ | async" [value]="type.name">
             <ion-icon [name]="type.icon" [style.color]="type.color"></ion-icon>
             {{ type.name }}
           </ion-select-option>
         </ion-select>
-        <ion-button fill="clear" (click)="addNewTaskType()">
+            <ion-button fill="clear" (click)="addNewTaskType()" size="small">
           <ion-icon name="add-circle-outline"></ion-icon>
-          New Type
+              New
         </ion-button>
       </div>
     </ion-item>
@@ -36,62 +45,314 @@
       <small *ngIf="taskForm.get('type')?.errors?.['required']">Type is required.</small>
     </div>
 
+        <!-- Profile/Customer Selection -->
+        <div class="profile-selection">
+          <ng-container *ngIf="taskForm.get('customerId')?.value; else noProfile">
     <ion-item>
-      <ion-label position="stacked">Customer (Optional)</ion-label>
-      <ion-select formControlName="customerId" placeholder="Select customer">
-        <ion-select-option [value]="null">None</ion-select-option> <!-- Allow no customer -->
+              <ion-label position="stacked">Assigned to</ion-label>
+              <ion-select formControlName="customerId" interface="action-sheet">
+                <ion-select-option [value]="null">No one</ion-select-option>
         <ion-select-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</ion-select-option>
       </ion-select>
     </ion-item>
+          </ng-container>
+          <ng-template #noProfile>
+            <ion-button expand="block" fill="outline" (click)="showProfileSelection()" class="profile-button">
+              <ion-icon name="person-add-outline" slot="start"></ion-icon>
+              Assign
+            </ion-button>
+          </ng-template>
+        </div>
+      </ion-card-content>
+    </ion-card>
 
-    <ion-item>
-      <ion-label position="stacked">Frequency <ion-text color="danger">*</ion-text></ion-label>
-      <ion-select formControlName="frequency" placeholder="Select frequency">
-        <ion-select-option value="daily">Daily</ion-select-option>
-        <ion-select-option value="weekly">Weekly</ion-select-option>
-        <ion-select-option value="monthly">Monthly</ion-select-option>
-        <ion-select-option value="yearly">Yearly</ion-select-option>
-      </ion-select>
-    </ion-item>
-    <div *ngIf="taskForm.get(	'frequency	')?.invalid && (taskForm.get(	'frequency	')?.dirty || taskForm.get(	'frequency	')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get(	'frequency	')?.errors?.[	'required	']">Frequency is required.</small>
+    <!-- Schedule Information -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="repeat-outline" color="primary"></ion-icon>
+          Recurrence Pattern
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="frequency-info">
+          <p class="frequency-label">How often should this task repeat?</p>
+          <ion-segment formControlName="frequency" mode="md">
+            <ion-segment-button value="daily" mode="md">
+              <ion-icon name="sunny-outline"></ion-icon>
+              <ion-label>Daily</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="weekly" mode="md">
+              <ion-icon name="calendar-outline"></ion-icon>
+              <ion-label>Weekly</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="monthly" mode="md">
+              <ion-icon name="calendar-number-outline"></ion-icon>
+              <ion-label>Monthly</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="yearly" mode="md">
+              <ion-icon name="hourglass-outline"></ion-icon>
+              <ion-label>Yearly</ion-label>
+            </ion-segment-button>
+          </ion-segment>
     </div>
 
-    <ion-item>
-      <ion-label position="stacked">Start Date <ion-text color="danger">*</ion-text></ion-label>
-      <ion-input formControlName="startDate" type="date"></ion-input>
+        <div class="start-date-section">
+          <p class="start-date-label">When should it start?</p>
+          <ion-item lines="none" button detail (click)="openDatePicker()" class="date-button">
+            <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
+            <ion-label>
+              <h2>Starts</h2>
+              <p>{{ formatDate(taskForm.get('startDate')?.value) }}</p>
+            </ion-label>
     </ion-item>
-    <div *ngIf="taskForm.get('startDate')?.invalid && (taskForm.get('startDate')?.dirty || taskForm.get('startDate')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get('startDate')?.errors?.['required']">Start date is required.</small>
-    </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
 
+    <!-- Notification Settings -->
+    <ion-card class="notification-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="notifications-outline" color="primary"></ion-icon>
+          Reminder Settings
+        </ion-card-title>
+        <ion-card-subtitle>How should we remind you?</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="notification-info"  >
+              <ion-segment formControlName="notificationType" class="notification-type-tabs custom-segment" mode="md">
+                <ion-segment-button *ngFor="let type of enabledNotificationTypes$ | async" [value]="type.key" class="notification-tab" [class.segment-button-checked]="taskForm.get('notificationType')?.value === type.key" mode="md">
+                  <ion-icon [name]="type.icon" [color]="type.color"></ion-icon>
+                  <ion-label>{{ type.name | slice:0:5 }}</ion-label>
+                </ion-segment-button>
+                <ion-segment-button value="manage" class="notification-tab manage-tab" mode="md">
+                  <ion-icon name="settings-outline"></ion-icon>
+                  <ion-label>More</ion-label>
+                </ion-segment-button>
+              </ion-segment>
+            </div>
+
+              <!-- Notification Value Input -->
+              <div *ngIf="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.requiresValue" class="notification-value-input">
+                <ion-item>
+                  <ion-label position="stacked">{{ getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel }}</ion-label>
+                  <ion-input
+                    formControlName="notificationValue"
+                    [type]="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.key === 'email' ? 'email' : 'text'"
+                    [placeholder]="'Enter ' + getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel">
+                  </ion-input>
+                  <ion-note slot="error" *ngIf="taskForm.get('notificationValue')?.touched && taskForm.get('notificationValue')?.errors">
+                    {{ getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.validationError }}
+                  </ion-note>
+                </ion-item>
+              </div>
+
+              <!-- Time Picker -->
+              <div class="time-picker-container">
+                <ion-datetime 
+                  formControlName="notificationTime" 
+                  presentation="time"
+                  [preferWheel]="true"
+                  class="notification-time-picker">
+                </ion-datetime>
+          </div>
+
+              <!-- Quick Time Presets -->
+              <div class="quick-time-presets">
+                <ion-chip (click)="setQuickTime('09:00')" [color]="isSelectedTime('09:00') ? 'primary' : 'medium'">
+                  <ion-icon name="sunny-outline"></ion-icon>
+                  <ion-label>9:00 AM</ion-label>
+                </ion-chip>
+                <ion-chip (click)="setQuickTime('12:00')" [color]="isSelectedTime('12:00') ? 'primary' : 'medium'">
+                  <ion-icon name="sunny"></ion-icon>
+                  <ion-label>12:00 PM</ion-label>
+                </ion-chip>
+                <ion-chip (click)="setQuickTime('18:00')" [color]="isSelectedTime('18:00') ? 'primary' : 'medium'">
+                  <ion-icon name="moon-outline"></ion-icon>
+                  <ion-label>6:00 PM</ion-label>
+                </ion-chip>
+          </div>
+
+              <!-- Notification Settings Link -->
+              <div class="notification-settings-link">
+                <ion-note color="medium">
+                  Configure notification methods in 
+                  <a (click)="manageNotificationTypes()">Notification Settings</a>
+                </ion-note>
+          </div>
+        
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Notes -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="document-text-outline" color="primary"></ion-icon>
+          Additional Notes
+        </ion-card-title>
+        <ion-card-subtitle>Add any details or instructions</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
     <ion-item>
-      <ion-label position="stacked">Notification Time <ion-text color="danger">*</ion-text></ion-label>
-      <ion-input formControlName="notificationTime" type="time"></ion-input>
+          <ion-textarea 
+            formControlName="notes" 
+            placeholder="Enter any additional notes or instructions for this recurring task" 
+            [autoGrow]="true"
+            rows="3">
+          </ion-textarea>
     </ion-item>
-    <div *ngIf="taskForm.get('notificationTime')?.invalid && (taskForm.get('notificationTime')?.dirty || taskForm.get('notificationTime')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get('notificationTime')?.errors?.['required']">Notification time is required.</small>
-    </div>
+      </ion-card-content>
+    </ion-card>
 
-    <ion-item>
-      <ion-label position="stacked">Notification Type <ion-text color="danger">*</ion-text></ion-label>
-      <ion-select formControlName="notificationType" placeholder="Select notification type">
-        <ion-select-option value="push/local">Push/Local Notification</ion-select-option>
-        <ion-select-option value="silent reminder">Silent Reminder (in-app)</ion-select-option>
-      </ion-select>
-    </ion-item>
-    <div *ngIf="taskForm.get(	'notificationType	')?.invalid && (taskForm.get(	'notificationType	')?.dirty || taskForm.get(	'notificationType	')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get(	'notificationType	')?.errors?.[	'required	']">Notification type is required.</small>
-    </div>
+    <!-- Notification Preview -->
+    <ion-card *ngIf="taskForm.valid && taskForm.get('notificationType')?.value === 'push/local'">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="eye-outline" color="primary"></ion-icon>
+          Notification Preview
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="notification-preview">
+          <h2>Reminder: {{ taskForm.get('title')?.value }}</h2>
+          <p>Type: {{ taskForm.get('type')?.value }}</p>
+          <p>Time: {{ formatTime(taskForm.get('notificationTime')?.value) }}</p>
+          <p *ngIf="taskForm.get('notes')?.value">Notes: {{ taskForm.get('notes')?.value }}</p>
+        </div>
+      </ion-card-content>
+    </ion-card>
 
-    <ion-item>
-      <ion-label position="stacked">Notes (Optional)</ion-label>
-      <ion-textarea formControlName="notes" placeholder="Enter any notes for the task" [autoGrow]="true"></ion-textarea>
-    </ion-item>
-
-    <ion-button type="submit" expand="block" [disabled]="taskForm.invalid" class="ion-margin-top">
-      {{ isEditMode ? (	'Update Task	') : (	'Save Task	') }}
+    <ion-button type="submit" expand="block" [disabled]="taskForm.invalid" class="ion-margin submit-button">
+      <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
+      {{ isEditMode ? 'Update Routine' : 'Start Tracking' }}
     </ion-button>
   </form>
 </ion-content>
+
+<style>
+.profile-selection {
+  margin-top: 16px;
+}
+
+.profile-button {
+  margin: 0;
+}
+
+.date-button {
+  --padding-start: 0;
+  margin-top: 8px;
+}
+
+.date-button ion-label h2 {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.date-button ion-label p {
+  color: var(--ion-color-medium);
+}
+
+.notification-card ion-card-content {
+  padding: 0;
+}
+
+.notification-type-segment {
+  padding: 16px 16px 0;
+}
+
+.notification-segment-button {
+  --padding-top: 8px;
+  --padding-bottom: 8px;
+}
+
+.time-picker-container {
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.notification-time-picker {
+  width: 100%;
+  max-width: 320px;
+  margin: 8px auto;
+  border-radius: 8px;
+  background: var(--ion-color-light);
+  --height: 200px;
+}
+
+.quick-time-presets {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px 16px;
+}
+
+ion-chip {
+  margin: 0;
+}
+
+.frequency-info {
+  margin-bottom: 20px;
+}
+
+.frequency-label, .start-date-label {
+  color: var(--ion-color-medium);
+  font-size: 0.9em;
+  margin: 0 0 8px 4px;
+}
+
+ion-segment-button {
+  --padding-top: 12px;
+  --padding-bottom: 10px;
+}
+
+ion-segment-button ion-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+ion-segment-button ion-label small {
+  font-size: 0.7em;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+.submit-button {
+  margin-bottom: 24px !important;
+}
+
+ion-card {
+  margin: 16px 0;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+ion-card-header {
+  padding-bottom: 8px;
+}
+
+ion-card-subtitle {
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
+ion-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+}
+
+.type-selection-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.start-date-section {
+  margin-top: 20px;
+}
+</style>
 

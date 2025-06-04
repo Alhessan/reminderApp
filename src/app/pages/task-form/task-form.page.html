@@ -1,0 +1,61 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/task-list"></ion-back-button>
+    </ion-buttons>
+    <ion-title>New Routine</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <div class="form-section">
+    <h2>When should it start?</h2>
+    <ion-item button detail="true" class="date-picker">
+      <ion-icon name="calendar-outline" slot="start"></ion-icon>
+      <ion-label>
+        <h2>Starts</h2>
+        <p>Today</p>
+      </ion-label>
+    </ion-item>
+  </div>
+
+  <div class="form-section">
+    <h2>HOW SHOULD WE REMIND YOU?</h2>
+    <ion-item button detail="true" [routerLink]="['/notification-types']" class="notification-settings">
+      <ion-icon name="notifications-outline" slot="start"></ion-icon>
+      <ion-label>Reminder Settings</ion-label>
+    </ion-item>
+
+    <div class="notification-types">
+      <ng-container *ngFor="let type of enabledNotificationTypes$ | async">
+        <div class="notification-type active">
+          <ion-icon [name]="type.icon" [style.color]="type.color"></ion-icon>
+          <span>{{ type.name }}</span>
+        </div>
+      </ng-container>
+      <div *ngIf="!(enabledNotificationTypes$ | async)?.length" class="no-notifications">
+        <ion-icon name="notifications-off-outline" color="medium"></ion-icon>
+        <span>No notification methods enabled</span>
+      </div>
+    </div>
+
+    <ion-item>
+      <ion-datetime presentation="time" hourCycle="h12"></ion-datetime>
+    </ion-item>
+  </div>
+
+  <div class="form-section">
+    <h2>ADD ANY DETAILS OR INSTRUCTIONS</h2>
+    <ion-item>
+      <ion-textarea placeholder="Add notes here..." rows="4"></ion-textarea>
+    </ion-item>
+  </div>
+</ion-content>
+
+<ion-footer>
+  <ion-toolbar>
+    <ion-button expand="block" class="ion-margin">
+      Create Routine
+    </ion-button>
+  </ion-toolbar>
+</ion-footer> 

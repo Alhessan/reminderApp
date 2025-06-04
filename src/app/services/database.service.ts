@@ -3,11 +3,76 @@ import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection, CapacitorSQLitePlugin, DBSQLiteValues, capSQLiteSet } from '@capacitor-community/sqlite';
 import { BehaviorSubject } from 'rxjs';
 
+const DEFAULT_NOTIFICATION_TYPES = [
+  {
+    key: 'push',
+    name: 'Push Notifications',
+    description: 'Receive instant notifications on your device',
+    icon: 'notifications-outline',
+    color: '#2dd36f',
+    isEnabled: false,
+    requiresValue: false,
+    order: 1
+  },
+  {
+    key: 'email',
+    name: 'Email Notifications',
+    description: 'Get notified via email',
+    icon: 'mail-outline',
+    color: '#3880ff',
+    isEnabled: false,
+    requiresValue: true,
+    valueLabel: 'Email Address',
+    validationPattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$',
+    validationError: 'Please enter a valid email address',
+    order: 2
+  },
+  {
+    key: 'sms',
+    name: 'SMS Notifications',
+    description: 'Receive SMS text messages',
+    icon: 'chatbox-outline',
+    color: '#5260ff',
+    isEnabled: false,
+    requiresValue: true,
+    valueLabel: 'Phone Number',
+    validationPattern: '^\\+?[1-9]\\d{1,14}$',
+    validationError: 'Please enter a valid phone number in international format',
+    order: 3
+  },
+  {
+    key: 'whatsapp',
+    name: 'WhatsApp Notifications',
+    description: 'Get notified via WhatsApp',
+    icon: 'logo-whatsapp',
+    color: '#25D366',
+    isEnabled: false,
+    requiresValue: true,
+    valueLabel: 'WhatsApp Number',
+    validationPattern: '^\\+?[1-9]\\d{1,14}$',
+    validationError: 'Please enter a valid WhatsApp number in international format',
+    order: 4
+  },
+  {
+    key: 'telegram',
+    name: 'Telegram Notifications',
+    description: 'Receive notifications on Telegram',
+    icon: 'paper-plane-outline',
+    color: '#0088cc',
+    isEnabled: false,
+    requiresValue: true,
+    valueLabel: 'Telegram Username',
+    validationPattern: '^[a-zA-Z0-9_]{5,32}$',
+    validationError: 'Please enter a valid Telegram username (5-32 characters, alphanumeric and underscore)',
+    order: 5
+  }
+];
+
 @Injectable({
   providedIn: 'root'
 })
 export class DatabaseService {
-  private sqlite: CapacitorSQLitePlugin;
+  private sqlite: SQLiteConnection;
   private db!: SQLiteDBConnection;
   private readonly dbName = 'reminder_app.db';
   private isNative: boolean;
@@ -18,8 +83,10 @@ export class DatabaseService {
   private dbReady = new BehaviorSubject<boolean>(false);
   public dbReady$ = this.dbReady.asObservable();
 
+  private currentVersion = 2; // Increment this when adding new migrations
+
   constructor() {
-    this.sqlite = CapacitorSQLite;
+    this.sqlite = new SQLiteConnection(CapacitorSQLite);
     this.isNative = Capacitor.isNativePlatform();
     console.log(`Running on ${this.isNative ? 'native' : 'web'} platform`);
     
@@ -34,7 +101,6 @@ export class DatabaseService {
   }
 
   async initializeDatabase(): Promise<void> {
-    try {
       if (this.isNative) {
         // Native platform - use SQLite
         await this.initializeNativeDatabase();
@@ -43,25 +109,30 @@ export class DatabaseService {
         await this.initializeWebDatabase();
       }
       console.log(`Database ${this.dbName} initialized.`);
-    } catch (err) {
-      console.error('Error initializing database:', err);
-      throw err;
-    }
   }
 
   private async initializeNativeDatabase(): Promise<void> {
     try {
-      const sqliteConnection = new SQLiteConnection(this.sqlite);
+      const platform = Capacitor.getPlatform();
+      const dbName = 'routineloop.db';
+
+      if (platform === 'web') {
+        await this.sqlite.initWebStore();
+      }
       
-      this.db = await sqliteConnection.createConnection(
-        this.dbName,
-        false, // encrypted
+      this.db = await this.sqlite.createConnection(
+        dbName,
+        false,
         'no-encryption',
-        1, // version
-        false // readOnly
+        1,
+        false
       );
 
       await this.db.open();
+      
+      // Run migrations
+      await this.runMigrations();
+
       await this.createSchema();
       console.log(`Native SQLite database ${this.dbName} initialized and schema created.`);
     } catch (err) {
@@ -87,7 +158,7 @@ export class DatabaseService {
         this.initializeEmptyWebStore();
       }
       
-      // Ensure all required tables exist
+      // Ensure all required tables exist with proper initialization
       if (!this.webStore['customers']) {
         this.webStore['customers'] = [];
       }
@@ -96,6 +167,111 @@ export class DatabaseService {
       }
       if (!this.webStore['task_history']) {
         this.webStore['task_history'] = [];
+      }
+      if (!this.webStore['task_types']) {
+        this.webStore['task_types'] = [
+          {
+            id: 1,
+            name: 'Payment',
+            description: 'Payment reminder tasks',
+            isDefault: 1,
+            icon: 'cash-outline',
+            color: '#2dd36f'
+          },
+          {
+            id: 2,
+            name: 'Update',
+            description: 'General update tasks',
+            isDefault: 1,
+            icon: 'refresh-outline',
+            color: '#3880ff'
+          },
+          {
+            id: 3,
+            name: 'Custom',
+            description: 'Custom reminder tasks',
+            isDefault: 1,
+            icon: 'create-outline',
+            color: '#5260ff'
+          }
+        ];
+      }
+      if (!this.webStore['notification_types']) {
+        this.webStore['notification_types'] = [
+          {
+            id: 1,
+            key: 'push',
+            name: 'Push Notifications',
+            description: 'Receive instant notifications on your device',
+            icon: 'notifications-outline',
+            color: '#2dd36f',
+            isEnabled: 0,
+            requiresValue: 0,
+            valueLabel: null,
+            validationPattern: null,
+            validationError: null,
+            order_num: 1
+          },
+          {
+            id: 2,
+            key: 'email',
+            name: 'Email Notifications',
+            description: 'Get notified via email',
+            icon: 'mail-outline',
+            color: '#3880ff',
+            isEnabled: 0,
+            requiresValue: 1,
+            valueLabel: 'Email Address',
+            validationPattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$',
+            validationError: 'Please enter a valid email address',
+            order_num: 2
+          },
+          {
+            id: 3,
+            key: 'sms',
+            name: 'SMS Notifications',
+            description: 'Receive SMS text messages',
+            icon: 'chatbox-outline',
+            color: '#5260ff',
+            isEnabled: 0,
+            requiresValue: 1,
+            valueLabel: 'Phone Number',
+            validationPattern: '^\\+?[1-9]\\d{1,14}$',
+            validationError: 'Please enter a valid phone number in international format',
+            order_num: 3
+          },
+          {
+            id: 4,
+            key: 'whatsapp',
+            name: 'WhatsApp Notifications',
+            description: 'Get notified via WhatsApp',
+            icon: 'logo-whatsapp',
+            color: '#25D366',
+            isEnabled: 0,
+            requiresValue: 1,
+            valueLabel: 'WhatsApp Number',
+            validationPattern: '^\\+?[1-9]\\d{1,14}$',
+            validationError: 'Please enter a valid WhatsApp number in international format',
+            order_num: 4
+          },
+          {
+            id: 5,
+            key: 'telegram',
+            name: 'Telegram Notifications',
+            description: 'Receive notifications on Telegram',
+            icon: 'paper-plane-outline',
+            color: '#0088cc',
+            isEnabled: 0,
+            requiresValue: 1,
+            valueLabel: 'Telegram Username',
+            validationPattern: '^[a-zA-Z0-9_]{5,32}$',
+            validationError: 'Please enter a valid Telegram username (5-32 characters, alphanumeric and underscore)',
+            order_num: 5
+          }
+        ];
+      }
+      if (!this.webStore['notification_values']) {
+        this.webStore['notification_values'] = [];
       }
       
       // Save to ensure structure is correct
@@ -139,7 +315,80 @@ export class DatabaseService {
           icon: 'create-outline',
           color: '#5260ff'
         }
-      ]
+      ],
+      'notification_types': [
+        {
+          id: 1,
+          key: 'push',
+          name: 'Push Notifications',
+          description: 'Receive instant notifications on your device',
+          icon: 'notifications-outline',
+          color: '#2dd36f',
+          isEnabled: 0,
+          requiresValue: 0,
+          valueLabel: null,
+          validationPattern: null,
+          validationError: null,
+          order_num: 1
+        },
+        {
+          id: 2,
+          key: 'email',
+          name: 'Email Notifications',
+          description: 'Get notified via email',
+          icon: 'mail-outline',
+          color: '#3880ff',
+          isEnabled: 0,
+          requiresValue: 1,
+          valueLabel: 'Email Address',
+          validationPattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$',
+          validationError: 'Please enter a valid email address',
+          order_num: 2
+        },
+        {
+          id: 3,
+          key: 'sms',
+          name: 'SMS Notifications',
+          description: 'Receive SMS text messages',
+          icon: 'chatbox-outline',
+          color: '#5260ff',
+          isEnabled: 0,
+          requiresValue: 1,
+          valueLabel: 'Phone Number',
+          validationPattern: '^\\+?[1-9]\\d{1,14}$',
+          validationError: 'Please enter a valid phone number in international format',
+          order_num: 3
+        },
+        {
+          id: 4,
+          key: 'whatsapp',
+          name: 'WhatsApp Notifications',
+          description: 'Get notified via WhatsApp',
+          icon: 'logo-whatsapp',
+          color: '#25D366',
+          isEnabled: 0,
+          requiresValue: 1,
+          valueLabel: 'WhatsApp Number',
+          validationPattern: '^\\+?[1-9]\\d{1,14}$',
+          validationError: 'Please enter a valid WhatsApp number in international format',
+          order_num: 4
+        },
+        {
+          id: 5,
+          key: 'telegram',
+          name: 'Telegram Notifications',
+          description: 'Receive notifications on Telegram',
+          icon: 'paper-plane-outline',
+          color: '#0088cc',
+          isEnabled: 0,
+          requiresValue: 1,
+          valueLabel: 'Telegram Username',
+          validationPattern: '^[a-zA-Z0-9_]{5,32}$',
+          validationError: 'Please enter a valid Telegram username (5-32 characters, alphanumeric and underscore)',
+          order_num: 5
+        }
+      ],
+      'notification_values': []
     };
     
     // Add some sample data for testing in web mode
@@ -179,7 +428,8 @@ export class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         email TEXT,
-        phone TEXT
+        phone TEXT,
+        notes TEXT
       );
 
       CREATE TABLE IF NOT EXISTS task_types (
@@ -199,7 +449,7 @@ export class DatabaseService {
         frequency TEXT NOT NULL CHECK(frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
         startDate TEXT NOT NULL, -- ISO 8601
         notificationTime TEXT NOT NULL DEFAULT '09:00', -- 24-hour format HH:mm
-        notificationType TEXT NOT NULL CHECK(notificationType IN ('push/local', 'silent reminder')),
+        notificationType TEXT NOT NULL,
         notes TEXT,
         isCompleted INTEGER DEFAULT 0, -- 0 for false, 1 for true
         lastCompletedDate TEXT, -- ISO 8601
@@ -223,6 +473,111 @@ export class DatabaseService {
         ('Custom', 'Custom reminder tasks', 1, 'create-outline', '#5260ff');
     `;
     await this.db.execute(schema);
+  }
+
+  private async runMigrations() {
+    try {
+      // Create version table if it doesn't exist
+      await this.executeQuery(`
+        CREATE TABLE IF NOT EXISTS database_version (
+          version INTEGER PRIMARY KEY
+        )
+      `);
+
+      // Get current database version
+      const result = await this.executeQuery('SELECT version FROM database_version LIMIT 1');
+      const currentDbVersion = result.values?.length ? result.values[0].version : 0;
+
+      // Run migrations in sequence
+      if (currentDbVersion < 1) {
+        await this.migration1();
+      }
+      if (currentDbVersion < 2) {
+        await this.migration2();
+      }
+      // Add more version checks here for future migrations
+
+      // Update database version
+      if (currentDbVersion === 0) {
+        await this.executeQuery('INSERT INTO database_version (version) VALUES (?)', [this.currentVersion]);
+      } else {
+        await this.executeQuery('UPDATE database_version SET version = ?', [this.currentVersion]);
+      }
+    } catch (error) {
+      console.error('Error running migrations:', error);
+      throw error;
+    }
+  }
+
+  private async migration1() {
+    // Initial schema
+    await this.executeQuery(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        startDate TEXT NOT NULL,
+        notificationTime TEXT,
+        notes TEXT,
+        isCompleted INTEGER DEFAULT 0,
+        lastCompletedDate TEXT,
+        customerId INTEGER,
+        FOREIGN KEY (customerId) REFERENCES customers(id)
+      )
+    `);
+
+    await this.executeQuery(`
+      CREATE TABLE IF NOT EXISTS customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT,
+        phone TEXT,
+        notes TEXT
+      )
+    `);
+  }
+
+  private async migration2() {
+    // Add notification_types table
+    await this.executeQuery(`
+      CREATE TABLE IF NOT EXISTS notification_types (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        icon TEXT NOT NULL,
+        color TEXT NOT NULL,
+        isEnabled INTEGER DEFAULT 0,
+        requiresValue INTEGER DEFAULT 0,
+        valueLabel TEXT,
+        validationPattern TEXT,
+        validationError TEXT,
+        order_num INTEGER NOT NULL
+      )
+    `);
+
+    // Insert default notification types
+    for (const type of DEFAULT_NOTIFICATION_TYPES) {
+      await this.executeQuery(`
+        INSERT INTO notification_types (
+          key, name, description, icon, color, isEnabled, 
+          requiresValue, valueLabel, validationPattern, validationError, order_num
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        type.key,
+        type.name,
+        type.description || '',
+        type.icon,
+        type.color,
+        type.isEnabled ? 1 : 0,
+        type.requiresValue ? 1 : 0,
+        type.valueLabel || null,
+        type.validationPattern || null,
+        type.validationError || null,
+        type.order
+      ]);
+    }
   }
 
   async executeQuery(statement: string, values?: any[]): Promise<any> {
@@ -264,70 +619,25 @@ export class DatabaseService {
 
   private handleWebSelect(statement: string, values: any[]): any {
     // Very simplified SELECT handling - just determine which table and return all records
-    // In a real implementation, you would parse the WHERE clause and filter accordingly
     
-    // Special case for the JOIN query with ID filter (task detail/edit)
-    if (statement.includes('SELECT t.*, c.name as customerName') && 
-        statement.includes('FROM tasks t') && 
-        statement.includes('LEFT JOIN customers c ON t.customerId = c.id') &&
-        statement.includes('WHERE t.id = ?') &&
-        values.length > 0) {
+    // Special case for notification types JOIN query
+    if (statement.includes('SELECT nt.key, nv.value') && 
+        statement.includes('FROM notification_types nt') &&
+        statement.includes('LEFT JOIN notification_values nv')) {
       
-      const taskId = values[0];
-      console.log(`Handling special JOIN query for task with ID ${taskId}`);
+      const enabledTypes = this.webStore['notification_types'].filter((nt: any) => nt.isEnabled === 1);
+      const values = this.webStore['notification_values'];
       
-      // Find the specific task by ID
-      const task = this.webStore['tasks'].find((t: any) => t.id === taskId);
-      
-      if (!task) {
-        console.log(`Task with ID ${taskId} not found`);
-        return { values: [] };
-      }
-      
-      // Create a joined result with customer name
-      let result = { ...task };
-      
-      if (task.customerId) {
-        const customer = this.webStore['customers'].find((c: any) => c.id === task.customerId);
-        result.customerName = customer ? customer.name : null;
-      } else {
-        result.customerName = null;
-      }
-      
-      console.log(`Returning task with ID ${taskId}:`, result);
-      return { values: [result] };
-    }
-    
-    // Special case for the JOIN query for all tasks
-    if (statement.includes('SELECT t.*, c.name as customerName') && 
-        statement.includes('FROM tasks t') && 
-        statement.includes('LEFT JOIN customers c ON t.customerId = c.id')) {
-      
-      console.log('Handling special JOIN query for all tasks with customer names');
-      
-      // Create a joined result with customer names
-      const tasksWithCustomers = this.webStore['tasks'].map((task: any) => {
-        let result = { ...task };
-        
-        if (task.customerId) {
-          const customer = this.webStore['customers'].find((c: any) => c.id === task.customerId);
-          result.customerName = customer ? customer.name : null;
-        } else {
-          result.customerName = null;
-        }
-        
-        return result;
-      });
-      
-      // Sort by startDate if requested
-      if (statement.includes('ORDER BY t.startDate')) {
-        tasksWithCustomers.sort((a: any, b: any) => {
-          return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      const result = enabledTypes.map((type: any) => {
+        const value = values.find((v: any) => v.notification_type_id === type.id);
+        return {
+          key: type.key,
+          value: value ? value.value : null
+        };
         });
-      }
       
-      console.log('Returning all tasks with customers:', tasksWithCustomers);
-      return { values: tasksWithCustomers };
+      console.log('Returning notification settings:', result);
+      return { values: result };
     }
     
     let table = '';
@@ -339,6 +649,10 @@ export class DatabaseService {
       table = 'task_history';
     } else if (statement.includes('FROM task_types')) {
       table = 'task_types';
+    } else if (statement.includes('FROM notification_types')) {
+      table = 'notification_types';
+    } else if (statement.includes('FROM notification_values')) {
+      table = 'notification_values';
     }
     
     if (table) {
@@ -347,7 +661,7 @@ export class DatabaseService {
         const id = values[0];
         console.log(`Filtering ${table} by id ${id}`);
         const filteredValues = this.webStore[table].filter((item: any) => item.id === id);
-        console.log(`Found ${filteredValues.length} items in ${table} with id ${id}:`, filteredValues);
+        console.log(`Found ${filteredValues.length} items in ${table} with id ${id}`);
         return { values: filteredValues };
       }
       
@@ -369,6 +683,8 @@ export class DatabaseService {
       table = 'task_history';
     } else if (statement.includes('INTO task_types')) {
       table = 'task_types';
+    } else if (statement.includes('INTO notification_values')) {
+      table = 'notification_values';
     }
     
     if (table) {
@@ -408,20 +724,16 @@ export class DatabaseService {
           action: values[2],
           details: values[3]
         };
-      } else if (table === 'task_types') {
+      } else if (table === 'notification_values') {
         newRecord = {
           ...newRecord,
-          name: values[0],
-          description: values[1],
-          isDefault: values[2] || 0,
-          icon: values[3],
-          color: values[4]
+          notification_type_id: values[0],
+          value: values[1]
         };
       }
       
       this.webStore[table].push(newRecord);
       console.log(`Inserted record into ${table}:`, newRecord);
-      console.log(`${table} now has ${this.webStore[table].length} records`);
       return { changes: { lastId: newId } };
     }
     
@@ -434,27 +746,32 @@ export class DatabaseService {
       table = 'customers';
     } else if (statement.includes('UPDATE tasks')) {
       table = 'tasks';
-    } else if (statement.includes('UPDATE task_history')) {
-      table = 'task_history';
+    } else if (statement.includes('UPDATE notification_types')) {
+      table = 'notification_types';
     }
     
     if (table) {
-      // Assume the last value is the ID for the WHERE clause
+      let records = this.webStore[table];
+      let updated = 0;
+
+      if (table === 'notification_types' && statement.includes('WHERE key = ?')) {
+        const key = values[values.length - 1];
+        const isEnabled = values[0];
+        records = records.map((record: any) => {
+          if (record.key === key) {
+            updated++;
+            return { ...record, isEnabled };
+          }
+          return record;
+        });
+      } else if (statement.includes('WHERE id = ?')) {
       const id = values[values.length - 1];
-      console.log(`Updating ${table} with id ${id}`);
-      const index = this.webStore[table].findIndex((item: any) => item.id === id);
-      
-      if (index !== -1) {
-        if (table === 'customers') {
-          this.webStore[table][index] = {
-            ...this.webStore[table][index],
-            name: values[0],
-            email: values[1],
-            phone: values[2]
-          };
-        } else if (table === 'tasks') {
-          this.webStore[table][index] = {
-            ...this.webStore[table][index],
+        records = records.map((record: any) => {
+          if (record.id === id) {
+            updated++;
+            if (table === 'tasks') {
+              return {
+                ...record,
             title: values[0],
             type: values[1],
             customerId: values[2],
@@ -466,21 +783,14 @@ export class DatabaseService {
             isCompleted: values[8] === 1,
             lastCompletedDate: values[9]
           };
-        } else if (table === 'task_types') {
-          this.webStore[table][index] = {
-            ...this.webStore[table][index],
-            name: values[0],
-            description: values[1],
-            isDefault: values[2],
-            icon: values[3],
-            color: values[4]
-          };
-        }
-        console.log(`Updated record in ${table}:`, this.webStore[table][index]);
-        return { changes: { changes: 1 } };
-      } else {
-        console.log(`No record found in ${table} with id ${id}`);
+            }
+          }
+          return record;
+        });
       }
+
+      this.webStore[table] = records;
+      return { changes: { changes: updated } };
     }
     
     return { changes: { changes: 0 } };
@@ -494,70 +804,30 @@ export class DatabaseService {
       table = 'tasks';
     } else if (statement.includes('FROM task_history')) {
       table = 'task_history';
-    } else if (statement.includes('FROM task_types')) {
-      table = 'task_types';
+    } else if (statement.includes('FROM notification_values')) {
+      table = 'notification_values';
     }
     
     if (table && values.length > 0) {
-      const id = values[0];
       const initialLength = this.webStore[table].length;
-      this.webStore[table] = this.webStore[table].filter((item: any) => item.id !== id);
-      const removed = initialLength - this.webStore[table].length;
       
-      console.log(`Deleted ${removed} record(s) from ${table} with id ${id}`);
+      if (table === 'notification_values' && statement.includes('IN (SELECT id FROM notification_types WHERE isEnabled = 1)')) {
+        // Special case for deleting notification values
+        const enabledTypeIds = this.webStore['notification_types']
+          .filter((t: any) => t.isEnabled === 1)
+          .map((t: any) => t.id);
+        this.webStore[table] = this.webStore[table].filter((item: any) => 
+          !enabledTypeIds.includes(item.notification_type_id)
+        );
+      } else {
+        const id = values[0];
+      this.webStore[table] = this.webStore[table].filter((item: any) => item.id !== id);
+      }
+      
+      const removed = initialLength - this.webStore[table].length;
       return { changes: { changes: removed } };
     }
     
     return { changes: { changes: 0 } };
-  }
-
-  async executeSet(set: capSQLiteSet[]): Promise<any> {
-    if (this.isNative) {
-      // Native platform - use SQLite
-      if (!this.db) {
-        await this.initializeDatabase();
-      }
-      return this.db.executeSet(set);
-    } else {
-      // Web platform - execute each query in the set
-      const results = [];
-      for (const item of set) {
-        // Add type safety check to ensure statement is defined
-        if (item.statement) {
-          const result = await this.executeQuery(item.statement, item.values);
-          results.push(result);
-        } else {
-          console.warn('Skipping undefined statement in executeSet');
-          results.push({ values: [] });
-        }
-      }
-      // Save to localStorage after batch operations
-      this.saveWebStoreToLocalStorage();
-      
-      return results;
-    }
-  }
-
-  async closeDatabase(): Promise<void> {
-    if (this.isNative && this.db) {
-      const sqliteConnection = new SQLiteConnection(this.sqlite);
-      await sqliteConnection.closeConnection(this.dbName, false);
-      console.log(`Database ${this.dbName} closed.`);
-    }
-  }
-
-  getDb(): SQLiteDBConnection {
-    if (this.isNative && !this.db) {
-      throw new Error('Database not initialized. Call initializeDatabase first.');
-    }
-    return this.db;
-  }
-  
-  // Debug method to dump database contents
-  dumpDatabase(): any {
-    if (!this.isNative) {
-      return this.webStore;
-    }
-    return null; // Not implemented for native
   }
 }
