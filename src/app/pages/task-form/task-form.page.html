@@ -3,59 +3,93 @@
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/task-list"></ion-back-button>
     </ion-buttons>
-    <ion-title>New Routine</ion-title>
+    <ion-title>{{ isEditMode ? 'Edit' : 'New' }} Task</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <div class="form-section">
-    <h2>When should it start?</h2>
-    <ion-item button detail="true" class="date-picker">
-      <ion-icon name="calendar-outline" slot="start"></ion-icon>
-      <ion-label>
-        <h2>Starts</h2>
-        <p>Today</p>
-      </ion-label>
-    </ion-item>
-  </div>
+  <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+    <div class="form-section">
+      <h2>Task Details</h2>
+      <ion-item>
+        <ion-label position="floating">Title</ion-label>
+        <ion-input formControlName="title" type="text"></ion-input>
+      </ion-item>
 
-  <div class="form-section">
-    <h2>HOW SHOULD WE REMIND YOU?</h2>
-    <ion-item button detail="true" [routerLink]="['/notification-types']" class="notification-settings">
-      <ion-icon name="notifications-outline" slot="start"></ion-icon>
-      <ion-label>Reminder Settings</ion-label>
-    </ion-item>
+      <ion-item>
+        <ion-label position="floating">Type</ion-label>
+        <ion-select formControlName="type">
+          <ion-select-option *ngFor="let type of taskTypes" [value]="type.key">
+            <ion-icon [name]="type.icon" [color]="type.color"></ion-icon>
+            {{ type.name }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
 
-    <div class="notification-types">
-      <ng-container *ngFor="let type of enabledNotificationTypes$ | async">
-        <div class="notification-type active">
-          <ion-icon [name]="type.icon" [style.color]="type.color"></ion-icon>
-          <span>{{ type.name }}</span>
-        </div>
-      </ng-container>
-      <div *ngIf="!(enabledNotificationTypes$ | async)?.length" class="no-notifications">
-        <ion-icon name="notifications-off-outline" color="medium"></ion-icon>
-        <span>No notification methods enabled</span>
-      </div>
+      <ion-item>
+        <ion-label position="floating">Frequency</ion-label>
+        <ion-select formControlName="frequency">
+          <ion-select-option *ngFor="let freq of frequencies" [value]="freq.key">
+            <ion-icon [name]="freq.icon"></ion-icon>
+            {{ freq.name }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="floating">Customer</ion-label>
+        <ion-select formControlName="customerId">
+          <ion-select-option [value]="null">None</ion-select-option>
+          <ion-select-option *ngFor="let customer of customers$ | async" [value]="customer.id">
+            {{ customer.name }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
     </div>
 
-    <ion-item>
-      <ion-datetime presentation="time" hourCycle="h12"></ion-datetime>
-    </ion-item>
-  </div>
+    <div class="form-section">
+      <h2>When should it start?</h2>
+      <ion-item>
+        <ion-label position="floating">Start Date</ion-label>
+        <ion-datetime formControlName="startDate" presentation="date"></ion-datetime>
+      </ion-item>
+    </div>
 
-  <div class="form-section">
-    <h2>ADD ANY DETAILS OR INSTRUCTIONS</h2>
-    <ion-item>
-      <ion-textarea placeholder="Add notes here..." rows="4"></ion-textarea>
-    </ion-item>
-  </div>
+    <div class="form-section">
+      <h2>Notification Settings</h2>
+      <ion-item>
+        <ion-label position="floating">Notification Type</ion-label>
+        <ion-select formControlName="notificationType">
+          <ion-select-option *ngFor="let type of enabledNotificationTypes$ | async" [value]="type.key">
+            {{ type.name }}
+          </ion-select-option>
+        </ion-select>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="floating">Notification Time</ion-label>
+        <ion-datetime formControlName="notificationTime" presentation="time" hourCycle="h12"></ion-datetime>
+      </ion-item>
+
+      <ion-item>
+        <ion-label position="floating">Additional Notification Value</ion-label>
+        <ion-input formControlName="notificationValue" type="text"></ion-input>
+      </ion-item>
+    </div>
+
+    <div class="form-section">
+      <h2>Notes</h2>
+      <ion-item>
+        <ion-textarea formControlName="notes" placeholder="Add notes here..." rows="4"></ion-textarea>
+      </ion-item>
+    </div>
+  </form>
 </ion-content>
 
 <ion-footer>
   <ion-toolbar>
-    <ion-button expand="block" class="ion-margin">
-      Create Routine
+    <ion-button expand="block" class="ion-margin" (click)="onSubmit()" [disabled]="!taskForm.valid">
+      {{ isEditMode ? 'Update' : 'Create' }} Task
     </ion-button>
   </ion-toolbar>
 </ion-footer> 

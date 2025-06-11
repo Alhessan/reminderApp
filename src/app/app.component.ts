@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { DatabaseService } from './services/database.service';
-import { Platform, IonicModule } from '@ionic/angular';
+import { Platform, IonicModule, AlertController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { NotificationService } from './services/notification.service';
@@ -51,6 +51,7 @@ import {
   paperPlaneOutline,
   logoWhatsapp
 } from 'ionicons/icons';
+import { SampleDataService } from './services/sample-data.service';
 
 @Component({
   selector: 'app-root',
@@ -75,7 +76,9 @@ export class AppComponent {
   constructor(
     private platform: Platform,
     private databaseService: DatabaseService,
-    private notificationService: NotificationService
+    private notificationService: NotificationService,
+    private alertController: AlertController,
+    private sampleDataService: SampleDataService
   ) {
     this.initializeApp();
     // Register Ionic icons
@@ -146,5 +149,78 @@ export class AppComponent {
     } catch (error) {
       console.error('Error during app initialization:', error);
     }
+  }
+
+  async reinitializeDatabase() {
+    const alert = await this.alertController.create({
+      header: 'Confirm Reset',
+      message: 'This will reset the database to its initial state. All your data will be lost. Are you sure?',
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Reset',
+          role: 'destructive',
+          handler: async () => {
+            try {
+              await this.databaseService.reinitializeDatabase();
+              const successAlert = await this.alertController.create({
+                header: 'Success',
+                message: 'Database has been reinitialized successfully.',
+                buttons: ['OK']
+              });
+              await successAlert.present();
+            } catch (error) {
+              const errorAlert = await this.alertController.create({
+                header: 'Error',
+                message: 'Failed to reinitialize database. Please try again.',
+                buttons: ['OK']
+              });
+              await errorAlert.present();
+            }
+          }
+        }
+      ]
+    });
+
+    await alert.present();
+  }
+
+  async generateSampleData() {
+    const alert = await this.alertController.create({
+      header: 'Generate Sample Data',
+      message: 'This will create sample tasks with different states. Continue?',
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Generate',
+          handler: async () => {
+            try {
+              await this.sampleDataService.generateSampleTasks();
+              const successAlert = await this.alertController.create({
+                header: 'Success',
+                message: 'Sample tasks have been generated successfully.',
+                buttons: ['OK']
+              });
+              await successAlert.present();
+            } catch (error) {
+              const errorAlert = await this.alertController.create({
+                header: 'Error',
+                message: 'Failed to generate sample tasks. Please try again.',
+                buttons: ['OK']
+              });
+              await errorAlert.present();
+            }
+          }
+        }
+      ]
+    });
+
+    await alert.present();
   }
 }

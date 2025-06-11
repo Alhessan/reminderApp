@@ -1,22 +1,43 @@
 import { Customer } from './customer.model';
 
 export type NotificationType = string; // This allows any notification type key
-export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'once';
+export type TaskCycleStatus = 'pending' | 'in_progress' | 'completed';
 
 export interface Task {
-  id?: number;
+  id: number;
   title: string;
   type: string; // Now references TaskType name from task-type.service.ts
-  customerId?: number; // Foreign key to Customer
+  customerId?: number | null; // Foreign key to Customer
   customer?: Customer; // Optional: for easier access to customer details
+  customerName?: string; // Optional: for displaying customer name directly
   frequency: Frequency;
   startDate: string; // ISO 8601 date string
-  notificationType: NotificationType;
+  notificationType: string;
   notificationTime: string; // HH:mm format for notification time
   notificationValue?: string; // Email for email notifications, phone for SMS, etc.
   notes?: string;
-  isCompleted?: boolean;
-  lastCompletedDate?: string; // ISO 8601 date string
+  isCompleted: boolean;
+  lastCompletedDate?: string;
+  isArchived?: boolean; // Flag for archived tasks
+}
+
+export interface TaskCycle {
+  id?: number;
+  taskId: number;
+  cycleStartDate: string;
+  cycleEndDate: string;
+  status: TaskCycleStatus;
+  progress: number;
+  completedAt?: string;
+}
+
+export interface TaskListItem {
+  task: Task;
+  currentCycle: TaskCycle;
+  isOverdue: boolean;
+  nextDueDate: string;
+  daysSinceLastCompletion?: number;
 }
 
 export interface TaskHistoryEntry {

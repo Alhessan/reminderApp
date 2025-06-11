@@ -1,0 +1,58 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>My Routines</ion-title>
+    <ion-buttons slot="end">
+      <ion-button routerLink="/task/new">
+        <ion-icon name="add-outline" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="currentView" (ionChange)="onViewChange($event)" mode="ios">
+      <ion-segment-button value="all">
+        <ion-label>All</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="overdue">
+        <ion-label>Overdue</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="in_progress">
+        <ion-label>In Progress</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="upcoming">
+        <ion-label>Upcoming</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list>
+    <app-task-list-item
+      *ngFor="let taskItem of taskList$ | async"
+      [taskItem]="taskItem"
+      (statusChange)="openStatusActionSheet(taskItem)"
+      (progressUpdate)="updateProgress(taskItem)"
+      (optionsClick)="openTaskMenu(taskItem)">
+    </app-task-list-item>
+  </ion-list>
+
+  <!-- Empty State -->
+  <div class="empty-state" *ngIf="(taskList$ | async)?.length === 0">
+    <ion-icon name="calendar-outline" color="medium"></ion-icon>
+    <h3>No Tasks Found</h3>
+    <p>Add your first routine to get started</p>
+    <ion-button routerLink="/task/new" expand="block" fill="clear">
+      Add Routine
+    </ion-button>
+  </div>
+
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+    <ion-fab-button routerLink="/task/new">
+      <ion-icon name="add"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content> 

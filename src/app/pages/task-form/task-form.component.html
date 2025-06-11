@@ -1,0 +1,136 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/tasks"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ isEditMode ? 'Edit' : 'New' }} Routine</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="onSubmit()" [strong]="true">
+        Save
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+    <!-- Basic Info -->
+    <ion-item>
+      <ion-label position="stacked">Title</ion-label>
+      <ion-input formControlName="title" placeholder="Enter routine title"></ion-input>
+      <ion-note slot="error" *ngIf="taskForm.get('title')?.errors?.['required'] && taskForm.get('title')?.touched">
+        Title is required
+      </ion-note>
+      <ion-note slot="error" *ngIf="taskForm.get('title')?.errors?.['minlength'] && taskForm.get('title')?.touched">
+        Title must be at least 3 characters
+      </ion-note>
+    </ion-item>
+
+    <!-- Type Selection -->
+    <ion-item>
+      <ion-label position="stacked">Type</ion-label>
+      <ion-select formControlName="type" placeholder="Select type">
+        <ion-select-option value="payment">Payment</ion-select-option>
+        <ion-select-option value="update">Update</ion-select-option>
+        <ion-select-option value="custom">Custom</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <!-- Customer Selection (Optional) -->
+    <ion-item>
+      <ion-label position="stacked">Customer (Optional)</ion-label>
+      <ion-select formControlName="customerId" placeholder="Select customer">
+        <!-- TODO: Add customer options dynamically -->
+      </ion-select>
+    </ion-item>
+
+    <!-- Frequency Selection -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="repeat-outline" color="primary"></ion-icon>
+          Recurrence Pattern
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-segment formControlName="frequency" mode="ios">
+          <ion-segment-button *ngFor="let freq of frequencies" [value]="freq.value">
+            <ion-icon [name]="freq.icon"></ion-icon>
+            <ion-label>{{ freq.label }}</ion-label>
+          </ion-segment-button>
+        </ion-segment>
+
+        <ion-item button detail (click)="openDatePicker()" class="ion-margin-top">
+          <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
+          <ion-label>
+            <h2>Starts</h2>
+            <p>{{ formatDate(taskForm.get('startDate')?.value) }}</p>
+          </ion-label>
+        </ion-item>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Notification Settings -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="notifications-outline" color="primary"></ion-icon>
+          Reminder Settings
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item>
+          <ion-label position="stacked">Notification Time</ion-label>
+          <ion-datetime-button datetime="notification-time"></ion-datetime-button>
+          <ion-modal [keepContentsMounted]="true">
+            <ng-template>
+              <ion-datetime 
+                id="notification-time"
+                formControlName="notificationTime"
+                presentation="time"
+                hourCycle="h23">
+              </ion-datetime>
+            </ng-template>
+          </ion-modal>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">Notification Type</ion-label>
+          <ion-select formControlName="notificationType">
+            <ion-select-option value="push">Push Notification</ion-select-option>
+            <ion-select-option value="email">Email</ion-select-option>
+            <ion-select-option value="sms">SMS</ion-select-option>
+          </ion-select>
+        </ion-item>
+
+        <ion-item *ngIf="taskForm.get('notificationType')?.value !== 'push'">
+          <ion-label position="stacked">
+            {{ taskForm.get('notificationType')?.value === 'email' ? 'Email Address' : 'Phone Number' }}
+          </ion-label>
+          <ion-input formControlName="notificationValue"></ion-input>
+        </ion-item>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Notes -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="document-text-outline" color="primary"></ion-icon>
+          Additional Details
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item>
+          <ion-label position="stacked">Notes (Optional)</ion-label>
+          <ion-textarea 
+            formControlName="notes"
+            placeholder="Add any additional notes or instructions"
+            [rows]="4"
+            [autoGrow]="true">
+          </ion-textarea>
+        </ion-item>
+      </ion-card-content>
+    </ion-card>
+  </form>
+</ion-content> 

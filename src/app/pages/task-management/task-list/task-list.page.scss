@@ -1,0 +1,37 @@
+:host {
+  .task-action-sheet {
+    --background: var(--ion-background-color);
+    --backdrop-opacity: 0.4;
+    --width: 250px;
+    --max-width: 90%;
+    
+    &::part(content) {
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+
+    &::part(header) {
+      padding: 16px;
+      border-bottom: 1px solid var(--ion-border-color);
+    }
+
+    ion-button {
+      --padding-start: 16px;
+      --padding-end: 16px;
+      height: 48px;
+      font-size: 16px;
+      
+      &:hover {
+        --background: var(--ion-color-light);
+      }
+    }
+  }
+}
+
+// Position the action sheet near the clicked element
+.action-sheet-wrapper {
+  position: absolute !important;
+  top: var(--click-y, 0) !important;
+  left: var(--click-x, 0) !important;
+  transform: translate(-50%, -50%) !important;
+}

@@ -1,0 +1,117 @@
+.task-item {
+  --padding-start: 0;
+  --inner-padding-end: 0;
+
+  .status-button {
+    margin: 0;
+    height: 100%;
+    --padding-start: 16px;
+    --padding-end: 16px;
+  }
+
+  ion-label {
+    margin: 10px 0;
+    
+    h2 {
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .task-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+
+      ion-badge {
+        text-transform: capitalize;
+        font-weight: normal;
+      }
+    }
+  }
+
+  .progress-container {
+    margin-top: 8px;
+    
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      
+      ion-button {
+        --padding-start: 4px;
+        --padding-end: 4px;
+        height: 20px;
+        margin: 0;
+      }
+    }
+  }
+
+  .task-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    margin-right: 16px;
+
+    .task-type {
+      margin: 0;
+      height: 20px;
+      font-size: 12px;
+    }
+
+    ion-note {
+      font-size: 12px;
+    }
+  }
+}
+
+.overdue {
+  --background: var(--ion-color-danger-tint);
+  
+  ion-label {
+    h2 {
+      color: var(--ion-color-danger);
+    }
+  }
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 32px;
+  text-align: center;
+  
+  ion-icon {
+    font-size: 64px;
+    margin-bottom: 16px;
+  }
+
+  h3 {
+    margin: 0;
+    color: var(--ion-color-medium);
+    font-size: 20px;
+  }
+
+  p {
+    margin: 8px 0 24px;
+    color: var(--ion-color-medium-shade);
+  }
+
+  ion-button {
+    width: 200px;
+  }
+}
+
+ion-content {
+  --background: var(--ion-color-light);
+}
+
+ion-list {
+  background: transparent;
+  padding: 16px;
+} 

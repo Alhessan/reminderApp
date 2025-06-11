@@ -35,7 +35,20 @@ export class TaskFormComponent implements OnInit {
   selectedNotificationTypes: NotificationType[] = [];
   private lastNotificationType: string = 'silent reminder';
 
-  frequencies: Frequency[] = ['daily', 'weekly', 'monthly', 'yearly'];
+  taskTypes = [
+    { key: 'payment', name: 'Payment', icon: 'cash-outline', color: 'success' },
+    { key: 'update', name: 'Update', icon: 'refresh-outline', color: 'primary' },
+    { key: 'custom', name: 'Custom', icon: 'create-outline', color: 'tertiary' }
+  ];
+
+  frequencies: { key: string; name: string; icon: string }[] = [
+    { key: 'daily', name: 'Daily', icon: 'calendar-outline' },
+    { key: 'weekly', name: 'Weekly', icon: 'calendar-outline' },
+    { key: 'monthly', name: 'Monthly', icon: 'calendar-outline' },
+    { key: 'yearly', name: 'Yearly', icon: 'calendar-outline' },
+    { key: 'once', name: 'One Time', icon: 'calendar-outline' }
+  ];
+
   taskTypes$ = this.taskTypeService.getTaskTypes();
   enabledNotificationTypes$ = this.notificationTypeService.getNotificationTypes().pipe(
     map(types => types.filter(type => type.isEnabled))
@@ -67,7 +80,7 @@ export class TaskFormComponent implements OnInit {
       title: ['', Validators.required],
       type: ['', Validators.required],
       customerId: [null as number | null],
-      frequency: ['daily' as Frequency, Validators.required],
+      frequency: ['daily', Validators.required],
       startDate: [new Date().toISOString(), Validators.required],
       notificationTime: ['09:00', [Validators.required, Validators.pattern('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')]],
       notes: [''],
@@ -219,80 +232,43 @@ export class TaskFormComponent implements OnInit {
         this.taskForm.patchValue(taskDataForForm);
       } else {
         console.log('TaskForm: Task not found');
-        this.presentErrorAlert('Task not found.');
-        this.navController.navigateBack('/task-list');
+        await this.presentErrorAlert('Task not found.');
+        this.navController.navigateBack('/tasks');
       }
     } catch (error) {
       console.error('TaskForm: Error loading task data:', error);
-      this.presentErrorAlert('Failed to load task data.');
-      this.navController.navigateBack('/task-list');
+      await this.presentErrorAlert('Failed to load task data.');
+      this.navController.navigateBack('/tasks');
     }
   }
 
   async onSubmit() {
-    console.log('TaskForm: Starting form submission');
-    if (this.taskForm.invalid) {
-      console.log('TaskForm: Form is invalid', this.taskForm.errors);
-      this.taskForm.markAllAsTouched();
-      return;
-    }
-
-    try {
-      const formValues = this.taskForm.value;
-      console.log('TaskForm: Form values:', formValues);
-      
-      // Validate and format notification time
-      const notificationTime = formValues.notificationTime || '09:00';
-      if (!notificationTime.match('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')) {
-        console.log('TaskForm: Invalid notification time format:', notificationTime);
-        this.presentErrorAlert('Invalid notification time format. Please use HH:mm format.');
-        return;
+    if (this.taskForm.valid) {
+      try {
+        const taskData = this.taskForm.value;
+        
+        if (this.isEditMode && this.taskId) {
+          await this.taskService.updateTask({
+            id: this.taskId,
+            ...taskData,
+            lastCompletedDate: (await this.taskService.getTaskById(this.taskId))?.lastCompletedDate
+          });
+        } else {
+          await this.taskService.createTask(taskData);
+        }
+        
+        this.router.navigate(['/tasks']);
+      } catch (error) {
+        console.error('Error saving task:', error);
+        // Handle error appropriately
       }
-
-      console.log('TaskForm: Creating task data object');
-      // Handle the date value properly
-      let startDate = formValues.startDate;
-      if (typeof startDate === 'object' && startDate !== null) {
-        // If it's an object, get the first value
-        startDate = Object.values(startDate)[0];
-      }
-      
-      const taskData: Task = {
-        ...formValues,
-        startDate: new Date(startDate).toISOString(), // Use the processed startDate
-        notificationTime,
-        notes: formValues.notes || '',
-        isCompleted: this.isEditMode && this.taskId ? 
-          (await this.taskService.getTaskById(this.taskId))?.isCompleted : false,
-        lastCompletedDate: this.isEditMode && this.taskId ? 
-          (await this.taskService.getTaskById(this.taskId))?.lastCompletedDate : undefined
-      };
-
-      console.log('TaskForm: Final task data:', taskData);
-
-      if (this.isEditMode && this.taskId) {
-        console.log('TaskForm: Updating existing task:', this.taskId);
-        taskData.id = this.taskId;
-        await this.taskService.updateTask(taskData);
-        this.presentSuccessAlert('Task updated successfully!');
-      } else {
-        console.log('TaskForm: Creating new task');
-        await this.taskService.addTask(taskData);
-        this.presentSuccessAlert('Task added successfully!');
-      }
-      
-      console.log('TaskForm: Task saved successfully, navigating back');
-      this.navController.navigateBack('/task-list');
-    } catch (error) {
-      console.error('TaskForm: Error saving task:', error);
-      this.presentErrorAlert('Failed to save task. Please try again.');
     }
   }
 
   async presentErrorAlert(message: string) {
     const alert = await this.alertController.create({
       header: 'Error',
-      message: message,
+      message,
       buttons: ['OK']
     });
     await alert.present();

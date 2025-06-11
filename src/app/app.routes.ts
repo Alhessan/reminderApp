@@ -45,6 +45,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/notification-types/notification-types.page').then(m => m.NotificationTypesPage)
   },
   {
+    path: 'db-inspector',
+    loadComponent: () => import('./pages/db-inspector/db-inspector.page').then(m => m.DbInspectorPage)
+  },
+  {
     path: '**',
     redirectTo: 'task-list'
   }

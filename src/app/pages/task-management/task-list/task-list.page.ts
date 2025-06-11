@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AlertController, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule } from '@ionic/angular'; // Added IonicModule
+import { AlertController, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule, ActionSheetButton } from '@ionic/angular'; // Added IonicModule
 import { Task } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
 import { DatabaseService } from '../../../services/database.service';
@@ -8,17 +8,21 @@ import { CustomerService } from '../../../services/customer.service';
 import { Customer } from '../../../models/customer.model';
 import { CommonModule, DatePipe } from '@angular/common'; // Added CommonModule, DatePipe
 import { FormsModule } from '@angular/forms'; // Added FormsModule
+import { TaskListItemComponent } from './components/task-list-item.component';
+import { TaskCycleService } from '../../../services/task-cycle.service';
+import { TaskCycle, TaskCycleStatus, TaskListItem } from '../../../models/task-cycle.model';
+import { BehaviorSubject, Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-task-list',
   templateUrl: './task-list.page.html',
   styleUrls: [ './task-list.page.scss' ],
   standalone: true, // Mark as standalone
-  imports: [IonicModule, CommonModule, FormsModule, DatePipe] // Import necessary modules
+  imports: [IonicModule, CommonModule, FormsModule, DatePipe, TaskListItemComponent] // Import necessary modules
 })
 export class TaskListPage implements OnInit {
   allTasks: Task[] = [];
-  filteredTasks: Task[] = [];
+  filteredTasks: TaskListItem[] = [];
   customers: Customer[] = [];
   isLoading = true;
   filterSegment: string = 'all'; // Explicitly type as string
@@ -26,6 +30,7 @@ export class TaskListPage implements OnInit {
   currentSortOrder = 'asc'; // Default order
   customerIdFilter?: number;
   customerNameFilter?: string;
+  private taskListSubscription?: Subscription;
 
   constructor(
     private taskService: TaskService,
@@ -35,7 +40,8 @@ export class TaskListPage implements OnInit {
     private alertController: AlertController,
     private navController: NavController,
     private databaseService: DatabaseService,
-    private actionSheetCtrl: ActionSheetController
+    private actionSheetCtrl: ActionSheetController,
+    private taskCycleService: TaskCycleService
   ) { }
 
   async ngOnInit() {
@@ -50,6 +56,25 @@ export class TaskListPage implements OnInit {
       }
       await this.loadTasks();
     });
+
+    // Subscribe to task list updates
+    this.taskListSubscription = this.taskCycleService.taskList$.subscribe(
+      tasks => {
+        console.log('Received tasks in subscription:', tasks);
+        this.filteredTasks = tasks;
+        this.isLoading = false;
+      },
+      error => {
+        console.error('Error in task list subscription:', error);
+        this.isLoading = false;
+      }
+    );
+  }
+
+  ngOnDestroy() {
+    if (this.taskListSubscription) {
+      this.taskListSubscription.unsubscribe();
+    }
   }
 
   async ionViewWillEnter() {
@@ -78,70 +103,19 @@ export class TaskListPage implements OnInit {
 
   async loadTasks() {
     this.isLoading = true;
+    console.log('Loading tasks with filter:', this.filterSegment);
     try {
-      if (this.customerIdFilter) {
-        this.allTasks = await this.taskService.getCustomerTasks(this.customerIdFilter);
-      } else {
-        this.allTasks = await this.taskService.getAllTasks();
-      }
-      this.applyFiltersAndSorting();
+      await this.taskCycleService.loadTaskList(this.filterSegment as 'all' | 'overdue' | 'in_progress' | 'upcoming');
+      console.log('Task list loaded successfully');
     } catch (error) {
       console.error('Error loading tasks:', error);
       this.presentErrorAlert('Failed to load tasks. Please try again.');
-    } finally {
-      this.isLoading = false;
     }
-  }
-
-  applyFiltersAndSorting() {
-    let tasksToProcess = [...this.allTasks];
-
-    // Apply status filter
-    if (this.filterSegment === 'pending') {
-      tasksToProcess = tasksToProcess.filter(task => !task.isCompleted);
-    } else if (this.filterSegment === 'completed') {
-      tasksToProcess = tasksToProcess.filter(task => task.isCompleted);
-    }
-
-    // Apply sorting
-    tasksToProcess.sort((a, b) => {
-      let valA: any, valB: any;
-
-      switch (this.currentSortBy) {
-        case 'title':
-          valA = a.title.toLowerCase();
-          valB = b.title.toLowerCase();
-          break;
-        case 'type':
-          valA = a.type.toLowerCase();
-          valB = b.type.toLowerCase();
-          break;
-        case 'customerName':
-          valA = a.customer?.name?.toLowerCase() || ''; // Use customer.name
-          valB = b.customer?.name?.toLowerCase() || ''; // Use customer.name
-          break;
-        case 'startDate':
-        default:
-          valA = new Date(a.startDate).getTime();
-          valB = new Date(b.startDate).getTime();
-          break;
-      }
-
-      if (valA < valB) {
-        return this.currentSortOrder === 'asc' ? -1 : 1;
-      }
-      if (valA > valB) {
-        return this.currentSortOrder === 'asc' ? 1 : -1;
-      }
-      return 0;
-    });
-
-    this.filteredTasks = tasksToProcess;
   }
 
   segmentChanged(event: CustomEvent<SegmentChangeEventDetail>) {
     this.filterSegment = event.detail.value as string || 'all'; // Cast to string
-    this.applyFiltersAndSorting();
+    this.loadTasks();
   }
 
   async presentSortOptions() {
@@ -185,7 +159,7 @@ export class TaskListPage implements OnInit {
   setSort(sortBy: string, sortOrder: string) {
     this.currentSortBy = sortBy;
     this.currentSortOrder = sortOrder;
-    this.applyFiltersAndSorting();
+    this.loadTasks();
   }
 
   navigateAddTask() {
@@ -218,7 +192,7 @@ export class TaskListPage implements OnInit {
       } else {
         await this.taskService.addHistoryEntry(task.id!, 'Marked Pending', `Task "${task.title}" marked as pending.`);
       }
-      this.applyFiltersAndSorting(); 
+      this.loadTasks(); 
     } catch (error) {
       console.error('Error updating task completion status:', error);
       task.isCompleted = !isChecked;
@@ -254,7 +228,7 @@ export class TaskListPage implements OnInit {
     try {
       await this.taskService.deleteTask(taskId);
       this.allTasks = this.allTasks.filter(t => t.id !== taskId);
-      this.applyFiltersAndSorting();
+      this.loadTasks();
     } catch (error) {
       console.error('Error deleting task:', error);
       this.presentErrorAlert('Failed to delete task. Please try again.');
@@ -270,14 +244,201 @@ export class TaskListPage implements OnInit {
     await alert.present();
   }
 
-  trackTaskById(index: number, task: Task): number {
-    return task.id!;
+  trackTaskById(index: number, taskItem: TaskListItem): number {
+    return taskItem.task.id!;
   }
 
   clearCustomerFilter() {
     this.customerIdFilter = undefined;
     this.customerNameFilter = undefined;
     this.loadTasks(); // Reload all tasks
+  }
+
+  async openStatusActionSheet(taskItem: TaskListItem) {
+    const actionSheet = await this.actionSheetCtrl.create({
+      header: 'Update Status',
+      cssClass: 'task-action-sheet',
+      buttons: [
+        {
+          text: 'Start',
+          icon: 'play-outline',
+          data: 'in_progress',
+          handler: () => this.updateTaskStatus(taskItem, 'in_progress')
+        },
+        {
+          text: 'Complete',
+          icon: 'checkmark-outline',
+          data: 'completed',
+          handler: () => this.updateTaskStatus(taskItem, 'completed')
+        },
+        {
+          text: 'Skip',
+          icon: 'forward-outline',
+          data: 'skipped',
+          handler: () => this.updateTaskStatus(taskItem, 'skipped')
+        },
+        {
+          text: 'Reset',
+          icon: 'refresh-outline',
+          data: 'pending',
+          handler: () => this.updateTaskStatus(taskItem, 'pending')
+        },
+        {
+          text: 'Cancel',
+          icon: 'close-outline',
+          role: 'cancel'
+        }
+      ]
+    });
+    await actionSheet.present();
+  }
+
+  async updateTaskStatus(taskItem: TaskListItem, status: TaskCycleStatus) {
+    try {
+      let cycleId: number;
+
+      if (!taskItem.currentCycle?.id) {
+        // Create a new cycle if none exists
+        cycleId = await this.taskCycleService.createNextCycle(taskItem.task);
+      } else {
+        cycleId = taskItem.currentCycle.id;
+      }
+
+      await this.taskCycleService.updateTaskCycleStatus(cycleId, status);
+      
+      if (status === 'completed') {
+        await this.taskCycleService.createNextCycle(taskItem.task);
+      }
+      
+      await this.loadTasks();
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      this.presentErrorAlert('Failed to update task status. Please try again.');
+    }
+  }
+
+  async updateProgress(taskItem: TaskListItem) {
+    const alert = await this.alertController.create({
+      header: 'Update Progress',
+      inputs: [
+        {
+          name: 'progress',
+          type: 'number',
+          min: 0,
+          max: 100,
+          placeholder: 'Enter progress (0-100)'
+        }
+      ],
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Update',
+          handler: async (data) => {
+            const progress = Number(data.progress);
+            if (progress >= 0 && progress <= 100) {
+              try {
+                let cycleId: number;
+
+                if (!taskItem.currentCycle?.id) {
+                  // Create a new cycle if none exists
+                  cycleId = await this.taskCycleService.createNextCycle(taskItem.task);
+                } else {
+                  cycleId = taskItem.currentCycle.id;
+                }
+
+                await this.taskCycleService.updateTaskCycleStatus(cycleId, 'in_progress', progress);
+                await this.loadTasks();
+              } catch (error) {
+                console.error('Error updating task progress:', error);
+                this.presentErrorAlert('Failed to update task progress. Please try again.');
+              }
+            }
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
+  async openTaskMenu(taskItem: TaskListItem, event: Event) {
+    event.stopPropagation(); // Prevent event bubbling
+    
+    // Get click coordinates
+    const mouseEvent = event as MouseEvent;
+    document.documentElement.style.setProperty('--click-x', `${mouseEvent.clientX}px`);
+    document.documentElement.style.setProperty('--click-y', `${mouseEvent.clientY}px`);
+    
+    const popover = await this.actionSheetCtrl.create({
+      header: 'Task Options',
+      cssClass: 'task-action-sheet',
+      buttons: [
+        {
+          text: 'Edit',
+          icon: 'create-outline',
+          handler: () => {
+            this.navigateToEditTask(taskItem.task.id!);
+          }
+        },
+        {
+          text: 'View Details',
+          icon: 'information-circle-outline',
+          handler: () => {
+            this.navigateToTaskDetail(taskItem.task.id!);
+          }
+        },
+        {
+          text: 'Delete',
+          icon: 'trash-outline',
+          role: 'destructive',
+          handler: () => {
+            this.presentDeleteConfirm(taskItem.task.id!, taskItem.task.title);
+          }
+        },
+        {
+          text: 'Cancel',
+          icon: 'close-outline',
+          role: 'cancel'
+        }
+      ],
+      translucent: true,
+      animated: true,
+      keyboardClose: true,
+      backdropDismiss: true
+    });
+    
+    await popover.present();
+  }
+
+  async reinitializeDatabase() {
+    const alert = await this.alertController.create({
+      header: 'Reset Database',
+      message: 'This will delete all existing data and create new sample data. Are you sure?',
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Reset',
+          handler: async () => {
+            try {
+              this.isLoading = true;
+              await this.databaseService.reinitializeDatabase();
+              await this.loadTasks();
+            } catch (error) {
+              console.error('Error reinitializing database:', error);
+              this.presentErrorAlert('Failed to reset database. Please try again.');
+            } finally {
+              this.isLoading = false;
+            }
+          }
+        }
+      ]
+    });
+    await alert.present();
   }
 }
 

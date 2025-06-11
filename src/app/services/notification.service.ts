@@ -12,7 +12,7 @@ import { map, catchError } from 'rxjs/operators';
   providedIn: 'root'
 })
 export class NotificationService {
-  private readonly API_URL = environment.apiUrl + '/notify';
+  private readonly API_URL = environment.apiUrl + '/notifications/send';
 
   constructor(private platform: Platform, private http: HttpClient) { }
 
