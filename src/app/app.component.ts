@@ -31,6 +31,7 @@ import {
   addOutline,
   closeOutline,
   ellipsisHorizontalOutline,
+  ellipsisVerticalOutline,
   menuOutline,
   todayOutline,
   cogOutline,
@@ -49,7 +50,13 @@ import {
   checkmarkCircleOutline,
   personAddOutline,
   paperPlaneOutline,
-  logoWhatsapp
+  logoWhatsapp,
+  archiveOutline,
+  playOutline,
+  checkmarkOutline,
+  playForwardOutline,
+  add,
+  funnelOutline
 } from 'ionicons/icons';
 import { SampleDataService } from './services/sample-data.service';
 
@@ -108,10 +115,11 @@ export class AppComponent {
       'add-outline': addOutline,
       'close-outline': closeOutline,
       'ellipsis-horizontal-outline': ellipsisHorizontalOutline,
+      'ellipsis-vertical': ellipsisVerticalOutline,
       'menu-outline': menuOutline,
       'today-outline': todayOutline,
       'cog-outline': cogOutline,
-      'help-circle-outline': helpCircleOutline,
+      'help-outline': helpCircleOutline,
       'list-outline': listOutline,
       'caret-down-outline': caretDownOutline,
       'caret-up-outline': caretUpOutline,
@@ -126,7 +134,13 @@ export class AppComponent {
       'checkmark-circle-outline': checkmarkCircleOutline,
       'person-add-outline': personAddOutline,
       'paper-plane-outline': paperPlaneOutline,
-      'logo-whatsapp': logoWhatsapp
+      'logo-whatsapp': logoWhatsapp,
+      'archive-outline': archiveOutline,
+      'play-outline': playOutline,
+      'checkmark-outline': checkmarkOutline,
+      'forward-outline': playForwardOutline,
+      'add': add,
+      'funnel-outline': funnelOutline
     });
   }
 

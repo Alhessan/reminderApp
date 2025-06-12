@@ -9,6 +9,7 @@ import { NotificationService } from '../../services/notification.service';
 import { catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { TaskListItemComponent } from '../../components/task-list-item/task-list-item.component';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-task-list',
@@ -26,7 +27,8 @@ export class TaskListComponent implements OnInit {
     private actionSheetCtrl: ActionSheetController,
     private alertCtrl: AlertController,
     private notificationService: NotificationService,
-    private toastCtrl: ToastController
+    private toastCtrl: ToastController,
+    private router: Router
   ) {}
 
   ngOnInit() {
@@ -158,14 +160,14 @@ export class TaskListComponent implements OnInit {
           text: 'Edit',
           icon: 'create-outline',
           handler: () => {
-            // TODO: Implement edit navigation
+            this.router.navigate(['/task-form', taskItem.task.id]);
           }
         },
         {
           text: 'Archive',
           icon: 'archive-outline',
           handler: () => {
-            // TODO: Implement archive functionality
+            this.archiveTask(taskItem);
           }
         },
         {
@@ -173,7 +175,7 @@ export class TaskListComponent implements OnInit {
           icon: 'trash-outline',
           color: 'danger',
           handler: () => {
-            // TODO: Implement delete functionality
+            this.deleteTask(taskItem);
           }
         },
         {

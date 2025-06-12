@@ -166,17 +166,11 @@ export class TaskListPage implements OnInit {
     this.router.navigate(['/task-form']);
   }
 
-  navigateToEditTask(taskId: number, slidingItem?: IonItemSliding) {
-    if (slidingItem) {
-      slidingItem.close();
-    }
+  navigateToEditTask(taskId: number) {
     this.router.navigate(['/task-form', taskId]);
   }
 
-  navigateToTaskDetail(taskId: number, slidingItem?: IonItemSliding) {
-    if (slidingItem) {
-      slidingItem.close();
-    }
+  navigateToTaskDetail(taskId: number) {
     this.router.navigate(['/task-detail', taskId]);
   }
 
@@ -363,53 +357,62 @@ export class TaskListPage implements OnInit {
     await alert.present();
   }
 
-  async openTaskMenu(taskItem: TaskListItem, event: Event) {
-    event.stopPropagation(); // Prevent event bubbling
-    
-    // Get click coordinates
-    const mouseEvent = event as MouseEvent;
-    document.documentElement.style.setProperty('--click-x', `${mouseEvent.clientX}px`);
-    document.documentElement.style.setProperty('--click-y', `${mouseEvent.clientY}px`);
-    
-    const popover = await this.actionSheetCtrl.create({
+  async openTaskMenu(taskItem: TaskListItem) {
+    const actionSheet = await this.actionSheetCtrl.create({
       header: 'Task Options',
-      cssClass: 'task-action-sheet',
       buttons: [
         {
           text: 'Edit',
           icon: 'create-outline',
           handler: () => {
-            this.navigateToEditTask(taskItem.task.id!);
+            this.navigateToEditTask(taskItem.task.id);
           }
         },
         {
-          text: 'View Details',
-          icon: 'information-circle-outline',
+          text: 'Archive',
+          icon: 'archive-outline',
           handler: () => {
-            this.navigateToTaskDetail(taskItem.task.id!);
-          }
-        },
-        {
-          text: 'Delete',
-          icon: 'trash-outline',
-          role: 'destructive',
-          handler: () => {
-            this.presentDeleteConfirm(taskItem.task.id!, taskItem.task.title);
+            this.archiveTask(taskItem);
           }
         },
         {
           text: 'Cancel',
-          icon: 'close-outline',
+          icon: 'close',
           role: 'cancel'
         }
-      ],
-      translucent: true,
-      animated: true,
-      keyboardClose: true,
-      backdropDismiss: true
+      ]
     });
-    
-    await popover.present();
+    await actionSheet.present();
+  }
+
+  async archiveTask(taskItem: TaskListItem) {
+    const alert = await this.alertController.create({
+      header: 'Archive Task',
+      message: 'Are you sure you want to archive this task?',
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Archive',
+          handler: async () => {
+            try {
+              await this.taskCycleService.archiveTask(taskItem.task.id!);
+              await this.loadTasks();
+            } catch (error) {
+              console.error('Error archiving task:', error);
+              this.presentErrorAlert('Failed to archive task. Please try again.');
+            }
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
+  navigateToArchive() {
+    this.router.navigate(['/tasks/archive']);
   }
 
   async reinitializeDatabase() {

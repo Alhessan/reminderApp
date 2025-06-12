@@ -49,6 +49,14 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/db-inspector/db-inspector.page').then(m => m.DbInspectorPage)
   },
   {
+    path: 'tasks',
+    loadComponent: () => import('./pages/task-management/task-list/task-list.page').then(m => m.TaskListPage)
+  },
+  {
+    path: 'tasks/archive',
+    loadComponent: () => import('./pages/task-management/task-archive/task-archive.page').then(m => m.TaskArchivePage)
+  },
+  {
     path: '**',
     redirectTo: 'task-list'
   }

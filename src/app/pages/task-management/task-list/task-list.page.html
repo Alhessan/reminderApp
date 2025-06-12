@@ -7,6 +7,9 @@
       Upcoming Routines
     </ion-title>
     <ion-buttons slot="end">
+      <ion-button (click)="navigateToArchive()">
+        <ion-icon slot="icon-only" name="archive-outline"></ion-icon>
+      </ion-button>
       <ion-button (click)="reinitializeDatabase()">
         <ion-icon slot="icon-only" name="refresh-outline"></ion-icon>
       </ion-button>
@@ -39,9 +42,6 @@
       <ion-segment-button value="in_progress">
         <ion-label>In Progress</ion-label>
       </ion-segment-button>
-      <ion-segment-button value="completed">
-        <ion-label>Completed</ion-label>
-      </ion-segment-button>
     </ion-segment>
   </ion-toolbar>
 </ion-header>
@@ -73,7 +73,7 @@
       [taskItem]="taskItem"
       (statusChange)="openStatusActionSheet(taskItem)"
       (progressUpdate)="updateProgress(taskItem)"
-      (optionsClick)="openTaskMenu(taskItem, $event)">
+      (optionsClick)="openTaskMenu(taskItem)">
     </app-task-list-item>
   </ion-list>
 

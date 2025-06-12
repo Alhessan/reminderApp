@@ -1,4 +1,4 @@
-<ion-item [class.overdue]="taskItem.isOverdue" class="task-item">
+<ion-item [class.overdue]="taskItem.isOverdue" class="task-item" (click)="onOptionsClick($event)">
   <!-- Status Button -->
   <ion-button 
     fill="clear"
@@ -46,7 +46,7 @@
   <div slot="end" class="task-meta">
      <!-- Status Badge -->
      <ion-badge [color]="getStatusColor(taskItem.currentCycle.status)" mode="ios">
-      {{ taskItem.currentCycle.status }}
+      {{ formatStatus(taskItem.currentCycle.status) }}
     </ion-badge>
     <!-- Task Type -->
     <ion-chip 

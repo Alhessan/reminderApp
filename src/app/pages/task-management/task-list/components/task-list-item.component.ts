@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule, DatePipe } from '@angular/common';
 import { TaskListItem } from '../../../../models/task-cycle.model';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-task-list-item',
@@ -15,6 +16,8 @@ export class TaskListItemComponent {
   @Output() statusChange = new EventEmitter<void>();
   @Output() progressUpdate = new EventEmitter<void>();
   @Output() optionsClick = new EventEmitter<Event>();
+
+  constructor(private router: Router) {}
 
   getStatusColor(status: string): string {
     switch (status) {
@@ -33,6 +36,16 @@ export class TaskListItemComponent {
       case 'completed': return 'checkmark-circle-outline';
       case 'skipped': return 'forward-outline';
       default: return 'help-outline';
+    }
+  }
+
+  formatStatus(status: string): string {
+    switch (status) {
+      case 'in_progress': return 'In Progress';
+      case 'completed': return 'Completed';
+      case 'skipped': return 'Skipped';
+      case 'pending': return 'Pending';
+      default: return status;
     }
   }
 

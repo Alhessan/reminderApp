@@ -79,7 +79,7 @@ export class TaskDetailPage implements OnInit {
 
   navigateToEditTask() {
     if (this.taskId) {
-      this.router.navigate(["/task-form", this.taskId]);
+      this.router.navigate(['/task-form', this.taskId]);
     }
   }
 

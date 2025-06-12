@@ -6,7 +6,7 @@ import { TaskService } from '../../../services/task.service';
 import { CustomerService } from '../../../services/customer.service';
 import { TaskTypeService } from '../../../services/task-type.service';
 import { NotificationTypeService } from '../../../services/notification-type.service';
-import { Task, Frequency } from '../../../models/task.model';
+import { Task } from '../../../models/task.model';
 import { NotificationType } from '../../../models/notification-type.model';
 import { TaskType } from '../../../services/task-type.service';
 import { Customer } from '../../../models/customer.model';
@@ -250,18 +250,21 @@ export class TaskFormComponent implements OnInit {
         if (this.isEditMode && this.taskId) {
           await this.taskService.updateTask({
             id: this.taskId,
-            ...taskData,
-            lastCompletedDate: (await this.taskService.getTaskById(this.taskId))?.lastCompletedDate
+            ...taskData
           });
+          await this.presentSuccessAlert('Task updated successfully');
         } else {
           await this.taskService.createTask(taskData);
+          await this.presentSuccessAlert('Task created successfully');
         }
         
-        this.router.navigate(['/tasks']);
+        this.navController.navigateBack('/tasks');
       } catch (error) {
         console.error('Error saving task:', error);
-        // Handle error appropriately
+        await this.presentErrorAlert('Failed to save task. Please try again.');
       }
+    } else {
+      await this.presentErrorAlert('Please fill in all required fields correctly.');
     }
   }
 
