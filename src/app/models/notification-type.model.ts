@@ -11,6 +11,7 @@ export interface NotificationType {
   validationPattern?: string;
   validationError?: string;
   order: number;
+  value?: string;
 }
 
 export const DEFAULT_NOTIFICATION_TYPES: NotificationType[] = [

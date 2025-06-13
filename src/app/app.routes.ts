@@ -9,6 +9,15 @@ export const routes: Routes = [
     pathMatch: 'full'
   },
   {
+    path: 'settings',
+    children: [
+      {
+        path: 'task-types',
+        loadComponent: () => import('./pages/settings/task-types/task-types.page').then(m => m.TaskTypesPage)
+      }
+    ]
+  },
+  {
     path: 'customer-list',
     loadComponent: () => import('./pages/customer-management/customer-list/customer-list.page').then(m => m.CustomerListPage)
   },
@@ -35,10 +44,6 @@ export const routes: Routes = [
   {
     path: 'task-form/:id',
     component: TaskFormComponent
-  },
-  {
-    path: 'task-management/task-types',
-    loadComponent: () => import('./pages/task-management/task-types/task-types.page').then(m => m.TaskTypesPage)
   },
   {
     path: 'notification-types',

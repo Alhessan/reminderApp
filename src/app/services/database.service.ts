@@ -5,6 +5,16 @@ import { BehaviorSubject } from 'rxjs';
 
 const DEFAULT_NOTIFICATION_TYPES = [
   {
+    key: 'silent',
+    name: 'Silent',
+    description: 'Notifications without sound or alerts',
+    icon: 'alert-outline',
+    color: '#ffd534',
+    isEnabled: false,
+    requiresValue: false,
+    order: 1
+  },
+  {
     key: 'push',
     name: 'Push Notifications',
     description: 'Receive instant notifications on your device',
@@ -12,7 +22,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     color: '#2dd36f',
     isEnabled: false,
     requiresValue: false,
-    order: 1
+    order: 2
   },
   {
     key: 'email',
@@ -25,7 +35,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     valueLabel: 'Email Address',
     validationPattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$',
     validationError: 'Please enter a valid email address',
-    order: 2
+    order: 3
   },
   {
     key: 'sms',
@@ -38,7 +48,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     valueLabel: 'Phone Number',
     validationPattern: '^\\+?[1-9]\\d{1,14}$',
     validationError: 'Please enter a valid phone number in international format',
-    order: 3
+    order: 4
   },
   {
     key: 'whatsapp',
@@ -51,7 +61,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     valueLabel: 'WhatsApp Number',
     validationPattern: '^\\+?[1-9]\\d{1,14}$',
     validationError: 'Please enter a valid WhatsApp number in international format',
-    order: 4
+    order: 5
   },
   {
     key: 'telegram',
@@ -64,7 +74,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     valueLabel: 'Telegram Username',
     validationPattern: '^[a-zA-Z0-9_]{5,32}$',
     validationError: 'Please enter a valid Telegram username (5-32 characters, alphanumeric and underscore)',
-    order: 5
+    order: 6
   }
 ];
 
@@ -97,6 +107,19 @@ interface TaskWithCycle {
   completedAt?: string;
 }
 
+interface TableSchema {
+  cid: number;
+  name: string;
+  type: string;
+  notnull: number;
+  dflt_value: string | null;
+  pk: number;
+}
+
+interface TableSchemas {
+  [key: string]: TableSchema[];
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -112,7 +135,69 @@ export class DatabaseService {
   private dbReady = new BehaviorSubject<boolean>(false);
   public dbReady$ = this.dbReady.asObservable();
 
-  private currentVersion = 2; // Increment this when adding new migrations
+  private currentVersion = 5; // Increment this when adding new migrations
+
+  private readonly tableSchemas: TableSchemas = {
+    tasks: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'title', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'type', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 3, name: 'customerId', type: 'INTEGER', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 4, name: 'frequency', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 5, name: 'startDate', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 6, name: 'notificationType', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 7, name: 'notificationTime', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 8, name: 'notificationValue', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 9, name: 'notes', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 10, name: 'isArchived', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 }
+    ],
+    task_cycles: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'taskId', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'cycleStartDate', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 3, name: 'cycleEndDate', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 4, name: 'status', type: 'TEXT', notnull: 1, dflt_value: "'pending'", pk: 0 },
+      { cid: 5, name: 'progress', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
+      { cid: 6, name: 'completedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
+    ],
+    task_types: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'name', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'description', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 3, name: 'isDefault', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
+      { cid: 4, name: 'icon', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 5, name: 'color', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
+    ],
+    notification_types: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'key', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'name', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 3, name: 'description', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 4, name: 'icon', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 5, name: 'color', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 6, name: 'isEnabled', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
+      { cid: 7, name: 'requiresValue', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
+      { cid: 8, name: 'valueLabel', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 9, name: 'validationPattern', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 10, name: 'validationError', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 11, name: 'order_num', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 }
+    ],
+    notification_values: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'notification_type_key', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'value', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 }
+    ],
+    customers: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'name', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'email', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 3, name: 'phone', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 4, name: 'notes', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
+    ],
+    database_version: [
+      { cid: 0, name: 'version', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 }
+    ]
+  };
 
   constructor() {
     this.sqlite = new SQLiteConnection(CapacitorSQLite);
@@ -229,182 +314,90 @@ export class DatabaseService {
         ];
       }
       if (!this.webStore['notification_types']) {
-        this.webStore['notification_types'] = [
-          {
-            id: 1,
-            key: 'push',
-            name: 'Push Notifications',
-            description: 'Receive instant notifications on your device',
-            icon: 'notifications-outline',
-            color: '#2dd36f',
-            isEnabled: 0,
-            requiresValue: 0,
-            valueLabel: null,
-            validationPattern: null,
-            validationError: null,
-            order_num: 1
-          },
-          {
-            id: 2,
-            key: 'email',
-            name: 'Email Notifications',
-            description: 'Get notified via email',
-            icon: 'mail-outline',
-            color: '#3880ff',
-            isEnabled: 0,
-            requiresValue: 1,
-            valueLabel: 'Email Address',
-            validationPattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$',
-            validationError: 'Please enter a valid email address',
-            order_num: 2
-          },
-          {
-            id: 3,
-            key: 'sms',
-            name: 'SMS Notifications',
-            description: 'Receive SMS text messages',
-            icon: 'chatbox-outline',
-            color: '#5260ff',
-            isEnabled: 0,
-            requiresValue: 1,
-            valueLabel: 'Phone Number',
-            validationPattern: '^\\+?[1-9]\\d{1,14}$',
-            validationError: 'Please enter a valid phone number in international format',
-            order_num: 3
-          },
-          {
-            id: 4,
-            key: 'whatsapp',
-            name: 'WhatsApp Notifications',
-            description: 'Get notified via WhatsApp',
-            icon: 'logo-whatsapp',
-            color: '#25D366',
-            isEnabled: 0,
-            requiresValue: 1,
-            valueLabel: 'WhatsApp Number',
-            validationPattern: '^\\+?[1-9]\\d{1,14}$',
-            validationError: 'Please enter a valid WhatsApp number in international format',
-            order_num: 4
-          },
-          {
-            id: 5,
-            key: 'telegram',
-            name: 'Telegram Notifications',
-            description: 'Receive notifications on Telegram',
-            icon: 'paper-plane-outline',
-            color: '#0088cc',
-            isEnabled: 0,
-            requiresValue: 1,
-            valueLabel: 'Telegram Username',
-            validationPattern: '^[a-zA-Z0-9_]{5,32}$',
-            validationError: 'Please enter a valid Telegram username (5-32 characters, alphanumeric and underscore)',
-            order_num: 5
-          }
-        ];
+        this.webStore['notification_types'] = DEFAULT_NOTIFICATION_TYPES.map((type, index) => ({
+          id: index + 1,
+          key: type.key,
+          name: type.name,
+          description: type.description,
+          icon: type.icon,
+          color: type.color,
+          isEnabled: type.isEnabled ? 1 : 0,
+          requiresValue: type.requiresValue ? 1 : 0,
+          valueLabel: type.valueLabel || null,
+          validationPattern: type.validationPattern || null,
+          validationError: type.validationError || null,
+          order_num: type.order
+        }));
       }
       if (!this.webStore['notification_values']) {
         this.webStore['notification_values'] = [];
       }
       
-      // Save to ensure structure is correct
+      // Save the initialized store back to localStorage
       this.saveWebStoreToLocalStorage();
-      
-      console.log('Web database initialized with tables:', Object.keys(this.webStore));
-    } catch (err) {
-      console.error('Error initializing web database:', err);
-      throw err;
+      console.log('Web database initialized:', this.webStore);
+    } catch (error) {
+      console.error('Error initializing web database:', error);
+      throw error;
     }
   }
 
   private initializeEmptyWebStore(): void {
-    // Initialize empty tables with their schema
     this.webStore = {
       customers: [],
       tasks: [],
       task_cycles: [],
       task_history: [],
-      task_types: [],
-      notification_types: DEFAULT_NOTIFICATION_TYPES,
-      notification_values: [],
-      database_version: []
+      task_types: [
+        {
+          id: 1,
+          name: 'Payment',
+          description: 'Payment reminder tasks',
+          isDefault: 1,
+          icon: 'cash-outline',
+          color: '#2dd36f'
+        },
+        {
+          id: 2,
+          name: 'Update',
+          description: 'General update tasks',
+          isDefault: 1,
+          icon: 'refresh-outline',
+          color: '#3880ff'
+        },
+        {
+          id: 3,
+          name: 'Custom',
+          description: 'Custom reminder tasks',
+          isDefault: 1,
+          icon: 'create-outline',
+          color: '#5260ff'
+        }
+      ],
+      notification_types: DEFAULT_NOTIFICATION_TYPES.map((type, index) => ({
+        id: index + 1,
+        key: type.key,
+        name: type.name,
+        description: type.description,
+        icon: type.icon,
+        color: type.color,
+        isEnabled: type.isEnabled ? 1 : 0,
+        requiresValue: type.requiresValue ? 1 : 0,
+        valueLabel: type.valueLabel || null,
+        validationPattern: type.validationPattern || null,
+        validationError: type.validationError || null,
+        order_num: type.order
+      })),
+      notification_values: []
     };
 
-    // Add schema information for each table
-    const schema = {
-      customers: {
-        id: 'INTEGER',
-        name: 'TEXT',
-        email: 'TEXT',
-        phone: 'TEXT',
-        createdAt: 'TEXT'
-      },
-      tasks: {
-        id: 'INTEGER',
-        title: 'TEXT',
-        type: 'TEXT',
-        customerId: 'INTEGER',
-        frequency: 'TEXT',
-        startDate: 'TEXT',
-        notificationTime: 'TEXT',
-        notificationType: 'TEXT',
-        notificationValue: 'TEXT',
-        notes: 'TEXT',
-        isCompleted: 'INTEGER',
-        lastCompletedDate: 'TEXT',
-        isArchived: 'INTEGER'
-      },
-      task_cycles: {
-        id: 'INTEGER',
-        taskId: 'INTEGER',
-        cycleStartDate: 'TEXT',
-        cycleEndDate: 'TEXT',
-        status: 'TEXT',
-        progress: 'INTEGER',
-        completedAt: 'TEXT',
-        createdAt: 'TEXT'
-      },
-      task_history: {
-        id: 'INTEGER',
-        taskId: 'INTEGER',
-        timestamp: 'TEXT',
-        action: 'TEXT',
-        details: 'TEXT'
-      },
-      task_types: {
-        id: 'INTEGER',
-        name: 'TEXT',
-        icon: 'TEXT',
-        color: 'TEXT'
-      },
-      notification_types: {
-        id: 'INTEGER',
-        key: 'TEXT',
-        name: 'TEXT',
-        icon: 'TEXT',
-        isEnabled: 'INTEGER'
-      },
-      notification_values: {
-        id: 'INTEGER',
-        notificationTypeId: 'INTEGER',
-        value: 'TEXT',
-        label: 'TEXT'
-      },
-      database_version: {
-        version: 'INTEGER'
-      }
-    };
+    // Initialize with proper data types
+    this.webStore['tasks'] = this.webStore['tasks'].map(task => ({
+      ...task,
+      isArchived: task.isArchived === 1 || task.isArchived === true || task.isArchived === 'true' ? 1 : 0
+    }));
 
-    // Add a dummy row to each table to preserve schema
-    Object.entries(schema).forEach(([table, columns]) => {
-      if (!this.webStore[table].length && table !== 'notification_types') {
-        const dummyRow = Object.fromEntries(
-          Object.entries(columns).map(([col, type]) => [col, type === 'INTEGER' ? 0 : ''])
-        );
-        this.webStore[table].push(dummyRow);
-      }
-    });
-
-    // Save the initial state
+    console.log('Initialized web store with default values:', this.webStore);
     this.saveWebStoreToLocalStorage();
   }
 
@@ -482,7 +475,13 @@ export class DatabaseService {
         valueLabel TEXT,
         validationPattern TEXT,
         validationError TEXT,
-        order INTEGER
+        order_num INTEGER
+      )`,
+      `CREATE TABLE IF NOT EXISTS notification_values (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        notification_type_key TEXT NOT NULL,
+        value TEXT NOT NULL,
+        FOREIGN KEY (notification_type_key) REFERENCES notification_types(key) ON DELETE CASCADE
       )`
     ];
 
@@ -493,18 +492,28 @@ export class DatabaseService {
 
   private async runMigrations() {
     const currentVersion = await this.getCurrentVersion();
-    
+    console.log('Current database version:', currentVersion);
+
     if (currentVersion < 1) {
-        await this.migration1();
-      }
+      await this.migration1();
+      await this.setVersion(1);
+    }
     if (currentVersion < 2) {
-        await this.migration2();
-      }
+      await this.migration2();
+      await this.setVersion(2);
+    }
     if (currentVersion < 3) {
       await this.migration3();
+      await this.setVersion(3);
     }
-    
-    await this.setVersion(3);
+    if (currentVersion < 4) {
+      await this.migration4();
+      await this.setVersion(4);
+    }
+    if (currentVersion < 5) {
+      await this.migration5();
+      await this.setVersion(5);
+    }
   }
 
   private async migration3() {
@@ -565,6 +574,107 @@ export class DatabaseService {
     }
   }
 
+  private async migration4() {
+    console.log('Running migration 4: Adding Silent notification type and notification_values table');
+    
+    try {
+      // Create notification_values table if it doesn't exist
+      await this.executeQuery(`
+        CREATE TABLE IF NOT EXISTS notification_values (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          notification_type_key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          FOREIGN KEY (notification_type_key) REFERENCES notification_types(key) ON DELETE CASCADE
+        )
+      `);
+
+      // Check if Silent notification type already exists
+      const result = await this.executeQuery(
+        'SELECT * FROM notification_types WHERE key = ?',
+        ['silent']
+      );
+
+      if (!result.values || result.values.length === 0) {
+        // Add Silent notification type
+        await this.executeQuery(`
+          INSERT INTO notification_types (
+            key, name, description, icon, color, isEnabled, requiresValue, valueLabel,
+            validationPattern, validationError, order_num
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          'silent',
+          'Silent',
+          'Notifications without sound or alerts',
+          'alert-outline',
+          '#ffd534',
+          0,  // isEnabled = false
+          0,  // requiresValue = false
+          null, // valueLabel
+          null, // validationPattern
+          null, // validationError
+          1    // order_num
+        ]);
+
+        // Update order of other notification types
+        await this.executeQuery(`
+          UPDATE notification_types 
+          SET order_num = order_num + 1 
+          WHERE key != 'silent'
+        `);
+      }
+
+      console.log('Migration 4 completed successfully');
+    } catch (error) {
+      console.error('Error in migration 4:', error);
+      throw error;
+    }
+  }
+
+  private async migration5() {
+    console.log('Running migration 5: Updating notification_values table and cleaning up invalid tasks');
+    
+    try {
+      // Drop and recreate notification_values table
+      await this.executeQuery('DROP TABLE IF EXISTS notification_values');
+      
+      await this.executeQuery(`
+        CREATE TABLE IF NOT EXISTS notification_values (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          notification_type_key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          FOREIGN KEY (notification_type_key) REFERENCES notification_types(key) ON DELETE CASCADE
+        )
+      `);
+
+      // Clean up invalid tasks
+      await this.executeQuery(`
+        DELETE FROM tasks 
+        WHERE frequency IS NULL 
+           OR startDate IS NULL 
+           OR title IS NULL 
+           OR type IS NULL
+      `);
+
+      // If in web mode, also clean up the web store
+      if (!this.isNative) {
+        if (this.webStore['tasks']) {
+          this.webStore['tasks'] = this.webStore['tasks'].filter(task => 
+            task.frequency && 
+            task.startDate && 
+            task.title && 
+            task.type
+          );
+          this.saveWebStoreToLocalStorage();
+        }
+      }
+
+      console.log('Migration 5 completed successfully');
+    } catch (error) {
+      console.error('Error in migration 5:', error);
+      throw error;
+    }
+  }
+
   async executeQuery(statement: string, values?: any[]): Promise<any> {
     if (this.isNative) {
       // Native platform - use SQLite with proper transaction handling
@@ -606,514 +716,290 @@ export class DatabaseService {
   }
 
   private async executeWebQuery(statement: string, values?: any[]): Promise<any> {
+    console.log('Executing web query:', statement, 'with values:', values);
     try {
-      console.log('Executing web query:', { statement, values });
-      console.log('Current web store state:', this.webStore);
-
-      if (statement.trim().toUpperCase().startsWith('PRAGMA')) {
-        // Handle PRAGMA queries
-        const match = statement.match(/PRAGMA\s+table_info\((\w+)\)/i);
-        if (match) {
-          const tableName = match[1].toLowerCase();
-          if (!this.webStore[tableName]) {
-            return Promise.resolve({ values: [] });
-          }
-          
-          // Get a sample row to determine columns
-          const sampleRow = this.webStore[tableName][0] || {};
-          const columns = Object.keys(sampleRow);
-          
-          // Return column info in SQLite format
-          const columnInfo = columns.map((name, index) => ({
-            cid: index,
-            name: name,
-            type: typeof sampleRow[name] === 'number' ? 'INTEGER' : 
-                  typeof sampleRow[name] === 'boolean' ? 'BOOLEAN' : 'TEXT',
-            notnull: 0,
-            dflt_value: null,
-            pk: name === 'id' ? 1 : 0
-          }));
-          
-          return Promise.resolve({ values: columnInfo });
-        }
-        return Promise.resolve({ values: [] });
-      } else if (statement.trim().toUpperCase().startsWith('WITH')) {
-        // Handle WITH (CTE) queries
-        const results = this.handleWebCTE(statement);
-        return Promise.resolve({ values: results, changes: 0 });
-      } else if (statement.trim().toUpperCase().startsWith('SELECT')) {
-        // Handle SELECT queries
-        const result = this.handleWebSelect(statement, values || []);
-        console.log('SELECT query results:', result);
-        return Promise.resolve(result);
-      } else if (statement.trim().toUpperCase().startsWith('UPDATE')) {
-        // Handle UPDATE queries
-        const result = this.handleWebUpdate(statement, values || []);
-        this.saveWebStoreToLocalStorage();
-        return Promise.resolve(result);
-      } else if (statement.trim().toUpperCase().startsWith('INSERT')) {
-        // Handle INSERT queries
-        const result = this.handleWebInsert(statement, values || []);
-        this.saveWebStoreToLocalStorage();
-        return Promise.resolve(result);
-      } else if (statement.trim().toUpperCase().startsWith('DELETE')) {
-        // Handle DELETE queries
-        const result = this.handleWebDelete(statement, values || []);
-        this.saveWebStoreToLocalStorage();
-        return Promise.resolve(result);
+      let result: any;
+      
+      // Special handling for PRAGMA and table_info queries
+      if (statement.trim().toLowerCase().startsWith('pragma') || 
+          /table_info\(\w+\)/i.test(statement)) {
+        return this.handleWebSelect(statement, values || []);
+      }
+      
+      // Handle different types of SQL statements
+      if (statement.trim().toLowerCase().startsWith('select')) {
+        result = this.handleWebSelect(statement, values || []);
+      } else if (statement.trim().toLowerCase().startsWith('insert')) {
+        result = this.handleWebInsert(statement, values || []);
+      } else if (statement.trim().toLowerCase().startsWith('update')) {
+        result = this.handleWebUpdate(statement, values || []);
+      } else if (statement.trim().toLowerCase().startsWith('delete')) {
+        result = this.handleWebDelete(statement, values || []);
+      } else {
+        throw new Error(`Unsupported SQL statement: ${statement}`);
       }
 
-      throw new Error(`Unsupported query type: ${statement}`);
+      // Save changes to localStorage
+      this.saveWebStoreToLocalStorage();
+      
+      console.log('Web query result:', result);
+      return result;
     } catch (error) {
       console.error('Error executing web query:', error);
-      return Promise.reject(error);
+      throw error;
     }
   }
 
-  private handleWebCTE(statement: string): any[] {
-    console.log('Handling CTE query:', statement);
-    
-    // Clean up the statement - normalize whitespace but preserve important spaces
-    const cleanStatement = statement.replace(/\s+/g, ' ').trim();
-    
-    // Extract CTE definition and main query
-    const matches = cleanStatement.match(/WITH\s+(\w+)\s+AS\s+\(([\s\S]+?)\)\s+([\s\S]+)/i);
-    if (!matches) {
-      throw new Error('Invalid CTE query format');
-    }
-    
-    const [_, cteName, cteQuery, mainQuery] = matches;
-    console.log('CTE parts:', { cteName, cteQuery, mainQuery });
-
-    // Get base table data for the CTE
-    const fromMatch = cteQuery.match(/FROM\s+(\w+)/i);
-    if (!fromMatch) {
-      throw new Error('Invalid FROM clause in CTE');
-    }
-    
-    const baseTable = fromMatch[1].toLowerCase();
-    const baseData = [...this.webStore[baseTable]];
-
-    // Handle window function
-    if (cteQuery.includes('ROW_NUMBER()')) {
-      const partitionMatch = cteQuery.match(/PARTITION\s+BY\s+([^\s]+)/i);
-      const orderMatch = cteQuery.match(/ORDER\s+BY\s+([^\s]+)/i);
-      
-      if (!partitionMatch || !orderMatch) {
-        throw new Error('Missing PARTITION BY or ORDER BY in window function');
+  private handleWebSelect(statement: string, values: any[]): any {
+    try {
+      // Handle PRAGMA and table_info queries
+      if (statement.toLowerCase().includes('pragma') || statement.toLowerCase().includes('table_info')) {
+        const tableMatch = statement.match(/table_info\((\w+)\)/i);
+        if (tableMatch) {
+          const tableName = tableMatch[1];
+          if (tableName in this.tableSchemas) {
+            return { values: this.tableSchemas[tableName] };
+          }
+          return { values: [] };
+        }
+        // For other PRAGMA queries, return empty result
+        return { values: [] };
       }
-      
-      const partitionCol = partitionMatch[1].split('.')[1] || partitionMatch[1];
-      const orderCol = orderMatch[1].split('.')[1] || orderMatch[1];
-      
-      // Group by partition column
-      const groups = baseData.reduce<{ [key: string]: any[] }>((acc, row) => {
-        const key = row[partitionCol];
-        if (!acc[key]) acc[key] = [];
-        acc[key].push({ ...row });
-        return acc;
-      }, {});
-      
-      // Add row numbers within each partition
-      const cteResults = Object.values(groups).flatMap((group: any[]) => {
-        group.sort((a: any, b: any) => {
-          const aVal = a[orderCol];
-          const bVal = b[orderCol];
-          return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
-        });
-        
-        return group.map((row: any, index: number) => ({
-          ...row,
-          rn: index + 1
+
+      // Extract table name from the query
+      const tableMatch = statement.match(/FROM\s+(\w+)/i);
+      if (!tableMatch) throw new Error('Could not determine table name from query');
+      const tableName = tableMatch[1];
+
+      // Get the data for this table
+      let data = this.webStore[tableName] || [];
+
+      // Handle WHERE conditions
+      if (statement.includes('WHERE')) {
+        const whereCondition = statement.split('WHERE')[1].split(/ORDER BY|LIMIT|GROUP BY/)[0].trim();
+        data = data.filter(record => this.evaluateWhereCondition(record, whereCondition, values));
+      }
+
+      // Special handling for isArchived field
+      if (tableName === 'tasks' && statement.includes('isArchived')) {
+        data = data.map(task => ({
+          ...task,
+          isArchived: task.isArchived === 1 || task.isArchived === true || task.isArchived === 'true' ? 1 : 0
         }));
-      });
-      
-      // Store CTE results temporarily
-      const tempStore = { ...this.webStore };
-      tempStore[cteName] = cteResults;
-      
-      // Execute main query with CTE results
-      console.log('Executing main query with CTE:', mainQuery);
-      const mainResults = this.handleWebSelect(mainQuery, [], tempStore).values;
-      console.log('Main query results:', mainResults);
-      
-      return mainResults;
-    }
-
-    // For non-window function CTEs
-    const cteResults = this.handleWebSelect(cteQuery, []).values;
-    console.log('CTE results:', cteResults);
-
-    // Store CTE results temporarily
-    const tempStore = { ...this.webStore };
-    tempStore[cteName] = cteResults;
-
-    // Execute main query with CTE results
-    const mainResults = this.handleWebSelect(mainQuery, [], tempStore).values;
-    console.log('Main query results:', mainResults);
-
-    return mainResults;
-  }
-
-  private handleWebSelect(statement: string, values: any[], tempStore?: any): any {
-    console.log('Handling SELECT query:', { statement, values });
-    
-    // Clean up the statement - normalize whitespace but preserve important spaces
-    const cleanStatement = statement.replace(/\s+/g, ' ').trim();
-    console.log('Cleaned statement:', cleanStatement);
-    
-    // Extract table names and JOIN conditions
-    const fromMatch = cleanStatement.match(/FROM\s+(\w+)(\s+(?:LEFT |INNER |RIGHT )?JOIN\s+[\s\S]+?(?=WHERE|ORDER BY|$))?/i);
-    if (!fromMatch) {
-      console.error('Invalid SELECT query format:', { cleanStatement, fromMatch });
-      throw new Error('Invalid SELECT query format');
-    }
-    
-    const mainTable = fromMatch[1].toLowerCase();
-    const store = tempStore || this.webStore;
-    
-    if (!store[mainTable]) {
-      console.error(`Table ${mainTable} not found in store`);
-      throw new Error(`Table ${mainTable} not found`);
-    }
-    
-    let results = [...store[mainTable]];
-    console.log('Initial results from table:', results);
-    
-    // Handle JOINs if present
-    if (fromMatch[2]) {
-      const joins = fromMatch[2].match(/(?:LEFT |INNER |RIGHT )?JOIN\s+(\w+)\s+(?:AS\s+)?(\w+)?\s*ON\s+(.+?)(?=(?:LEFT |INNER |RIGHT )?JOIN|\s*$)/gi);
-      if (joins) {
-        joins.forEach(joinClause => {
-          const joinMatch = joinClause.match(/(?:(LEFT|INNER|RIGHT)\s+)?JOIN\s+(\w+)\s+(?:AS\s+)?(\w+)?\s*ON\s+(.+)/i);
-          if (joinMatch) {
-            const [_, joinType = 'INNER', joinTable, alias, condition] = joinMatch;
-            const tableToJoin = store[joinTable.toLowerCase()];
-            
-            if (!tableToJoin) {
-              throw new Error(`Join table ${joinTable} not found`);
-            }
-            
-            results = this.performJoin(results, tableToJoin, condition, joinType.toUpperCase(), alias);
-          }
-        });
       }
-    }
-    
-    // Extract WHERE clause
-    const whereMatch = cleanStatement.match(/WHERE\s+(.+?)(?:\s+ORDER BY|\s*$)/i);
-    
-    // Apply WHERE clause if present
-    if (whereMatch) {
-      const whereClause = whereMatch[1].trim();
-      results = results.filter(row => this.evaluateWhereCondition(row, whereClause, values));
-    }
-    
-    // Extract ORDER BY clause
-    const orderMatch = cleanStatement.match(/ORDER BY\s+(.+?)$/i);
-    
-    // Apply ORDER BY if present
-    if (orderMatch) {
-      const orderClauses = orderMatch[1].split(',').map(clause => {
-        const parts = clause.trim().split(/\s+/);
-        return {
-          column: parts[0],
-          direction: parts[1]?.toUpperCase() || 'ASC'
-        };
-        });
-      
-      results.sort((a, b) => {
-        for (const clause of orderClauses) {
-          const aVal = this.evaluateOrderByExpression(a, clause.column);
-          const bVal = this.evaluateOrderByExpression(b, clause.column);
+
+      // Handle JOIN conditions
+      if (statement.includes('JOIN')) {
+        // Extract all table names and their aliases
+        const joinMatches = statement.matchAll(/JOIN\s+(\w+)(?:\s+(?:as\s+)?(\w+))?/gi);
+        for (const match of joinMatches) {
+          const joinTable = match[1];
+          const joinData = this.webStore[joinTable] || [];
           
-          if (aVal !== bVal) {
-            return clause.direction === 'ASC' ? 
-              (aVal > bVal ? 1 : -1) : 
-              (aVal < bVal ? 1 : -1);
-          }
+          // Perform the join
+          data = data.map(record => {
+            const joinRecords = joinData.filter(jr => 
+              jr[`${tableName}Id`] === record.id || 
+              jr.id === record[`${joinTable}Id`]
+            );
+            
+            return {
+              ...record,
+              ...joinRecords[0]
+            };
+          });
         }
-        return 0;
-      });
-    }
-    
-    console.log('Final SELECT results:', results);
-    return {
-      values: Array.isArray(results) ? results : [results],
-      changes: 0
-    };
-  }
-
-  private evaluateOrderByExpression(row: any, expression: string): any {
-    // Handle CASE expressions
-    if (expression.toUpperCase().startsWith('CASE')) {
-      const caseMatch = expression.match(/CASE\s+([\s\S]+?)\s+END/i);
-      if (caseMatch) {
-        const whenClauses = caseMatch[1].split(/\s+WHEN\s+/i).slice(1);
-        for (const clause of whenClauses) {
-          const [condition, result] = clause.split(/\s+THEN\s+/i);
-          if (this.evaluateComplexCondition(row, condition)) {
-            return Number(result.trim());
-          }
-        }
-        // Handle ELSE clause if present
-        const elseMatch = caseMatch[1].match(/ELSE\s+(\d+)/i);
-        return elseMatch ? Number(elseMatch[1]) : null;
       }
+
+      return { values: data };
+    } catch (error) {
+      console.error('Error in handleWebSelect:', error);
+      throw error;
     }
-    return row[expression];
   }
 
-  private evaluateComplexCondition(row: any, condition: string): boolean {
-    // Handle AND conditions
-    if (condition.includes(' AND ')) {
-      const conditions = condition.split(' AND ');
-      return conditions.every(c => this.evaluateSimpleCondition(row, c.trim()));
+  private handleWebInsert(statement: string, values: any[]): any {
+    console.log('Handling web insert:', statement, values);
+    const matches = statement.match(/INSERT INTO (\w+)/i);
+    if (!matches) {
+      throw new Error('Invalid INSERT statement');
     }
-    
-    // Handle OR conditions
-    if (condition.includes(' OR ')) {
-      const conditions = condition.split(' OR ');
-      return conditions.some(c => this.evaluateSimpleCondition(row, c.trim()));
+  
+    const tableName = matches[1].toLowerCase();
+    if (!this.webStore[tableName]) {
+      this.webStore[tableName] = [];  // Initialize if not exists
     }
+  
+    // Get the next ID
+    const maxId = this.webStore[tableName].reduce((max: number, item: any) => 
+      item.id > max ? item.id : max, 0);
+    const newId = maxId + 1;
+  
+    // Create the new record
+    const newRecord: { [key: string]: any } = { id: newId };
     
-    return this.evaluateSimpleCondition(row, condition);
+    // Extract column names from the statement - fix the regex to handle multiline
+    // Match everything between the first ( and ) that contains column names
+    const columnsMatch = statement.match(/INSERT INTO \w+\s*\(\s*([\s\S]*?)\s*\)\s*VALUES/i);
+    if (columnsMatch) {
+      const columnsString = columnsMatch[1];
+      const columns = columnsString
+        .split(',')
+        .map(col => col.trim().replace(/\n/g, '').replace(/\s+/g, ' '))
+        .filter(col => col.length > 0);
+      
+      console.log('Extracted columns:', columns);
+      console.log('Values to insert:', values);
+      
+      columns.forEach((col, index) => {
+        if (index < values.length) {
+          newRecord[col] = values[index];
+        }
+      });
+    } else {
+      console.error('Could not extract columns from statement:', statement);
+      throw new Error('Could not parse column names from INSERT statement');
+    }
+  
+    // Special handling for notification_values
+    if (tableName === 'notification_values') {
+      // Remove any existing value for this notification type
+      this.webStore[tableName] = this.webStore[tableName].filter(
+        (nv: any) => nv['notification_type_key'] !== newRecord['notification_type_key']
+      );
+    }
+  
+    // Add the record to the table
+    this.webStore[tableName].push(newRecord);
+  
+    // Save changes to localStorage
+    this.saveWebStoreToLocalStorage();
+  
+    console.log(`Inserted new record in ${tableName}:`, newRecord);
+    return { changes: { lastId: newId, changes: 1 }, values: [newRecord] };
+  }
+  private handleWebUpdate(statement: string, values: any[]): any {
+    console.log('Handling web update:', statement, values);
+    const matches = statement.match(/UPDATE\s+(\w+)\s+SET/i);
+    if (!matches) {
+      throw new Error('Invalid UPDATE statement');
+    }
+
+    const tableName = matches[1].toLowerCase();
+    if (!this.webStore[tableName]) {
+      throw new Error(`Table ${tableName} does not exist`);
+    }
+
+    // Extract SET clause and WHERE condition
+    const setMatch = statement.match(/SET\s+(.*?)(?=\s+WHERE|$)/is);
+    const whereMatch = statement.match(/WHERE\s+(.*)/i);
+
+    if (!setMatch) {
+      throw new Error('Invalid SET clause in UPDATE statement');
+    }
+
+    // Split SET clause by commas, but handle line breaks and whitespace
+    const setColumns = setMatch[1]
+      .split(',')
+      .map(col => col.trim())
+      .filter(col => col.length > 0);  // Filter out empty strings
+
+    let valueIndex = 0;
+    const updates: { [key: string]: any } = {};
+
+    // Build updates object
+    setColumns.forEach(col => {
+      const colMatch = col.match(/(\w+)\s*=\s*\?/);
+      if (colMatch) {
+        const columnName = colMatch[1];
+        updates[columnName] = values[valueIndex++];
+      }
+    });
+
+    console.log('Updates to apply:', updates);
+    console.log('Where condition:', whereMatch?.[1]);
+    console.log('Remaining values:', values.slice(valueIndex));
+
+    // Apply updates
+    let updatedCount = 0;
+    this.webStore[tableName] = this.webStore[tableName].map((record: any) => {
+      if (!whereMatch || this.evaluateWhereCondition(record, whereMatch[1], values.slice(valueIndex))) {
+        updatedCount++;
+        return { ...record, ...updates };
+      }
+      return record;
+    });
+
+    // Save changes to localStorage
+    this.saveWebStoreToLocalStorage();
+
+    console.log(`Updated ${updatedCount} records in ${tableName}:`, updates);
+    return { changes: { changes: updatedCount } };
   }
 
-  private evaluateSimpleCondition(row: any, condition: string): boolean {
-    // Handle various comparison operators
-    if (condition.includes('!=')) {
-      const [col, val] = condition.split('!=').map(s => s.trim());
-      const rowVal = this.getRowValue(row, col);
-      const compareVal = this.parseValue(val);
-      return rowVal !== compareVal;
-    } else if (condition.includes('<=')) {
-      const [col, val] = condition.split('<=').map(s => s.trim());
-      const rowVal = this.getRowValue(row, col);
-      const compareVal = this.parseValue(val);
-      return rowVal <= compareVal;
-    } else if (condition.includes('>=')) {
-      const [col, val] = condition.split('>=').map(s => s.trim());
-      const rowVal = this.getRowValue(row, col);
-      const compareVal = this.parseValue(val);
-      return rowVal >= compareVal;
-    } else if (condition.includes('<')) {
-      const [col, val] = condition.split('<').map(s => s.trim());
-      const rowVal = this.getRowValue(row, col);
-      const compareVal = this.parseValue(val);
-      return rowVal < compareVal;
-    } else if (condition.includes('>')) {
-      const [col, val] = condition.split('>').map(s => s.trim());
-      const rowVal = this.getRowValue(row, col);
-      const compareVal = this.parseValue(val);
-      return rowVal > compareVal;
-    } else if (condition.includes('=')) {
-      const [col, val] = condition.split('=').map(s => s.trim());
-      const rowVal = this.getRowValue(row, col);
-      const compareVal = this.parseValue(val);
-      return rowVal === compareVal;
+  private handleWebDelete(statement: string, values: any[]): any {
+    console.log('Handling web delete:', statement, values);
+    const matches = statement.match(/DELETE FROM (\w+)/i);
+    if (!matches) {
+      throw new Error('Invalid DELETE statement');
+    }
+
+    const tableName = matches[1].toLowerCase();
+    if (!this.webStore[tableName]) {
+      throw new Error(`Table ${tableName} does not exist`);
+    }
+
+    const whereMatch = statement.match(/WHERE (.*)/i);
+    if (!whereMatch) {
+      throw new Error('DELETE statement must have a WHERE clause');
+    }
+
+    const initialLength = this.webStore[tableName].length;
+    this.webStore[tableName] = this.webStore[tableName].filter((record: any) => 
+      !this.evaluateWhereCondition(record, whereMatch[1], values));
+
+    // Save changes to localStorage
+      this.saveWebStoreToLocalStorage();
+      
+    const deletedCount = initialLength - this.webStore[tableName].length;
+    console.log(`Deleted ${deletedCount} records from ${tableName}`);
+    return { changes: { changes: deletedCount } };
+  }
+
+  private evaluateWhereCondition(record: any, condition: string, values: any[]): boolean {
+    let valueIndex = 0;
+    const processedCondition = condition.replace(/\?/g, () => {
+      const value = values[valueIndex++];
+      return typeof value === 'string' ? `'${value}'` : value;
+    });
+    
+    // Handle basic conditions (e.g., "id = 1")
+    const basicCondition = processedCondition.match(/(\w+)\s*(=|!=|>|<|>=|<=)\s*(.+)/);
+    if (basicCondition) {
+      const [, column, operator, value] = basicCondition;
+      const recordValue = record[column];
+      const compareValue = this.parseValue(value);
+      
+      switch (operator) {
+        case '=': return recordValue === compareValue;
+        case '!=': return recordValue !== compareValue;
+        case '>': return recordValue > compareValue;
+        case '<': return recordValue < compareValue;
+        case '>=': return recordValue >= compareValue;
+        case '<=': return recordValue <= compareValue;
+        default: return false;
+      }
     }
     
     return false;
   }
 
-  private getRowValue(row: any, column: string): any {
-    // Handle table aliases (e.g., tc.cycleEndDate)
-    if (column.includes('.')) {
-      const [alias, field] = column.split('.');
-      return row[field];
-    }
-    return row[column];
-  }
-
   private parseValue(value: string): any {
-    // Remove quotes if present
-    value = value.replace(/^['"]|['"]$/g, '');
-    
-    // Try parsing as date
-    if (value.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) {
-      return value;
+    if (value.startsWith("'") && value.endsWith("'")) {
+      return value.slice(1, -1);
     }
-    
-    // Try parsing as number
     const num = Number(value);
-    if (!isNaN(num)) {
-      return num;
-    }
-    
-    // Return as string
-    return value;
-  }
-
-  private performJoin(leftTable: any[], rightTable: any[], condition: string, joinType: string, alias?: string): any[] {
-    const results: any[] = [];
-    const [leftCol, rightCol] = condition.split(/\s*=\s*/);
-    const [leftTableCol, rightTableCol] = [
-      leftCol.split('.')[1],
-      rightCol.split('.')[1]
-    ];
-
-    for (const leftRow of leftTable) {
-      let matched = false;
-      for (const rightRow of rightTable) {
-        if (leftRow[leftTableCol] === rightRow[rightTableCol]) {
-          matched = true;
-          const joinedRow = {
-            ...leftRow,
-            ...(alias ? { [alias]: rightRow } : rightRow)
-          };
-          results.push(joinedRow);
-        }
-      }
-      
-      if (!matched && (joinType === 'LEFT' || joinType === 'RIGHT')) {
-        const nullRow = {
-          ...leftRow,
-          ...(alias ? { [alias]: null } : rightTable[0] ? 
-            Object.keys(rightTable[0]).reduce((acc, key) => ({ ...acc, [key]: null }), {}) : 
-            {})
-        };
-        results.push(nullRow);
-      }
-    }
-    
-    return results;
-  }
-
-  private handleWebInsert(statement: string, values: any[]): any {
-    try {
-      // Extract table name from INSERT statement
-      const tableMatch = statement.match(/INSERT INTO (\w+)/i);
-      if (!tableMatch) {
-        throw new Error('Invalid INSERT statement');
-      }
-      
-      const tableName = tableMatch[1].toLowerCase();
-      if (!this.webStore[tableName]) {
-        this.webStore[tableName] = [];
-      }
-
-      // Extract column names from the statement
-      const columnsMatch = statement.match(/\(([\w\s,]+)\)/i);
-      if (!columnsMatch) {
-        throw new Error('Invalid INSERT statement format');
-      }
-
-      const columns = columnsMatch[1].split(',').map(col => col.trim());
-      
-      // Create new record
-      const newRecord: any = {};
-      
-      // Generate new ID
-      const existingIds = this.webStore[tableName].map((record: any) => record.id || 0);
-      const newId = Math.max(0, ...existingIds) + 1;
-      newRecord.id = newId;
-
-      // Map values to columns
-      columns.forEach((col, index) => {
-        if (values[index] !== undefined) {
-          // Handle boolean conversions
-          if (col === 'isCompleted' || col === 'isArchived' || col === 'isEnabled' || col === 'isDefault') {
-            newRecord[col] = values[index] === 1;
-          } else {
-            newRecord[col] = values[index];
-          }
-        } else if (col === 'status') {
-          newRecord[col] = 'pending';
-        } else if (col === 'progress') {
-          newRecord[col] = 0;
-        } else if (col === 'isArchived' || col === 'isCompleted' || col === 'isEnabled' || col === 'isDefault') {
-          newRecord[col] = false;
-        }
-      });
-
-      // Add timestamps
-      if (!newRecord.createdAt) {
-        newRecord.createdAt = new Date().toISOString();
-      }
-
-      // Special handling for task_cycles
-      if (tableName === 'task_cycles') {
-        if (!newRecord.status) {
-          newRecord.status = 'pending';
-        }
-        if (typeof newRecord.progress === 'undefined') {
-          newRecord.progress = 0;
-        }
-      }
-
-      // Add the record
-      this.webStore[tableName].push(newRecord);
-      
-      // Save changes
-      this.saveWebStoreToLocalStorage();
-      
-      console.log(`Inserted new record into ${tableName}:`, {
-        id: newId,
-        record: newRecord,
-        tableSize: this.webStore[tableName].length
-      });
-      
-      // Return result in the same format as SQLite
-              return {
-        changes: {
-          changes: 1,
-          lastId: newId
-        }
-      };
-    } catch (error) {
-      console.error('Error in handleWebInsert:', error);
-      throw error;
-    }
-  }
-
-  private handleWebDelete(statement: string, values: any[]): any {
-    console.log('Handling DELETE query:', { statement, values });
-    
-    // Clean up the statement - remove newlines and extra spaces
-    const cleanStatement = statement.replace(/\s+/g, ' ').trim();
-    
-    // Extract table name and WHERE clause
-    const tableMatch = cleanStatement.match(/FROM\s+(\w+)/i);
-    const whereMatch = cleanStatement.match(/WHERE\s+(.+?)$/i);
-    
-    if (!tableMatch) {
-      console.error('Invalid DELETE query format:', { cleanStatement, tableMatch });
-      throw new Error('Invalid DELETE query format');
-    }
-    
-    const tableName = tableMatch[1].toLowerCase();
-    if (!this.webStore[tableName]) {
-      console.error(`Table ${tableName} not found in web store`);
-      throw new Error(`Table ${tableName} not found`);
-    }
-    
-    const originalLength = this.webStore[tableName].length;
-    
-    // Apply WHERE clause if present
-    if (whereMatch) {
-      const whereClause = whereMatch[1].trim();
-      let valueIndex = 0;
-      
-      this.webStore[tableName] = this.webStore[tableName].filter(row => {
-        if (whereClause.includes('id = ?')) {
-          const idValue = Number(values[valueIndex]);
-          return row.id !== idValue;
-        }
-        return !this.evaluateWhereCondition(row, whereClause, values);
-      });
-    } else {
-      // If no WHERE clause, delete all rows
-      this.webStore[tableName] = [];
-    }
-    
-    const deletedCount = originalLength - this.webStore[tableName].length;
-    console.log(`Deleted ${deletedCount} rows from ${tableName}`);
-    
-    return {
-      values: [],
-      changes: deletedCount
-    };
+    return isNaN(num) ? value : num;
   }
 
   async reinitializeDatabase(): Promise<void> {
@@ -1474,77 +1360,6 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error getting database schema:', error);
       throw error;
-    }
-  }
-
- private handleWebUpdate(statement: string, values: any[]): any {
-  console.log('Handling UPDATE query:', { statement, values });
-
-  // Normalize whitespace to flatten multiline SQL
-  const cleanStatement = statement.replace(/\s+/g, ' ').trim();
-
-  // Extract parts
-  const tableMatch = cleanStatement.match(/UPDATE\s+(\w+)\s+SET/i);
-  const setMatch = cleanStatement.match(/SET\s+(.+?)\s+WHERE/i);
-  const whereMatch = cleanStatement.match(/WHERE\s+(.+)$/i);
-
-  if (!tableMatch || !setMatch || !whereMatch) {
-    throw new Error('Invalid UPDATE query format');
-  }
-
-  const tableName = tableMatch[1].toLowerCase();
-  const setClause = setMatch[1];
-  const whereClause = whereMatch[1];
-
-  if (!this.webStore[tableName]) {
-    throw new Error(`Table ${tableName} not found`);
-  }
-
-  // Parse SET clause
-  const setColumns = setClause.split(',').map(part => part.split('=')[0].trim());
-  const updates: any = {};
-  const updateValues = values.slice(0, setColumns.length);
-
-  setColumns.forEach((col, i) => {
-    updates[col] = updateValues[i];
-  });
-
-  const whereValue = values[values.length - 1];
-  let updatedCount = 0;
-
-  this.webStore[tableName] = this.webStore[tableName].map(row => {
-    if (whereClause === 'id = ?' && row.id === whereValue) {
-      updatedCount++;
-      return { ...row, ...updates };
-    }
-    return row;
-  });
-
-  this.saveWebStoreToLocalStorage();
-
-  console.log(`Updated ${updatedCount} rows in ${tableName}`);
-  return { changes: updatedCount, values: [] };
-}
-
-
-  private evaluateWhereCondition(row: any, condition: string, values: any[]): boolean {
-    try {
-      let index = 0;
-      const jsCondition = condition
-        .replace(/\?/g, () => {
-          const value = values[index++];
-          return typeof value === 'string' ? `'${value}'` : value;
-        })
-        .replace(/([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*'([^']*)'|([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(\d+)/g,
-          (_, col1, val1, col2, val2) => {
-            const col = col1 || col2;
-            const val = val1 || val2;
-            return `row.${col} == ${typeof val === 'string' ? `'${val}'` : val}`;
-          });
-      return eval(jsCondition);
-    } catch (error) {
-      console.error('Error evaluating WHERE condition:', error);
-      return false;
     }
   }
 }

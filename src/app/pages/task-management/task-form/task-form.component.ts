@@ -6,7 +6,7 @@ import { TaskService } from '../../../services/task.service';
 import { CustomerService } from '../../../services/customer.service';
 import { TaskTypeService } from '../../../services/task-type.service';
 import { NotificationTypeService } from '../../../services/notification-type.service';
-import { Task } from '../../../models/task.model';
+import { Task, CreateTaskDTO } from '../../../models/task.model';
 import { NotificationType } from '../../../models/notification-type.model';
 import { TaskType } from '../../../services/task-type.service';
 import { Customer } from '../../../models/customer.model';
@@ -27,13 +27,14 @@ import { map } from 'rxjs/operators';
   ]
 })
 export class TaskFormComponent implements OnInit {
-  taskForm!: FormGroup;
+  taskForm: FormGroup;
   isEditMode = false;
   taskId?: number;
   customers: Customer[] = [];
   formInitialized = false;
   selectedNotificationTypes: NotificationType[] = [];
   private lastNotificationType: string = 'silent reminder';
+  isSubmitting = false;
 
   taskTypes = [
     { key: 'payment', name: 'Payment', icon: 'cash-outline', color: 'success' },
@@ -71,42 +72,30 @@ export class TaskFormComponent implements OnInit {
     private router: Router,
     private modalController: ModalController
   ) {
-    this.initializeForm();
-  }
-
-  private initializeForm() {
-    console.log('TaskForm: Initializing form');
-    const baseForm = {
+    this.taskForm = this.fb.group({
       title: ['', Validators.required],
-      type: ['', Validators.required],
-      customerId: [null as number | null],
+      type: ['custom', Validators.required],
+      customerId: [null],
       frequency: ['daily', Validators.required],
-      startDate: [new Date().toISOString(), Validators.required],
-      notificationTime: ['09:00', [Validators.required, Validators.pattern('^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')]],
-      notes: [''],
-      isCompleted: [false],
+      startDate: [new Date().toISOString().split('T')[0], Validators.required],
+      notificationTime: ['09:00', Validators.required],
       notificationType: ['push'],
-      notificationValue: ['']
-    };
-
-    this.taskForm = this.fb.group(baseForm);
-    console.log('TaskForm: Form created with initial values:', this.taskForm.value);
+      notificationValue: [''],
+      notes: ['']
+    });
 
     // Watch for notificationType changes
     this.taskForm.get('notificationType')?.valueChanges.subscribe(value => {
-      console.log('TaskForm: Notification type changed to:', value);
       if (value === 'manage') {
         this.manageNotificationTypes();
         // Reset back to previous value after opening management
         setTimeout(() => {
-          console.log('TaskForm: Resetting notification type to:', this.lastNotificationType || 'push');
           this.taskForm.patchValue({ notificationType: this.lastNotificationType || 'push' }, { emitEvent: false });
         });
       } else {
         this.lastNotificationType = value;
         // Handle validation for notification value based on type
         const type = this.getNotificationTypeDetails(value);
-        console.log('TaskForm: Notification type details:', type);
         if (type?.requiresValue) {
           this.taskForm.get('notificationValue')?.setValidators([
             Validators.required,
@@ -121,12 +110,10 @@ export class TaskFormComponent implements OnInit {
 
     // Watch for notification time changes
     this.taskForm.get('notificationTime')?.valueChanges.subscribe(value => {
-      console.log('TaskForm: Notification time changed to:', value);
     });
 
     // Watch for start date changes
     this.taskForm.get('startDate')?.valueChanges.subscribe(value => {
-      console.log('TaskForm: Start date changed to:', value);
     });
 
     // Subscribe to enabled notification types to set default if needed
@@ -204,7 +191,7 @@ export class TaskFormComponent implements OnInit {
     });
   }
 
-  async loadCustomers() {
+  private async loadCustomers() {
     try {
       this.customers = await this.customerService.getAllCustomers();
     } catch (error) {
@@ -219,14 +206,17 @@ export class TaskFormComponent implements OnInit {
       const task = await this.taskService.getTaskById(id);
       if (task) {
         console.log('TaskForm: Retrieved task data:', task);
+        // Only extract the fields that are part of the form
         const taskDataForForm = {
-          ...task,
+          title: task.title,
+          type: task.type,
+          customerId: task.customerId || null,
+          frequency: task.frequency,
           startDate: task.startDate ? new Date(task.startDate).toISOString().substring(0, 10) : null,
           notificationTime: task.notificationTime || '09:00',
-          notes: task.notes || '',
-          customerId: task.customerId || null,
           notificationType: task.notificationType || 'push',
-          notificationValue: task.notificationValue || ''
+          notificationValue: task.notificationValue || '',
+          notes: task.notes || ''
         };
         console.log('TaskForm: Formatted task data for form:', taskDataForForm);
         this.taskForm.patchValue(taskDataForForm);
@@ -243,28 +233,52 @@ export class TaskFormComponent implements OnInit {
   }
 
   async onSubmit() {
-    if (this.taskForm.valid) {
-      try {
-        const taskData = this.taskForm.value;
-        
-        if (this.isEditMode && this.taskId) {
-          await this.taskService.updateTask({
-            id: this.taskId,
-            ...taskData
-          });
-          await this.presentSuccessAlert('Task updated successfully');
-        } else {
-          await this.taskService.createTask(taskData);
-          await this.presentSuccessAlert('Task created successfully');
-        }
-        
-        this.navController.navigateBack('/tasks');
-      } catch (error) {
-        console.error('Error saving task:', error);
-        await this.presentErrorAlert('Failed to save task. Please try again.');
+    if (!this.taskForm.valid) {
+      await this.presentErrorAlert('Please fill in all required fields.');
+      return;
+    }
+
+    try {
+      this.isSubmitting = true;
+      const formData = this.taskForm.value;
+
+      // Create base task data
+      const baseTaskData: CreateTaskDTO = {
+        title: formData.title.trim(),
+        type: formData.type.trim(),
+        customerId: formData.customerId || null,
+        frequency: formData.frequency.trim(),
+        startDate: formData.startDate,  // Already formatted as YYYY-MM-DD
+        notificationType: formData.notificationType.trim(),
+        notificationTime: formData.notificationTime.trim(),
+        notificationValue: formData.notificationValue?.trim() || '',
+        notes: formData.notes?.trim() || '',
+        isArchived: false
+      };
+
+      if (this.isEditMode && this.taskId) {
+        // For update, create a Task object with required fields
+        const taskData: Task = {
+          ...baseTaskData,
+          id: this.taskId,
+          isCompleted: false,  // Default value for required field
+          lastCompletedDate: undefined  // Optional field
+        };
+        await this.taskService.updateTask(taskData);
+        await this.presentSuccessAlert('Task updated successfully');
+      } else {
+        // For create, use the CreateTaskDTO directly
+        console.log('TaskForm: Creating task:', baseTaskData);
+        await this.taskService.createTask(baseTaskData);
+        await this.presentSuccessAlert('Task created successfully');
       }
-    } else {
-      await this.presentErrorAlert('Please fill in all required fields correctly.');
+
+      this.navController.back();
+    } catch (error) {
+      console.error('Error saving task:', error);
+      await this.presentErrorAlert('Failed to save task. Please try again.');
+    } finally {
+      this.isSubmitting = false;
     }
   }
 
@@ -280,7 +294,7 @@ export class TaskFormComponent implements OnInit {
   async presentSuccessAlert(message: string) {
     const alert = await this.alertController.create({
       header: 'Success',
-      message: message,
+      message,
       buttons: ['OK']
     });
     await alert.present();

@@ -45,7 +45,9 @@ export class NotificationTypeService {
 
   private async loadNotificationTypes() {
     try {
-      const result = await this.databaseService.executeQuery('SELECT * FROM notification_types ORDER BY order_num');
+      const result = await this.databaseService.executeQuery(
+        'SELECT * FROM notification_types ORDER BY order_num'
+      );
       console.log('Fetched notification types:', result);
       const types = result.values.map((row: any) => ({
         id: row.id,
@@ -82,9 +84,7 @@ export class NotificationTypeService {
   async updateNotificationType(type: NotificationType): Promise<void> {
     try {
       await this.databaseService.executeQuery(
-        `UPDATE notification_types 
-         SET isEnabled = ? 
-         WHERE key = ?`,
+        'UPDATE notification_types SET isEnabled = ? WHERE key = ?',
         [type.isEnabled ? 1 : 0, type.key]
       );
 
@@ -114,7 +114,7 @@ export class NotificationTypeService {
       const result = await this.databaseService.executeQuery(`
         SELECT nt.key, nv.value
         FROM notification_types nt
-        LEFT JOIN notification_values nv ON nt.id = nv.notification_type_id
+        LEFT JOIN notification_values nv ON nt.key = nv.notification_type_key
         WHERE nt.isEnabled = 1
       `);
 
@@ -134,36 +134,39 @@ export class NotificationTypeService {
 
   async saveNotificationSettings(settings: Record<string, string>): Promise<void> {
     try {
-      // First, get all notification types to map keys to IDs
+      console.log('Saving notification settings:', settings);
+
+      // First, get all enabled notification types
       const types = await this.databaseService.executeQuery(
-        'SELECT id, key FROM notification_types WHERE isEnabled = 1'
+        'SELECT key FROM notification_types WHERE isEnabled = 1'
       );
+      console.log('Enabled notification types:', types);
 
-      const keyToId = types.values.reduce((acc: Record<string, number>, row: any) => {
-        acc[row.key] = row.id;
-        return acc;
-      }, {});
+      // Create mapping from form control names to notification type keys
+      const typeKeys: Record<string, string> = {};
+      types.values.forEach((type: any) => {
+        const controlName = this.controlMapping[type.key];
+        if (controlName) {
+          typeKeys[controlName] = type.key;
+        }
+      });
+      console.log('Type key mapping:', typeKeys);
 
-      // Delete existing values
+      // Delete existing values for enabled types
       await this.databaseService.executeQuery(
-        'DELETE FROM notification_values WHERE notification_type_id IN (SELECT id FROM notification_types WHERE isEnabled = 1)'
+        'DELETE FROM notification_values WHERE notification_type_key IN (SELECT key FROM notification_types WHERE isEnabled = 1)'
       );
 
-      // Create reverse mapping from form control names to notification type keys
-      const reverseMapping: Record<string, string> = Object.entries(this.controlMapping)
-        .reduce((acc: Record<string, string>, [key, value]) => {
-          acc[value] = key;
-          return acc;
-        }, {});
-
-      // Insert new values, mapping form control names back to notification type keys
+      // Insert new values for each enabled notification type
+      console.log('Settings to save:', settings);
       for (const [controlName, value] of Object.entries(settings)) {
-        const typeKey = reverseMapping[controlName];
-        const typeId = typeKey ? keyToId[typeKey] : null;
-        if (typeId) {
+        const typeKey = typeKeys[controlName];
+        console.log(`Processing ${controlName}:`, { typeKey, value });
+        if (typeKey && value) {
+          console.log(`Inserting value for ${controlName}:`, { typeKey, value });
           await this.databaseService.executeQuery(
-            'INSERT INTO notification_values (notification_type_id, value) VALUES (?, ?)',
-            [typeId, value]
+            'INSERT INTO notification_values (notification_type_key, value) VALUES (?, ?)',
+            [typeKey, value]
           );
         }
       }

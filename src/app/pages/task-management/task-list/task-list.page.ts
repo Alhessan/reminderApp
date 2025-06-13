@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AlertController, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule, ActionSheetButton } from '@ionic/angular'; // Added IonicModule
+import { AlertController, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule, ActionSheetButton, ToastController } from '@ionic/angular'; // Added IonicModule, ToastController
 import { Task } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
 import { DatabaseService } from '../../../services/database.service';
@@ -41,7 +41,8 @@ export class TaskListPage implements OnInit {
     private navController: NavController,
     private databaseService: DatabaseService,
     private actionSheetCtrl: ActionSheetController,
-    private taskCycleService: TaskCycleService
+    private taskCycleService: TaskCycleService,
+    private toastController: ToastController
   ) { }
 
   async ngOnInit() {
@@ -113,9 +114,21 @@ export class TaskListPage implements OnInit {
     }
   }
 
-  segmentChanged(event: CustomEvent<SegmentChangeEventDetail>) {
-    this.filterSegment = event.detail.value as string || 'all'; // Cast to string
-    this.loadTasks();
+  async segmentChanged(event: any) {
+    this.filterSegment = event.detail.value;
+    // Map segment values to view values
+    let view: 'all' | 'overdue' | 'in_progress' | 'upcoming';
+    switch (this.filterSegment) {
+      case 'pending':
+        view = 'upcoming';
+        break;
+      case 'in_progress':
+        view = 'in_progress';
+        break;
+      default:
+        view = 'all';
+    }
+    await this.taskCycleService.loadTaskList(view);
   }
 
   async presentSortOptions() {
@@ -195,38 +208,40 @@ export class TaskListPage implements OnInit {
     }
   }
 
-  async presentDeleteConfirm(taskId: number, taskTitle: string, slidingItem?: IonItemSliding) {
-    if (slidingItem) {
-      slidingItem.close();
-    }
+  async deleteTask(taskId: number) {
     const alert = await this.alertController.create({
-      header: 'Confirm Delete',
-      message: `Are you sure you want to delete task "${taskTitle}"? This will also delete its history.`, 
+      header: 'Delete Task',
+      message: `Are you sure you want to delete this task?<br><br>This action cannot be undone and will delete:<br>• The task and all its settings<br>• All cycles and progress history<br>• All associated notifications`,
+      cssClass: 'delete-alert',
       buttons: [
         {
           text: 'Cancel',
           role: 'cancel',
+          cssClass: 'secondary'
         },
         {
           text: 'Delete',
+          cssClass: 'danger',
           handler: async () => {
-            await this.deleteTask(taskId);
-          },
-        },
-      ],
+            try {
+              await this.taskService.deleteTask(taskId);
+              await this.loadTasks();
+              const toast = await this.toastController.create({
+                message: 'Task deleted successfully',
+                duration: 2000,
+                color: 'success',
+                position: 'bottom'
+              });
+              await toast.present();
+            } catch (error) {
+              console.error('Error deleting task:', error);
+              this.presentErrorAlert('Failed to delete task. Please try again.');
+            }
+          }
+        }
+      ]
     });
     await alert.present();
-  }
-
-  async deleteTask(taskId: number) {
-    try {
-      await this.taskService.deleteTask(taskId);
-      this.allTasks = this.allTasks.filter(t => t.id !== taskId);
-      this.loadTasks();
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      this.presentErrorAlert('Failed to delete task. Please try again.');
-    }
   }
 
   async presentErrorAlert(message: string) {
@@ -249,41 +264,66 @@ export class TaskListPage implements OnInit {
   }
 
   async openStatusActionSheet(taskItem: TaskListItem) {
+    const buttons = [];
+    const currentStatus = taskItem.currentCycle.status;
+
+    // Start option - Only show if:
+    // 1. Status is pending AND
+    // 2. Either it's within the start date or canStartEarly is true
+    if (currentStatus === 'pending' && taskItem.canStartEarly) {
+      buttons.push({
+        text: 'Start',
+        icon: 'play-outline',
+        data: 'in_progress',
+        handler: () => this.updateTaskStatus(taskItem, 'in_progress')
+      });
+    }
+
+    // Complete option - Only show if:
+    // 1. Status is in_progress AND
+    // 2. canComplete is true
+    if (currentStatus === 'in_progress' && taskItem.canComplete) {
+      buttons.push({
+        text: 'Complete',
+        icon: 'checkmark-outline',
+        data: 'completed',
+        handler: () => this.updateTaskStatus(taskItem, 'completed')
+      });
+    }
+
+    // Skip option - Only show for pending or in_progress tasks
+    if (currentStatus === 'pending' || currentStatus === 'in_progress') {
+      buttons.push({
+        text: 'Skip',
+        icon: 'forward-outline',
+        data: 'skipped',
+        handler: () => this.updateTaskStatus(taskItem, 'skipped')
+      });
+    }
+
+    // Reset option - Only show for in_progress or skipped tasks
+    if (currentStatus === 'in_progress' || currentStatus === 'skipped') {
+      buttons.push({
+        text: 'Reset',
+        icon: 'refresh-outline',
+        data: 'pending',
+        handler: () => this.updateTaskStatus(taskItem, 'pending')
+      });
+    }
+
+    // Always add the cancel button
+    buttons.push({
+      text: 'Cancel',
+      icon: 'close-outline',
+      role: 'cancel'
+    });
+
     const actionSheet = await this.actionSheetCtrl.create({
       header: 'Update Status',
       cssClass: 'task-action-sheet',
-      buttons: [
-        {
-          text: 'Start',
-          icon: 'play-outline',
-          data: 'in_progress',
-          handler: () => this.updateTaskStatus(taskItem, 'in_progress')
-        },
-        {
-          text: 'Complete',
-          icon: 'checkmark-outline',
-          data: 'completed',
-          handler: () => this.updateTaskStatus(taskItem, 'completed')
-        },
-        {
-          text: 'Skip',
-          icon: 'forward-outline',
-          data: 'skipped',
-          handler: () => this.updateTaskStatus(taskItem, 'skipped')
-        },
-        {
-          text: 'Reset',
-          icon: 'refresh-outline',
-          data: 'pending',
-          handler: () => this.updateTaskStatus(taskItem, 'pending')
-        },
-        {
-          text: 'Cancel',
-          icon: 'close-outline',
-          role: 'cancel'
-        }
-      ]
+      buttons
     });
+
     await actionSheet.present();
   }
 
@@ -373,6 +413,14 @@ export class TaskListPage implements OnInit {
           icon: 'archive-outline',
           handler: () => {
             this.archiveTask(taskItem);
+          }
+        },
+        {
+          text: 'Delete',
+          icon: 'trash-outline',
+          cssClass: 'danger',
+          handler: () => {
+            this.deleteTask(taskItem.task.id!);
           }
         },
         {

@@ -1,6 +1,6 @@
 import { Injectable } from "@angular/core";
 import { DatabaseService } from "./database.service";
-import { Task, TaskHistoryEntry } from "../models/task.model";
+import { Task, TaskHistoryEntry, CreateTaskDTO } from "../models/task.model";
 import { NotificationService } from "./notification.service"; // Import NotificationService
 import { Platform } from '@ionic/angular';
 import { BehaviorSubject } from 'rxjs';
@@ -34,56 +34,95 @@ export class TaskService {
     }
   }
 
-  async createTask(taskData: Partial<Task>): Promise<void> {
+  async createTask(taskData: CreateTaskDTO): Promise<number> {
     try {
-      // Generate task with defaults and provided data
-      const task: Task = {
-        id: 0, // Will be replaced by DB
-        title: taskData.title || '',
-        type: taskData.type || 'custom',
-        customerId: taskData.customerId,
-        customerName: taskData.customerName,
-        frequency: taskData.frequency || 'once',
-        startDate: taskData.startDate || new Date().toISOString(),
-        notificationTime: taskData.notificationTime || '09:00',
-        notificationType: taskData.notificationType || 'push',
-        notificationValue: taskData.notificationValue,
-        notes: taskData.notes || '',
-        isCompleted: false,
-        isArchived: false
-      };
-
-      const result = await this.dbService.executeQuery(
-        `INSERT INTO tasks (
-          title, type, customerId, frequency, startDate,
-          notificationTime, notificationType, notificationValue,
-          notes, isCompleted, isArchived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          task.title,
-          task.type,
-          task.customerId,
-          task.frequency,
-          task.startDate,
-          task.notificationTime,
-          task.notificationType,
-          task.notificationValue,
-          task.notes,
-          task.isCompleted ? 1 : 0,
-          task.isArchived ? 1 : 0
-        ]
-      );
-
-      // Get the inserted ID and schedule notification
-      task.id = result.insertId;
-      await this.scheduleTaskNotification(task);
-      
-      // Refresh task list
-      await this.loadTasks();
+      // Prepare the values, handling empty strings and null values properly
+      const values = [
+        taskData.title?.trim() || null,
+        taskData.type?.trim() || null,
+        taskData.customerId || null,
+        taskData.frequency?.trim() || null,
+        taskData.startDate || null,
+        taskData.notificationType?.trim() || null,
+        taskData.notificationTime?.trim() || null,
+        taskData.notificationValue?.trim() || null, // Use null instead of empty string
+        taskData.notes?.trim() || null, // Use null instead of empty string
+        taskData.isArchived ? 1 : 0
+      ];
+  
+      console.log('TaskService: Creating task with values:', values);
+  
+      const result = await this.dbService.executeQuery(`
+        INSERT INTO tasks (
+          title,
+          type,
+          customerId,
+          frequency,
+          startDate,
+          notificationType,
+          notificationTime,
+          notificationValue,
+          notes,
+          isArchived
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, values);
+  
+      console.log('TaskService: Insert result:', result);
+  
+      const taskId = result.changes?.lastId;
+      if (!taskId) throw new Error('Failed to get inserted task ID');
+  
+      // Create initial task cycle
+      const cycleEndDate = this.calculateCycleEnd(taskData.startDate, taskData.frequency);
+      await this.dbService.executeQuery(`
+        INSERT INTO task_cycles (
+          taskId,
+          cycleStartDate,
+          cycleEndDate,
+          status,
+          progress
+        ) VALUES (?, ?, ?, ?, ?)
+      `, [
+        taskId,
+        taskData.startDate,
+        cycleEndDate,
+        'pending',
+        0
+      ]);
+  
+      console.log('TaskService: Task created successfully with ID:', taskId);
+      return taskId;
     } catch (error) {
       console.error('Error creating task:', error);
       throw error;
     }
+  }
+
+  private calculateCycleEnd(startDate: string, frequency: string): string {
+    const start = new Date(startDate);
+    let end = new Date(start);
+
+    switch (frequency) {
+      case 'daily':
+        end.setDate(start.getDate() + 1);
+        break;
+      case 'weekly':
+        end.setDate(start.getDate() + 7);
+        break;
+      case 'monthly':
+        end.setMonth(start.getMonth() + 1);
+        break;
+      case 'yearly':
+        end.setFullYear(start.getFullYear() + 1);
+        break;
+      case 'once':
+        end = start; // For one-time tasks, end date is same as start date
+        break;
+      default:
+        throw new Error(`Invalid frequency: ${frequency}`);
+    }
+
+    return end.toISOString().split('T')[0];
   }
 
   async sendTaskNotification(task: Task): Promise<void> {
@@ -204,61 +243,39 @@ export class TaskService {
     }
   }
 
-  async updateTask(task: Task): Promise<void> {
-    console.log('TaskService: Updating task:', task);
-    
-    // Ensure proper data types
-    const sanitizedTask: Task = {
-      ...task,
-      id: Number(task.id),
-      customerId: task.customerId !== undefined ? (task.customerId !== null ? Number(task.customerId) : null) : undefined,
-      isCompleted: Boolean(task.isCompleted)
-    };
-    
+  async updateTask(taskData: Task): Promise<void> {
+    console.log('TaskService: Updating task:', taskData);
     try {
-      // First cancel any existing notification
-      if (sanitizedTask.id) {
-        console.log('TaskService: Cancelling existing notification for task:', sanitizedTask.id);
-        await this.notificationService.cancelNotification(sanitizedTask.id);
-      }
-
-      await this.dbService.executeQuery(
-        `UPDATE tasks SET 
-          title = ?, 
-          type = ?,
-          customerId = ?,
-          frequency = ?,
-          startDate = ?,
-          notificationTime = ?,
-          notificationType = ?,
-          notificationValue = ?,
-          notes = ?,
-          isCompleted = ?
-        WHERE id = ?`,
-        [
-          sanitizedTask.title,
-          sanitizedTask.type,
-          sanitizedTask.customerId,
-          sanitizedTask.frequency,
-          sanitizedTask.startDate,
-          sanitizedTask.notificationTime,
-          sanitizedTask.notificationType,
-          sanitizedTask.notificationValue,
-          sanitizedTask.notes || '',
-          sanitizedTask.isCompleted,
-          sanitizedTask.id
-        ]
-      );
-      
-      // Schedule new notification
-      await this.scheduleTaskNotification(sanitizedTask);
-      
-      // Refresh the task list after update
-      await this.loadTasks();
-      
-      console.log('TaskService: Task updated successfully');
+      await this.dbService.executeQuery(`
+        UPDATE tasks 
+        SET title = ?,
+            type = ?,
+            customerId = ?,
+            frequency = ?,
+            startDate = ?,
+            notificationType = ?,
+            notificationTime = ?,
+            notificationValue = ?,
+            notes = ?,
+            isArchived = ?,
+            isCompleted = ?
+        WHERE id = ?
+      `, [
+        taskData.title.trim(),
+        taskData.type.trim(),
+        taskData.customerId || null,
+        taskData.frequency.trim(),
+        taskData.startDate,
+        taskData.notificationType.trim(),
+        taskData.notificationTime.trim(),
+        taskData.notificationValue?.trim() || '',
+        taskData.notes?.trim() || '',
+        taskData.isArchived ? 1 : 0,
+        taskData.isCompleted ? 1 : 0,
+        taskData.id
+      ]);
     } catch (error) {
-      console.error('TaskService: Error updating task:', error);
+      console.error('Error updating task:', error);
       throw error;
     }
   }

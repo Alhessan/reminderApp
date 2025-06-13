@@ -51,10 +51,11 @@ export class NotificationTypesPage implements OnInit {
     this.notificationTypes$ = this.notificationTypeService.getNotificationTypes();
   }
 
-  ngOnInit() {
-    this.loadNotificationSettings();
+  async ngOnInit() {
+    // Load notification settings first
+    await this.loadNotificationSettings();
 
-    // Initialize enabled types
+    // Then initialize enabled types
     this.notificationTypes$.pipe(take(1)).subscribe(types => {
       types.forEach(type => {
         if (type.isEnabled) {
@@ -68,12 +69,21 @@ export class NotificationTypesPage implements OnInit {
   async loadNotificationSettings() {
     try {
       const settings = await this.notificationTypeService.getNotificationSettings();
+      console.log('Loaded notification settings:', settings);
       if (settings) {
+        // Patch form values and mark fields as touched to show validation
         this.notificationForm.patchValue(settings);
+        Object.keys(settings).forEach(key => {
+          const control = this.notificationForm.get(key);
+          if (control) {
+            control.markAsTouched();
+          }
+        });
         this.updateAdditionalFieldsVisibility();
       }
     } catch (error) {
       console.error('Error loading notification settings:', error);
+      await this.presentToast('Failed to load notification settings.');
     }
   }
 
@@ -89,7 +99,7 @@ export class NotificationTypesPage implements OnInit {
     const newEnabledState = !this.isTypeEnabled(type.key);
 
     if (newEnabledState && this.getEnabledCount() >= 3) {
-      this.presentToast('You can only enable up to 3 notification methods.');
+      await this.presentToast('You can only enable up to 3 notification methods.');
       return;
     }
 
@@ -111,12 +121,28 @@ export class NotificationTypesPage implements OnInit {
         }
       }
 
+      // Save form values if any notification type is enabled
+      if (this.getEnabledCount() > 0) {
+        const formValues = this.notificationForm.value;
+        await this.notificationTypeService.saveNotificationSettings(formValues);
+      }
+
       // Force update the notification types observable
       this.notificationTypes$ = this.notificationTypeService.getNotificationTypes();
       this.updateAdditionalFieldsVisibility();
+
+      // Show success message
+      await this.presentToast(`${type.name} notifications ${newEnabledState ? 'enabled' : 'disabled'}.`);
     } catch (error) {
       console.error('Error toggling notification type:', error);
-      this.presentToast('Failed to update notification settings.');
+      await this.presentToast('Failed to update notification settings.');
+      
+      // Revert the local state
+      if (newEnabledState) {
+        this.enabledTypes.delete(type.key);
+      } else {
+        this.enabledTypes.add(type.key);
+      }
     }
   }
 
@@ -175,22 +201,15 @@ export class NotificationTypesPage implements OnInit {
     }
 
     try {
-      const settings = Array.from(this.enabledTypes).reduce<Record<string, string>>((acc, typeKey) => {
-        const controlName = this.getControlName(typeKey);
-        if (controlName) {
-          const value = this.notificationForm.get(controlName)?.value;
-          if (value) {
-            acc[typeKey] = value;
-          }
-        }
-        return acc;
-      }, {});
-
-      await this.notificationTypeService.saveNotificationSettings(settings);
-      this.presentToast('Settings saved successfully!');
+      // Get form values directly
+      const formValues = this.notificationForm.value;
+      console.log('Form values to save:', formValues);
+      
+      await this.notificationTypeService.saveNotificationSettings(formValues);
+      await this.presentToast('Settings saved successfully!');
     } catch (error) {
       console.error('Error saving settings:', error);
-      this.presentToast('Failed to save settings. Please try again.');
+      await this.presentToast('Failed to save settings. Please try again.');
     }
   }
 

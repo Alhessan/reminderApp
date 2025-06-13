@@ -86,10 +86,31 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     console.log('Loading task list with view:', view);
     const now = new Date().toISOString();
 
+    // Get non-archived tasks with their latest cycles
+    const query = `
+      SELECT t.*, tc.id as cycle_id, tc.cycleStartDate, tc.cycleEndDate, 
+             tc.status, tc.progress, tc.completedAt
+      FROM tasks t
+      LEFT JOIN (
+        SELECT tc2.*,
+               ROW_NUMBER() OVER (
+                 PARTITION BY tc2.taskId 
+                 ORDER BY 
+                   tc2.cycleStartDate DESC,
+                   CASE tc2.status 
+                     WHEN 'pending' THEN 0
+                     WHEN 'in_progress' THEN 1
+                     WHEN 'skipped' THEN 2
+                     WHEN 'completed' THEN 3
+                   END
+               ) as rn
+        FROM task_cycles tc2
+      ) tc ON t.id = tc.taskId AND tc.rn = 1
+      WHERE t.isArchived = 0
+    `;
+
     // Basic query without complex joins
-    const tasksResult = await this.db.executeQuery(`
-      SELECT * FROM tasks
-    `);
+    const tasksResult = await this.db.executeQuery(query);
     console.log('Tasks query result:', tasksResult);
     
     // Convert raw DB results to properly typed tasks first
@@ -107,7 +128,13 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
 
     // Get cycles in a separate query
     const cyclesResult = await this.db.executeQuery(`
-      SELECT * FROM task_cycles ORDER BY cycleStartDate DESC
+      SELECT * FROM task_cycles 
+      ORDER BY cycleStartDate DESC, 
+      CASE 
+        WHEN status = 'completed' THEN 2
+        WHEN status = 'skipped' THEN 1
+        ELSE 0
+      END ASC
     `);
     console.log('Cycles query result:', cyclesResult);
     const cycles = cyclesResult.values || [];
@@ -116,7 +143,10 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     const latestCycles = new Map<number, any>();
     cycles.forEach((cycle: { taskId: number; id: number; cycleStartDate: string; cycleEndDate: string; status: string; progress: number; completedAt?: string }) => {
       if (!latestCycles.has(cycle.taskId)) {
-        latestCycles.set(cycle.taskId, cycle);
+        latestCycles.set(cycle.taskId, {
+          ...cycle,
+          status: cycle.status as TaskCycleStatus
+        });
       }
     });
 
@@ -138,12 +168,12 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
       };
 
       const latestCycle = latestCycles.get(task.id!);
-      const cycleData = latestCycle ? {
+      const cycleData: TaskCycle = latestCycle ? {
         id: latestCycle.id,
         taskId: task.id!,
         cycleStartDate: latestCycle.cycleStartDate,
         cycleEndDate: latestCycle.cycleEndDate,
-        status: latestCycle.status as TaskCycleStatus,
+        status: latestCycle.status,
         progress: latestCycle.progress || 0,
         completedAt: latestCycle.completedAt
       } : {
@@ -154,25 +184,35 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
         progress: 0
       };
 
+      const isOverdue = new Date(cycleData.cycleEndDate) < new Date() && cycleData.status !== 'completed';
+      
       return {
         task,
         currentCycle: cycleData,
-        isOverdue: new Date(cycleData.cycleEndDate) < new Date() && cycleData.status !== 'completed',
+        taskStatus: this.getTaskStatus(cycleData),
+        isOverdue,
         nextDueDate: cycleData.cycleEndDate,
         daysSinceLastCompletion: cycleData.completedAt ? 
           Math.floor((new Date().getTime() - new Date(cycleData.completedAt).getTime()) / (1000 * 60 * 60 * 24)) : 
-          undefined
+          undefined,
+        canStartEarly: this.canStartEarly(cycleData),
+        canComplete: this.canComplete(cycleData)
       };
     })
     .filter((item: TaskListItem) => {
       const c = item.currentCycle;
+      const now = new Date().toISOString();
+      const completed: TaskCycleStatus = 'completed';
+      const inProgress: TaskCycleStatus = 'in_progress';
+      const pending: TaskCycleStatus = 'pending';
+
       switch (view) {
         case 'overdue':
-          return c.cycleEndDate < now && c.status !== 'completed';
+          return c.cycleEndDate < now && c.status !== completed;
         case 'in_progress':
-          return c.status === 'in_progress';
+          return c.status === inProgress;
         case 'upcoming':
-          return c.cycleStartDate > now && c.status === 'pending';
+          return c.status === pending;
         default:
           return true;
       }
@@ -180,9 +220,10 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     .sort((a: TaskListItem, b: TaskListItem) => {
       const aEnd = a.currentCycle.cycleEndDate;
       const bEnd = b.currentCycle.cycleEndDate;
+      const inProgress: TaskCycleStatus = 'in_progress';
 
-      const aPriority = a.isOverdue ? 1 : a.currentCycle.status === 'in_progress' ? 2 : 3;
-      const bPriority = b.isOverdue ? 1 : b.currentCycle.status === 'in_progress' ? 2 : 3;
+      const aPriority = a.isOverdue ? 1 : a.currentCycle.status === inProgress ? 2 : 3;
+      const bPriority = b.isOverdue ? 1 : b.currentCycle.status === inProgress ? 2 : 3;
 
       if (aPriority !== bPriority) return aPriority - bPriority;
       return new Date(aEnd).getTime() - new Date(bEnd).getTime();
@@ -200,45 +241,82 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     try {
       console.log('Updating cycle status:', { cycleId, status, progress });
 
-      // Validate status
-      const validStatuses = ['pending', 'in_progress', 'completed'];
+      // Get current cycle
+      const currentCycle = await this.db.executeQuery(
+        'SELECT * FROM task_cycles WHERE id = ?',
+        [cycleId]
+      );
+
+      if (!currentCycle.values?.length) {
+        throw new Error('Cycle not found');
+      }
+
+      const cycle: TaskCycle = {
+        id: currentCycle.values[0].id,
+        taskId: currentCycle.values[0].taskId,
+        cycleStartDate: currentCycle.values[0].cycleStartDate,
+        cycleEndDate: currentCycle.values[0].cycleEndDate,
+        status: currentCycle.values[0].status,
+        progress: currentCycle.values[0].progress || 0,
+        completedAt: currentCycle.values[0].completedAt
+      };
+
+      // Validate status transition
+      const validStatuses: TaskCycleStatus[] = ['pending', 'in_progress', 'completed', 'skipped'];
       if (!validStatuses.includes(status)) {
         throw new Error(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
       }
 
-      // Build the query parameters
-      const params: any[] = [];
-      let setClause = 'status = ?';
-      params.push(status);
+      // Apply business rules
+      if (status === 'completed' && !this.canComplete(cycle)) {
+        throw new Error('Cannot complete cycle before its start date');
+      }
+
+      if (status === 'in_progress' && cycle.status === 'pending' && !this.canStartEarly(cycle)) {
+        throw new Error('Cannot start this cycle early - too far from start date');
+      }
+
+      // Build the SET clause and parameters
+      const setClauses = ['status = ?'];
+      const params: (string | number)[] = [status];
 
       if (progress !== undefined) {
-        setClause += ', progress = ?';
+        setClauses.push('progress = ?');
         params.push(progress);
       }
 
       if (status === 'completed') {
-        setClause += ', completedAt = ?';
+        setClauses.push('completedAt = ?');
         params.push(new Date().toISOString());
       }
 
       // Add the cycleId as the last parameter
       params.push(cycleId);
 
-      console.log('Update query:', setClause, params);
-
-      await this.db.executeQuery(`
+      const query = `
         UPDATE task_cycles
-        SET ${setClause}
+        SET ${setClauses.join(', ')}
         WHERE id = ?
-      `, params);
+      `;
 
+      console.log('Update query:', query, params);
+
+      await this.db.executeQuery(query, params);
       console.log('Status updated successfully');
+
+      // If completing a cycle, create next cycle
+      if (status === 'completed') {
+        const task = await this.getTask(cycle.taskId);
+        if (task) {
+          await this.createNextCycle(task, cycle);
+        }
+      }
 
       // Reload the task list to reflect changes
       await this.loadTaskList();
     } catch (error) {
       console.error('Error updating task cycle status:', error);
-      throw new Error('Failed to update task cycle status');
+      throw error;
     }
   }
 
@@ -255,7 +333,9 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
       console.log('Latest cycle:', latestCycle);
       
       // If there's a latest cycle and it's pending or in_progress, return its ID
-      if (latestCycle && (latestCycle.status === 'pending' || latestCycle.status === 'in_progress')) {
+      const pending: TaskCycleStatus = 'pending';
+      const inProgress: TaskCycleStatus = 'in_progress';
+      if (latestCycle && (latestCycle.status === pending || latestCycle.status === inProgress)) {
         console.log('Using existing cycle:', latestCycle.id);
         return latestCycle.id!;
       }
@@ -275,8 +355,8 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
           cycleEndDate,
           status,
           progress
-        ) VALUES (?, ?, ?, 'pending', 0)
-      `, [task.id, startDate, endDate]);
+        ) VALUES (?, ?, ?, ?, 0)
+      `, [task.id, startDate, endDate, pending]);
       console.log('Insert result:', insertResult);
 
       if (!insertResult.changes?.lastId) {
@@ -309,41 +389,93 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
   }
 
   private calculateNextCycleStart(previousEnd: string, frequency: string): string {
-    const date = new Date(previousEnd);
-    switch (frequency) {
-      case 'daily':
-        date.setDate(date.getDate() + 1);
-        break;
-      case 'weekly':
-        date.setDate(date.getDate() + 7);
-        break;
-      case 'monthly':
-        date.setMonth(date.getMonth() + 1);
-        break;
-      case 'yearly':
-        date.setFullYear(date.getFullYear() + 1);
-        break;
+    try {
+      // Parse the date string and ensure it's valid
+      const parsedDate = new Date(previousEnd);
+      if (isNaN(parsedDate.getTime())) {
+        console.error('Invalid previous end date:', previousEnd);
+        // If invalid, use current date as fallback
+        parsedDate.setTime(Date.now());
+      }
+
+      // Create a new date object to avoid modifying the original
+      const startDate = new Date(parsedDate);
+      
+      switch (frequency) {
+        case 'daily':
+          startDate.setDate(startDate.getDate() + 1);
+          break;
+        case 'weekly':
+          startDate.setDate(startDate.getDate() + 7);
+          break;
+        case 'monthly':
+          startDate.setMonth(startDate.getMonth() + 1);
+          break;
+        case 'yearly':
+          startDate.setFullYear(startDate.getFullYear() + 1);
+          break;
+        default:
+          console.warn('Unknown frequency:', frequency);
+          // Default to daily if frequency is unknown
+          startDate.setDate(startDate.getDate() + 1);
+      }
+
+      // Ensure the date is valid before converting to ISO string
+      if (isNaN(startDate.getTime())) {
+        console.error('Invalid start date calculated');
+        return new Date().toISOString(); // Fallback to current date
+      }
+
+      return startDate.toISOString();
+    } catch (error) {
+      console.error('Error calculating next cycle start date:', error);
+      return new Date().toISOString(); // Fallback to current date
     }
-    return date.toISOString();
   }
 
   private calculateCycleEnd(startDate: string, frequency: string): string {
-    const date = new Date(startDate);
-    switch (frequency) {
-      case 'daily':
-        date.setDate(date.getDate() + 1);
-        break;
-      case 'weekly':
-        date.setDate(date.getDate() + 7);
-        break;
-      case 'monthly':
-        date.setMonth(date.getMonth() + 1);
-        break;
-      case 'yearly':
-        date.setFullYear(date.getFullYear() + 1);
-        break;
+    try {
+      // Parse the date string and ensure it's valid
+      const parsedDate = new Date(startDate);
+      if (isNaN(parsedDate.getTime())) {
+        console.error('Invalid start date:', startDate);
+        // If invalid, use current date as fallback
+        parsedDate.setTime(Date.now());
+      }
+
+      // Create a new date object to avoid modifying the original
+      const endDate = new Date(parsedDate);
+      
+      switch (frequency) {
+        case 'daily':
+          endDate.setDate(endDate.getDate() + 1);
+          break;
+        case 'weekly':
+          endDate.setDate(endDate.getDate() + 7);
+          break;
+        case 'monthly':
+          endDate.setMonth(endDate.getMonth() + 1);
+          break;
+        case 'yearly':
+          endDate.setFullYear(endDate.getFullYear() + 1);
+          break;
+        default:
+          console.warn('Unknown frequency:', frequency);
+          // Default to daily if frequency is unknown
+          endDate.setDate(endDate.getDate() + 1);
+      }
+
+      // Ensure the date is valid before converting to ISO string
+      if (isNaN(endDate.getTime())) {
+        console.error('Invalid end date calculated');
+        return new Date().toISOString(); // Fallback to current date
+      }
+
+      return endDate.toISOString();
+    } catch (error) {
+      console.error('Error calculating cycle end date:', error);
+      return new Date().toISOString(); // Fallback to current date
     }
-    return date.toISOString();
   }
 
   async getTask(id: number): Promise<Task | null> {
@@ -620,124 +752,125 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
 
   async getArchivedTasks(): Promise<TaskListItem[]> {
     try {
-      console.log('Getting archived tasks');
-      
-      // First check if any tasks are archived
-      const checkResult = await this.db.executeQuery(`
-        SELECT COUNT(*) as count FROM tasks WHERE isArchived = 1
-      `);
-      console.log('Number of archived tasks:', checkResult.values?.[0]?.count);
+      const query = `
+        SELECT 
+          t.*,
+          c.name as customerName,
+          tc.id as cycle_id,
+          tc.cycleStartDate,
+          tc.cycleEndDate,
+          tc.status,
+          tc.progress,
+          tc.completedAt
+        FROM tasks t
+        LEFT JOIN customers c ON t.customerId = c.id
+        LEFT JOIN (
+          SELECT tc2.*,
+            ROW_NUMBER() OVER (
+              PARTITION BY tc2.taskId 
+              ORDER BY tc2.cycleStartDate DESC
+            ) as rn
+          FROM task_cycles tc2
+        ) tc ON t.id = tc.taskId AND tc.rn = 1
+        WHERE t.isArchived = 1
+        ORDER BY t.title ASC
+      `;
 
-      // Query only archived tasks
-      const result = await this.db.executeQuery(`
-        SELECT * FROM tasks WHERE isArchived = 1
-      `);
-      
-      if (!result.values?.length) {
-        console.log('No archived tasks found');
-        return [];
-      }
-
-      // Convert raw DB results to properly typed tasks
-      const tasks: DbTask[] = (result.values || []).map((raw: RawDbTask) => ({
-        ...raw,
-        id: Number(raw.id),
-        customerId: raw.customerId ? Number(raw.customerId) : undefined,
-        frequency: raw.frequency as Frequency,
-        isArchived: normalizeIsArchived(raw.isArchived)
-      }));
-      console.log('Raw archived tasks:', tasks);
-
-      // If no archived tasks found, return empty array
-      if (tasks.length === 0) {
-        return [];
-      }
-
-      // Get cycles for each task individually to avoid IN clause
-      const latestCycles = new Map<number, any>();
-      for (const task of tasks) {
-        const cycleResult = await this.db.executeQuery(`
-          SELECT * FROM task_cycles 
-          WHERE taskId = ?
-          ORDER BY cycleStartDate DESC
-          LIMIT 1
-        `, [task.id]);
-        
-        if (cycleResult.values?.length > 0) {
-          latestCycles.set(task.id, cycleResult.values[0]);
-        }
-      }
-      console.log('Latest cycles map:', latestCycles);
-
-      const archivedTasks = tasks.map((taskData: DbTask) => {
-        console.log('Processing archived task data:', taskData);
-        
-        // Since we queried for isArchived = 1, we should only have archived tasks
-        // But let's verify and fix any inconsistencies
-        if (taskData.isArchived === 0) {
-          console.warn('Found task with incorrect isArchived value:', taskData);
-          // Auto-correct the value in the database
-          this.db.executeQuery(`
-            UPDATE tasks 
-            SET isArchived = 1
-            WHERE id = ?
-          `, [taskData.id]).catch(err => 
-            console.error('Error correcting isArchived value:', err)
-          );
-        }
-
-        const task: Task = {
+      const result = await this.db.executeQuery(query);
+      const archivedTasks = (result.values || []).map((taskData: any) => {
+        const task = {
           id: taskData.id,
           title: taskData.title,
           type: taskData.type,
           customerId: taskData.customerId,
+          customerName: taskData.customerName || undefined,
           frequency: taskData.frequency,
           startDate: taskData.startDate,
-          notificationType: taskData.notificationType,
           notificationTime: taskData.notificationTime,
+          notificationType: taskData.notificationType,
+          notificationValue: taskData.notificationValue,
           notes: taskData.notes,
-          isArchived: true,  // We know it's archived since we queried for isArchived = 1
-          isCompleted: false
+          isArchived: true
         };
 
-        const latestCycle = latestCycles.get(task.id!);
-        let currentCycle: TaskCycle;
-        if (latestCycle) {
-          currentCycle = {
-            id: latestCycle.id,
-            taskId: task.id!,
-            cycleStartDate: latestCycle.cycleStartDate,
-            cycleEndDate: latestCycle.cycleEndDate,
-            status: latestCycle.status as TaskCycleStatus,
-            progress: latestCycle.progress || 0,
-            completedAt: latestCycle.completedAt
-          };
-        } else {
-          currentCycle = {
-            taskId: task.id!,
-            cycleStartDate: task.startDate,
-            cycleEndDate: this.calculateCycleEnd(task.startDate, task.frequency),
-            status: 'pending',
-            progress: 0
-          };
-        }
+        const currentCycle = taskData.cycle_id ? {
+          id: taskData.cycle_id,
+          taskId: task.id!,
+          cycleStartDate: taskData.cycleStartDate,
+          cycleEndDate: taskData.cycleEndDate,
+          status: taskData.status as TaskCycleStatus,
+          progress: taskData.progress || 0,
+          completedAt: taskData.completedAt
+        } : {
+          taskId: task.id!,
+          cycleStartDate: task.startDate,
+          cycleEndDate: this.calculateCycleEnd(task.startDate, task.frequency),
+          status: 'pending' as TaskCycleStatus,
+          progress: 0
+        };
 
         return {
           task,
           currentCycle,
-          isOverdue: new Date(currentCycle.cycleEndDate) < new Date() && currentCycle.status !== 'completed',
+          taskStatus: this.getTaskStatus(currentCycle),
+          isOverdue: false, // Archived tasks are not considered overdue
           nextDueDate: currentCycle.cycleEndDate,
           daysSinceLastCompletion: currentCycle.completedAt ? 
             Math.floor((new Date().getTime() - new Date(currentCycle.completedAt).getTime()) / (1000 * 60 * 60 * 24)) : 
-            undefined
+            undefined,
+          canStartEarly: false, // Archived tasks cannot be started
+          canComplete: false // Archived tasks cannot be completed
         };
       });
 
-      console.log('Final processed archived tasks:', archivedTasks);
       return archivedTasks;
     } catch (error) {
       console.error('Error getting archived tasks:', error);
       throw error;
     }
+  }
+
+  // Add new methods for task status management
+  private getTaskStatus(cycle: TaskCycle): 'Active' | 'Pending' | 'Completed' | 'Overdue' {
+    const now = new Date();
+    const cycleStart = new Date(cycle.cycleStartDate);
+    const cycleEnd = new Date(cycle.cycleEndDate);
+
+    if (cycle.status === 'completed') {
+      return 'Completed';
+    }
+
+    if (cycle.status === 'in_progress') {
+      return cycleEnd < now ? 'Overdue' : 'Active';
+    }
+
+    if (cycle.status === 'pending') {
+      return cycleEnd < now ? 'Overdue' : 'Pending';
+    }
+
+    // For skipped status, we don't show in main view
+    return 'Pending';
+  }
+
+  private canStartEarly(cycle: TaskCycle): boolean {
+    const now = new Date();
+    const cycleStart = new Date(cycle.cycleStartDate);
+    
+    // Can start early if:
+    // 1. Status is pending
+    // 2. Within reasonable timeframe (e.g., 3 days) before cycle start
+    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+    return cycle.status === 'pending' && 
+           (cycleStart.getTime() - now.getTime()) <= threeDaysMs;
+  }
+
+  private canComplete(cycle: TaskCycle): boolean {
+    const now = new Date();
+    const cycleStart = new Date(cycle.cycleStartDate);
+    
+    // Can complete if:
+    // 1. Status is in_progress
+    // 2. Cycle has officially started
+    return cycle.status === 'in_progress' && now >= cycleStart;
   }
 }

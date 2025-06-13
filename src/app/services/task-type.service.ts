@@ -22,11 +22,15 @@ export class TaskTypeService {
   }
 
   private async loadTaskTypes() {
+    console.log('Loading task types...');
     const result = await this.db.executeQuery('SELECT * FROM task_types ORDER BY name');
+    console.log('Task types loaded:', result.values);
     this.taskTypes.next(result.values);
   }
 
   getTaskTypes(): Observable<TaskType[]> {
+    console.log('Getting task types...');
+    this.loadTaskTypes(); // Refresh the data
     return this.taskTypes.asObservable();
   }
 

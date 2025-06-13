@@ -10,8 +10,13 @@ import { TaskTypesPage } from './task-types.page';
     CommonModule,
     FormsModule,
     IonicModule,
-    TaskTypesPage
+    RouterModule.forChild([
+      {
+        path: '',
+        component: TaskTypesPage
+      }
+    ])
   ],
-  declarations:[]
+  declarations: [TaskTypesPage]
 })
-export class TaskTypesPageModule {}
+export class TaskTypesPageModule {} 

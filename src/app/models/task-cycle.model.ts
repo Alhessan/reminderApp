@@ -1,6 +1,7 @@
 import { Task } from './task.model';
 
 export type TaskCycleStatus = 'pending' | 'in_progress' | 'completed' | 'skipped';
+export type TaskStatus = 'Active' | 'Pending' | 'Completed' | 'Overdue';
 
 export interface TaskCycle {
   id?: number;
@@ -25,7 +26,10 @@ export interface TaskProgress {
 export interface TaskListItem {
   task: Task;
   currentCycle: TaskCycle;
+  taskStatus: TaskStatus;  // Derived status for display
   isOverdue: boolean;
   nextDueDate: string;    // ISO 8601
   daysSinceLastCompletion?: number;
+  canStartEarly: boolean; // Whether the task can be started before its official start date
+  canComplete: boolean;   // Whether the task can be marked as completed
 } 

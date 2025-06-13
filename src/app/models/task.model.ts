@@ -1,8 +1,8 @@
 import { Customer } from './customer.model';
+import { TaskCycleStatus } from './task-cycle.model';
 
 export type NotificationType = string; // This allows any notification type key
 export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'once';
-export type TaskCycleStatus = 'pending' | 'in_progress' | 'completed';
 
 export interface Task {
   id: number;
@@ -57,5 +57,18 @@ export interface NotificationPayload {
   notificationType: string;
   taskId?: number;
   customerId?: number;
+}
+
+export interface CreateTaskDTO {
+  title: string;
+  type: string;
+  customerId?: number | null;
+  frequency: Frequency;
+  startDate: string;
+  notificationType: string;
+  notificationTime: string;
+  notificationValue?: string;
+  notes?: string;
+  isArchived?: boolean;
 }
 

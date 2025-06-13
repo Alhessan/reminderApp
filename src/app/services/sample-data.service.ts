@@ -23,7 +23,7 @@ export class SampleDataService {
       {
         id: 1,
         title: 'Overdue Payment Reminder',
-        type: 'payment',
+        type: 'Payment',
         frequency: 'monthly',
         startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days ago
         notificationType: 'email',
@@ -34,7 +34,7 @@ export class SampleDataService {
       {
         id: 2,
         title: 'In-Progress Update Task',
-        type: 'update',
+        type: 'Update',
         frequency: 'weekly',
         startDate: new Date().toISOString(),
         notificationType: 'push',
@@ -46,7 +46,7 @@ export class SampleDataService {
       {
         id: 3,
         title: 'Completed Daily Check',
-        type: 'custom',
+        type: 'Custom',
         frequency: 'daily',
         startDate: new Date().toISOString(),
         notificationType: 'push',
@@ -58,7 +58,7 @@ export class SampleDataService {
       {
         id: 4,
         title: 'Upcoming Monthly Review',
-        type: 'payment',
+        type: 'Payment',
         frequency: 'monthly',
         startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
         notificationType: 'email',
@@ -69,7 +69,7 @@ export class SampleDataService {
       {
         id: 5,
         title: 'Skipped Weekly Task',
-        type: 'update',
+        type: 'Update',
         frequency: 'weekly',
         startDate: new Date().toISOString(),
         notificationType: 'push',

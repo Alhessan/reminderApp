@@ -74,42 +74,66 @@ export class TaskListComponent implements OnInit {
   }
 
   async openStatusActionSheet(taskItem: TaskListItem) {
+    const buttons = [];
+    const currentStatus = taskItem.currentCycle.status;
+
+    // Start option - Only show if:
+    // 1. Status is pending AND
+    // 2. Either it's within the start date or canStartEarly is true
+    if (currentStatus === 'pending' && taskItem.canStartEarly) {
+      buttons.push({
+        text: 'Start',
+        icon: 'play-outline',
+        data: 'in_progress',
+        color: 'primary',
+        handler: () => this.updateStatus(taskItem, 'in_progress')
+      });
+    }
+
+    // Complete option - Only show if:
+    // 1. Status is in_progress AND
+    // 2. canComplete is true
+    if (currentStatus === 'in_progress' && taskItem.canComplete) {
+      buttons.push({
+        text: 'Complete',
+        icon: 'checkmark-outline',
+        data: 'completed',
+        color: 'success',
+        handler: () => this.updateStatus(taskItem, 'completed')
+      });
+    }
+
+    // Skip option - Only show for pending or in_progress tasks
+    if (currentStatus === 'pending' || currentStatus === 'in_progress') {
+      buttons.push({
+        text: 'Skip',
+        icon: 'forward-outline',
+        data: 'skipped',
+        color: 'warning',
+        handler: () => this.updateStatus(taskItem, 'skipped')
+      });
+    }
+
+    // Reset option - Only show for in_progress or skipped tasks
+    if (currentStatus === 'in_progress' || currentStatus === 'skipped') {
+      buttons.push({
+        text: 'Reset',
+        icon: 'refresh-outline',
+        data: 'pending',
+        handler: () => this.updateStatus(taskItem, 'pending')
+      });
+    }
+
+    // Always add the cancel button
+    buttons.push({
+      text: 'Cancel',
+      icon: 'close-outline',
+      role: 'cancel'
+    });
+
     const actionSheet = await this.actionSheetCtrl.create({
       header: 'Update Status',
-      buttons: [
-        {
-          text: 'Start',
-          icon: 'play-outline',
-          data: 'in_progress',
-          color: 'primary',
-          handler: () => this.updateStatus(taskItem, 'in_progress')
-        },
-        {
-          text: 'Complete',
-          icon: 'checkmark-outline',
-          data: 'completed',
-          color: 'success',
-          handler: () => this.updateStatus(taskItem, 'completed')
-        },
-        {
-          text: 'Skip',
-          icon: 'forward-outline',
-          data: 'skipped',
-          color: 'warning',
-          handler: () => this.updateStatus(taskItem, 'skipped')
-        },
-        {
-          text: 'Reset',
-          icon: 'refresh-outline',
-          data: 'pending',
-          handler: () => this.updateStatus(taskItem, 'pending')
-        },
-        {
-          text: 'Cancel',
-          icon: 'close-outline',
-          role: 'cancel'
-        }
-      ]
+      buttons
     });
 
     await actionSheet.present();
