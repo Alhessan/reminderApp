@@ -1,5 +1,5 @@
-<ion-header [translucent]="true">
-  <ion-toolbar>
+<ion-header [translucent]="true" class="full-width">
+  <ion-toolbar class="full-width">
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
@@ -22,7 +22,7 @@
     </ion-buttons>
   </ion-toolbar>
   
-  <ion-toolbar *ngIf="customerNameFilter">
+  <ion-toolbar *ngIf="customerNameFilter" class="full-width">
     <ion-title size="small">Routines for {{ customerNameFilter }}</ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="clearCustomerFilter()" fill="clear" color="danger">
@@ -31,8 +31,8 @@
     </ion-buttons>
   </ion-toolbar>
 
-  <ion-toolbar>
-    <ion-segment [(ngModel)]="filterSegment" (ionChange)="segmentChanged($event)" value="all">
+  <ion-toolbar class="full-width">
+    <ion-segment [(ngModel)]="filterSegment" (ionChange)="segmentChanged($event)" value="all" class="full-width">
       <ion-segment-button value="all">
         <ion-label>All</ion-label>
       </ion-segment-button>
@@ -46,36 +46,38 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true" class="ion-padding">
-  <ion-header collapse="condense">
-    <ion-toolbar>
+<ion-content [fullscreen]="true" class="full-width mobile-full-width">
+  <ion-header collapse="condense" class="full-width">
+    <ion-toolbar class="full-width">
       <ion-title size="large">{{ customerNameFilter ? ("Routines for " + customerNameFilter) : "Upcoming Routines" }}</ion-title>
     </ion-toolbar>
   </ion-header>
 
-  <div *ngIf="isLoading" class="ion-text-center ion-padding-top">
-    <ion-spinner name="crescent"></ion-spinner>
-  </div>
+  <div class="content-container full-width mobile-full-width mobile-padding-md">
+    <div *ngIf="isLoading" class="ion-text-center ion-padding-top">
+      <ion-spinner name="crescent"></ion-spinner>
+    </div>
 
-  <div *ngIf="!isLoading && (!filteredTasks || filteredTasks.length === 0)" class="empty-state">
-    <ion-icon name="calendar-outline" color="medium"></ion-icon>
-    <h3>No Routines Found</h3>
-    <p *ngIf="!customerNameFilter">Add your first routine to get started.</p>
-    <p *ngIf="customerNameFilter">No routines found for this customer.</p>
-    <ion-button *ngIf="!customerNameFilter" (click)="navigateAddTask()" expand="block" fill="clear">
-      Add Routine
-    </ion-button>
-  </div>
+    <div *ngIf="!isLoading && (!filteredTasks || filteredTasks.length === 0)" class="empty-state">
+      <ion-icon name="calendar-outline" color="medium"></ion-icon>
+      <h3>No Routines Found</h3>
+      <p *ngIf="!customerNameFilter">Add your first routine to get started.</p>
+      <p *ngIf="customerNameFilter">No routines found for this customer.</p>
+      <ion-button *ngIf="!customerNameFilter" (click)="navigateAddTask()" expand="block" fill="clear">
+        Add Routine
+      </ion-button>
+    </div>
 
-  <ion-list *ngIf="!isLoading && filteredTasks && filteredTasks.length > 0">
-    <app-task-list-item
-      *ngFor="let taskItem of filteredTasks; trackBy: trackTaskById"
-      [taskItem]="taskItem"
-      (statusChange)="openStatusActionSheet(taskItem)"
-      (progressUpdate)="updateProgress(taskItem)"
-      (optionsClick)="openTaskMenu(taskItem)">
-    </app-task-list-item>
-  </ion-list>
+    <ion-list *ngIf="!isLoading && filteredTasks && filteredTasks.length > 0" class="full-width">
+      <app-task-list-item
+        *ngFor="let taskItem of filteredTasks; trackBy: trackTaskById"
+        [taskItem]="taskItem"
+        (statusChange)="openStatusActionSheet(taskItem)"
+        (progressUpdate)="updateProgress(taskItem)"
+        (optionsClick)="openTaskMenu(taskItem)">
+      </app-task-list-item>
+    </ion-list>
+  </div>
 
   <ion-fab vertical="bottom" horizontal="end" slot="fixed">
     <ion-fab-button (click)="navigateAddTask()">
@@ -83,3 +85,4 @@
     </ion-fab-button>
   </ion-fab>
 </ion-content>
+

@@ -1,15 +1,25 @@
 import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app/app.routes';
-import { provideIonicAngular } from '@ionic/angular/standalone';
+import { provideIonicAngular, IonicRouteStrategy } from '@ionic/angular/standalone';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
+import { RouteReuseStrategy } from '@angular/router';
 
 bootstrapApplication(AppComponent, {
   providers: [
-    provideRouter(routes),
-    provideIonicAngular(),
+    { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
+    provideRouter(routes, withComponentInputBinding()),
+    provideIonicAngular({
+      mode: 'ios',
+      animated: true,
+      backButtonText: '',
+      hardwareBackButton: true,
+      menuIcon: 'menu-outline',
+      backButtonIcon: 'chevron-back-outline',
+      swipeBackEnabled: false
+    }),
     provideAnimations(),
     provideHttpClient()
   ]

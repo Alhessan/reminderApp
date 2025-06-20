@@ -2,20 +2,28 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule, DatePipe } from '@angular/common';
 import { TaskListItem } from '../../../../models/task-cycle.model';
-import { Router } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 
 @Component({
   selector: 'app-task-list-item',
   templateUrl: './task-list-item.component.html',
   styleUrls: ['./task-list-item.component.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, DatePipe]
+  imports: [IonicModule, CommonModule, DatePipe, RouterModule]
 })
 export class TaskListItemComponent {
   @Input() taskItem!: TaskListItem;
   @Output() statusChange = new EventEmitter<void>();
   @Output() progressUpdate = new EventEmitter<void>();
   @Output() optionsClick = new EventEmitter<Event>();
+
+  get progressValue(): number {
+    const progress = this.taskItem?.currentCycle?.progress || 0;
+    console.log('Raw progress:', progress); // Debug log
+    const calculated = Math.max(0, Math.min(100, progress)) / 100; // Clamp between 0-1
+    console.log('Calculated progress value:', calculated); // Debug log
+    return calculated;
+  }
 
   constructor(private router: Router) {}
 
@@ -67,7 +75,6 @@ export class TaskListItemComponent {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    // Format based on how far the date is
     if (d.toDateString() === now.toDateString()) {
       return 'Today ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (d.toDateString() === tomorrow.toDateString()) {
@@ -77,11 +84,13 @@ export class TaskListItemComponent {
     }
   }
 
-  onStatusClick() {
+  onStatusClick(event: Event) {
+    event.stopPropagation(); // Prevent navigation
     this.statusChange.emit();
   }
 
-  onProgressClick() {
+  onProgressClick(event: Event) {
+    event.stopPropagation(); // Prevent navigation
     this.progressUpdate.emit();
   }
 
@@ -89,4 +98,12 @@ export class TaskListItemComponent {
     event.stopPropagation();
     this.optionsClick.emit(event);
   }
-} 
+
+  navigateToTaskDetail() {
+    this.router.navigate(['/tasks/detail', this.taskItem.task.id], {
+      replaceUrl: false,
+      skipLocationChange: false
+    });
+  }
+}
+

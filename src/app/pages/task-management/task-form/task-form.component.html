@@ -1,7 +1,7 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/tasks"></ion-back-button>
+      <ion-back-button defaultHref="/tasks" icon="chevron-back-outline"></ion-back-button>
     </ion-buttons>
     <ion-title>{{ isEditMode ? 'Edit Routine' : 'New Routine' }}</ion-title>
   </ion-toolbar>
@@ -13,48 +13,66 @@
     <ion-card>
       <ion-card-header>
         <ion-card-title>
-          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          <ion-icon name="information-circle-outline" color="primary" aria-hidden="true"></ion-icon>
           Routine Details
         </ion-card-title>
       </ion-card-header>
       <ion-card-content>
-    <ion-item>
+        <ion-item>
           <ion-label position="stacked">What needs to be done? <ion-text color="danger">*</ion-text></ion-label>
-          <ion-input formControlName="title" type="text" placeholder="Enter your routine"></ion-input>
-    </ion-item>
-        <div *ngIf="taskForm.get('title')?.invalid && (taskForm.get('title')?.dirty || taskForm.get('title')?.touched)" class="error-message">
+          <ion-input 
+            formControlName="title" 
+            type="text" 
+            placeholder="Enter your routine"
+            [attr.aria-label]="'Task title'"
+            [attr.aria-required]="true">
+          </ion-input>
+        </ion-item>
+        <div *ngIf="taskForm.get('title')?.invalid && (taskForm.get('title')?.dirty || taskForm.get('title')?.touched)" 
+             class="error-message" 
+             role="alert">
           <small *ngIf="taskForm.get('title')?.errors?.['required']">Title is required.</small>
-    </div>
+        </div>
 
-    <ion-item>
+        <ion-item>
           <ion-label position="stacked">Category <ion-text color="danger">*</ion-text></ion-label>
-      <div class="type-selection-wrapper">
-            <ion-select formControlName="type" placeholder="Select routine category" interface="action-sheet">
-          <ion-select-option *ngFor="let type of taskTypes$ | async" [value]="type.name">
-            <ion-icon [name]="type.icon" [style.color]="type.color"></ion-icon>
-            {{ type.name }}
-          </ion-select-option>
-        </ion-select>
+          <div class="type-selection-wrapper">
+            <ion-select 
+              formControlName="type" 
+              placeholder="Select routine category"
+              [attr.aria-label]="'Task category'"
+              [attr.aria-required]="true">
+              <ion-select-option *ngFor="let type of taskTypes$ | async" [value]="type.name">
+                <ion-icon [name]="type.icon" [style.color]="type.color"></ion-icon>
+                {{ type.name }}
+              </ion-select-option>
+            </ion-select>
             <ion-button fill="clear" (click)="addNewTaskType()" size="small">
-          <ion-icon name="add-circle-outline"></ion-icon>
+              <ion-icon name="add-circle-outline"></ion-icon>
               New
-        </ion-button>
-      </div>
-    </ion-item>
-    <div *ngIf="taskForm.get('type')?.invalid && (taskForm.get('type')?.dirty || taskForm.get('type')?.touched)" class="error-message">
-      <small *ngIf="taskForm.get('type')?.errors?.['required']">Type is required.</small>
-    </div>
+            </ion-button>
+          </div>
+        </ion-item>
+        <div *ngIf="taskForm.get('type')?.invalid && (taskForm.get('type')?.dirty || taskForm.get('type')?.touched)" 
+             class="error-message"
+             role="alert">
+          <small *ngIf="taskForm.get('type')?.errors?.['required']">Type is required.</small>
+        </div>
 
         <!-- Profile/Customer Selection -->
         <div class="profile-selection">
           <ng-container *ngIf="taskForm.get('customerId')?.value; else noProfile">
-    <ion-item>
+            <ion-item>
               <ion-label position="stacked">Assigned to</ion-label>
-              <ion-select formControlName="customerId" interface="action-sheet">
+              <ion-select 
+                formControlName="customerId"
+                [attr.aria-label]="'Assign to customer'">
                 <ion-select-option [value]="null">No one</ion-select-option>
-        <ion-select-option *ngFor="let customer of customers" [value]="customer.id">{{ customer.name }}</ion-select-option>
-      </ion-select>
-    </ion-item>
+                <ion-select-option *ngFor="let customer of customers" [value]="customer.id">
+                  {{ customer.name }}
+                </ion-select-option>
+              </ion-select>
+            </ion-item>
           </ng-container>
           <ng-template #noProfile>
             <ion-button expand="block" fill="outline" (click)="showProfileSelection()" class="profile-button">
@@ -70,14 +88,14 @@
     <ion-card>
       <ion-card-header>
         <ion-card-title>
-          <ion-icon name="repeat-outline" color="primary"></ion-icon>
+          <ion-icon name="repeat-outline" color="primary" aria-hidden="true"></ion-icon>
           Recurrence Pattern
         </ion-card-title>
       </ion-card-header>
       <ion-card-content>
         <div class="frequency-info">
           <p class="frequency-label">How often should this task repeat?</p>
-          <ion-segment formControlName="frequency" mode="md">
+          <ion-segment formControlName="frequency" mode="md" [attr.aria-label]="'Task frequency'">
             <ion-segment-button value="daily" mode="md">
               <ion-icon name="sunny-outline"></ion-icon>
               <ion-label>Daily</ion-label>
@@ -95,7 +113,7 @@
               <ion-label>Yearly</ion-label>
             </ion-segment-button>
           </ion-segment>
-    </div>
+        </div>
 
         <div class="start-date-section">
           <p class="start-date-label">When should it start?</p>
@@ -105,83 +123,94 @@
               <h2>Starts</h2>
               <p>{{ formatDate(taskForm.get('startDate')?.value) }}</p>
             </ion-label>
-    </ion-item>
+          </ion-item>
         </div>
       </ion-card-content>
     </ion-card>
 
     <!-- Notification Settings -->
-    <ion-card class="notification-card">
+    <ion-card>
       <ion-card-header>
         <ion-card-title>
-          <ion-icon name="notifications-outline" color="primary"></ion-icon>
+          <ion-icon name="notifications-outline" color="primary" aria-hidden="true"></ion-icon>
           Reminder Settings
         </ion-card-title>
         <ion-card-subtitle>How should we remind you?</ion-card-subtitle>
       </ion-card-header>
       <ion-card-content>
-        <div class="notification-info"  >
-              <ion-segment formControlName="notificationType" class="notification-type-tabs custom-segment" mode="md">
-                <ion-segment-button *ngFor="let type of enabledNotificationTypes$ | async" [value]="type.key" class="notification-tab" [class.segment-button-checked]="taskForm.get('notificationType')?.value === type.key" mode="md">
-                  <ion-icon [name]="type.icon" [color]="type.color"></ion-icon>
-                  <ion-label>{{ type.name | slice:0:5 }}</ion-label>
-                </ion-segment-button>
-                <ion-segment-button value="manage" class="notification-tab manage-tab" mode="md">
-                  <ion-icon name="settings-outline"></ion-icon>
-                  <ion-label>More</ion-label>
-                </ion-segment-button>
-              </ion-segment>
-            </div>
+        <div class="notification-info">
+          <ion-segment 
+            formControlName="notificationType" 
+            class="notification-type-tabs custom-segment" 
+            mode="md"
+            [attr.aria-label]="'Notification type'"
+            (ionChange)="onNotificationTypeChange($event)">
+            <ion-segment-button 
+              *ngFor="let type of enabledNotificationTypes$ | async" 
+              [value]="type.key" 
+              class="notification-tab" 
+              [class.segment-button-checked]="taskForm.get('notificationType')?.value === type.key" 
+              mode="md">
+              <ion-icon [name]="type.icon" [color]="type.color"></ion-icon>
+              <ion-label>{{ type.name | slice:0:5 }}</ion-label>
+            </ion-segment-button>
+            <ion-segment-button value="manage" class="notification-tab manage-tab" mode="md">
+              <ion-icon name="settings-outline"></ion-icon>
+              <ion-label>More</ion-label>
+            </ion-segment-button>
+          </ion-segment>
+        </div>
 
-              <!-- Notification Value Input -->
-              <div *ngIf="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.requiresValue" class="notification-value-input">
-                <ion-item>
-                  <ion-label position="stacked">{{ getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel }}</ion-label>
-                  <ion-input
-                    formControlName="notificationValue"
-                    [type]="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.key === 'email' ? 'email' : 'text'"
-                    [placeholder]="'Enter ' + getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel">
-                  </ion-input>
-                  <ion-note slot="error" *ngIf="taskForm.get('notificationValue')?.touched && taskForm.get('notificationValue')?.errors">
-                    {{ getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.validationError }}
-                  </ion-note>
-                </ion-item>
-              </div>
+        <!-- Notification Value Input -->
+        <div *ngIf="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.requiresValue" class="notification-value-input">
+          <ion-item>
+            <ion-label position="stacked">{{ getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel }}</ion-label>
+            <ion-input
+              formControlName="notificationValue"
+              [type]="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.key === 'email' ? 'email' : 'text'"
+              [placeholder]="'Enter ' + getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel"
+              [attr.aria-label]="getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.valueLabel">
+            </ion-input>
+            <ion-note slot="error" *ngIf="taskForm.get('notificationValue')?.touched && taskForm.get('notificationValue')?.errors">
+              {{ getNotificationTypeDetails(taskForm.get('notificationType')?.value)?.validationError }}
+            </ion-note>
+          </ion-item>
+        </div>
 
-              <!-- Time Picker -->
-              <div class="time-picker-container">
-                <ion-datetime 
-                  formControlName="notificationTime" 
-                  presentation="time"
-                  [preferWheel]="true"
-                  class="notification-time-picker">
-                </ion-datetime>
-          </div>
+        <!-- Time Picker -->
+        <div class="time-picker-container">
+          <ion-datetime 
+            formControlName="notificationTime" 
+            presentation="time"
+            [preferWheel]="true"
+            class="notification-time-picker"
+            [attr.aria-label]="'Notification time'">
+          </ion-datetime>
+        </div>
 
-              <!-- Quick Time Presets -->
-              <div class="quick-time-presets">
-                <ion-chip (click)="setQuickTime('09:00')" [color]="isSelectedTime('09:00') ? 'primary' : 'medium'">
-                  <ion-icon name="sunny-outline"></ion-icon>
-                  <ion-label>9:00 AM</ion-label>
-                </ion-chip>
-                <ion-chip (click)="setQuickTime('12:00')" [color]="isSelectedTime('12:00') ? 'primary' : 'medium'">
-                  <ion-icon name="sunny"></ion-icon>
-                  <ion-label>12:00 PM</ion-label>
-                </ion-chip>
-                <ion-chip (click)="setQuickTime('18:00')" [color]="isSelectedTime('18:00') ? 'primary' : 'medium'">
-                  <ion-icon name="moon-outline"></ion-icon>
-                  <ion-label>6:00 PM</ion-label>
-                </ion-chip>
-          </div>
+        <!-- Quick Time Presets -->
+        <div class="quick-time-presets">
+          <ion-chip (click)="setQuickTime('09:00')" [color]="isSelectedTime('09:00') ? 'primary' : 'medium'">
+            <ion-icon name="sunny-outline"></ion-icon>
+            <ion-label>9:00 AM</ion-label>
+          </ion-chip>
+          <ion-chip (click)="setQuickTime('12:00')" [color]="isSelectedTime('12:00') ? 'primary' : 'medium'">
+            <ion-icon name="sunny"></ion-icon>
+            <ion-label>12:00 PM</ion-label>
+          </ion-chip>
+          <ion-chip (click)="setQuickTime('18:00')" [color]="isSelectedTime('18:00') ? 'primary' : 'medium'">
+            <ion-icon name="moon-outline"></ion-icon>
+            <ion-label>6:00 PM</ion-label>
+          </ion-chip>
+        </div>
 
-              <!-- Notification Settings Link -->
-              <div class="notification-settings-link">
-                <ion-note color="medium">
-                  Configure notification methods in 
-                  <a (click)="manageNotificationTypes()">Notification Settings</a>
-                </ion-note>
-          </div>
-        
+        <!-- Notification Settings Link -->
+        <div class="notification-settings-link">
+          <ion-note color="medium">
+            Configure notification methods in 
+            <a (click)="manageNotificationTypes()">Notification Settings</a>
+          </ion-note>
+        </div>
       </ion-card-content>
     </ion-card>
 
@@ -189,20 +218,21 @@
     <ion-card>
       <ion-card-header>
         <ion-card-title>
-          <ion-icon name="document-text-outline" color="primary"></ion-icon>
+          <ion-icon name="document-text-outline" color="primary" aria-hidden="true"></ion-icon>
           Additional Notes
         </ion-card-title>
         <ion-card-subtitle>Add any details or instructions</ion-card-subtitle>
       </ion-card-header>
       <ion-card-content>
-    <ion-item>
-          <ion-textarea 
-            formControlName="notes" 
-            placeholder="Enter any additional notes or instructions for this recurring task" 
+        <ion-item>
+          <ion-textarea
+            formControlName="notes"
+            placeholder="Enter any additional notes or instructions for this recurring task"
             [autoGrow]="true"
-            rows="3">
+            rows="3"
+            [attr.aria-label]="'Additional notes'">
           </ion-textarea>
-    </ion-item>
+        </ion-item>
       </ion-card-content>
     </ion-card>
 
@@ -210,7 +240,7 @@
     <ion-card *ngIf="taskForm.valid && taskForm.get('notificationType')?.value === 'push/local'">
       <ion-card-header>
         <ion-card-title>
-          <ion-icon name="eye-outline" color="primary"></ion-icon>
+          <ion-icon name="eye-outline" color="primary" aria-hidden="true"></ion-icon>
           Notification Preview
         </ion-card-title>
       </ion-card-header>
@@ -224,7 +254,7 @@
       </ion-card-content>
     </ion-card>
 
-    <ion-button type="submit" expand="block" [disabled]="taskForm.invalid" class="ion-margin submit-button">
+    <ion-button type="submit" expand="block" [disabled]="taskForm.invalid || isSubmitting" class="ion-margin submit-button">
       <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
       {{ isEditMode ? 'Update Routine' : 'Start Tracking' }}
     </ion-button>

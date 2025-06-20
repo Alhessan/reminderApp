@@ -83,11 +83,15 @@ export class TaskCycleService {
   // Full workaround: bypass CTE regex by pre-fetching in JS (avoid complex SQL for web)
 async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all'): Promise<void> {
   try {
+    // Debug query to check raw tasks data
+    const debugResult = await this.db.executeQuery('SELECT * FROM tasks');
+    console.log('Debug - All tasks in database:', debugResult.values);
+
     console.log('Loading task list with view:', view);
     const now = new Date().toISOString();
 
     // Get non-archived tasks with their latest cycles
-    const query = `
+    const tasksResult = await this.db.executeQuery(`
       SELECT t.*, tc.id as cycle_id, tc.cycleStartDate, tc.cycleEndDate, 
              tc.status, tc.progress, tc.completedAt
       FROM tasks t
@@ -106,24 +110,10 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
                ) as rn
         FROM task_cycles tc2
       ) tc ON t.id = tc.taskId AND tc.rn = 1
-      WHERE t.isArchived = 0
-    `;
-
-    // Basic query without complex joins
-    const tasksResult = await this.db.executeQuery(query);
+      WHERE t.isArchived = 0 OR t.isArchived IS NULL
+    `);
     console.log('Tasks query result:', tasksResult);
-    
-    // Convert raw DB results to properly typed tasks first
-    const allTasks: DbTask[] = (tasksResult.values || []).map((raw: RawDbTask) => ({
-      ...raw,
-      id: Number(raw.id),
-      customerId: raw.customerId ? Number(raw.customerId) : undefined,
-      frequency: raw.frequency as Frequency,
-      isArchived: normalizeIsArchived(raw.isArchived)
-    }));
-
-    // Then filter non-archived tasks
-    const nonArchivedTasks = allTasks.filter(t => t.isArchived === 0);
+    const nonArchivedTasks = tasksResult.values || [];
     console.log('Non-archived tasks:', nonArchivedTasks);
 
     // Get cycles in a separate query

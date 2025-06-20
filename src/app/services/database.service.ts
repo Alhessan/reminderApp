@@ -10,7 +10,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     description: 'Notifications without sound or alerts',
     icon: 'alert-outline',
     color: '#ffd534',
-    isEnabled: false,
+    isEnabled: true,
     requiresValue: false,
     order: 1
   },
@@ -20,7 +20,7 @@ const DEFAULT_NOTIFICATION_TYPES = [
     description: 'Receive instant notifications on your device',
     icon: 'notifications-outline',
     color: '#2dd36f',
-    isEnabled: false,
+    isEnabled: true,
     requiresValue: false,
     order: 2
   },
@@ -495,31 +495,26 @@ export class DatabaseService {
     console.log('Current database version:', currentVersion);
 
     if (currentVersion < 1) {
-      await this.migration1();
+      await this.consolidatedMigration();
       await this.setVersion(1);
-    }
-    if (currentVersion < 2) {
-      await this.migration2();
-      await this.setVersion(2);
-    }
-    if (currentVersion < 3) {
-      await this.migration3();
-      await this.setVersion(3);
-    }
-    if (currentVersion < 4) {
-      await this.migration4();
-      await this.setVersion(4);
-    }
-    if (currentVersion < 5) {
-      await this.migration5();
-      await this.setVersion(5);
     }
   }
 
-  private async migration3() {
+  private async consolidatedMigration() {
+    console.log('Running consolidated migration');
+    
+    try {
+      // Create all tables in one go
     const statements = [
-      // Drop the isCompleted and lastCompletedDate columns from tasks table
-      `CREATE TABLE IF NOT EXISTS tasks_new (
+        `CREATE TABLE IF NOT EXISTS customers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          email TEXT,
+          phone TEXT,
+          notes TEXT,
+          createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+        )`,
+        `CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -534,15 +529,6 @@ export class DatabaseService {
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
       )`,
-      `INSERT INTO tasks_new SELECT 
-        id, title, type, customerId, frequency, startDate, 
-        notificationType, notificationTime, notificationValue, 
-        notes, isArchived, createdAt 
-        FROM tasks`,
-      `DROP TABLE tasks`,
-      `ALTER TABLE tasks_new RENAME TO tasks`,
-
-      // Create task_cycles table
       `CREATE TABLE IF NOT EXISTS task_cycles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         taskId INTEGER NOT NULL,
@@ -554,126 +540,135 @@ export class DatabaseService {
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
       )`,
+        `CREATE TABLE IF NOT EXISTS task_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          taskId INTEGER NOT NULL,
+          action TEXT NOT NULL,
+          details TEXT,
+          timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS task_types (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          description TEXT,
+          isDefault INTEGER DEFAULT 0,
+          icon TEXT,
+          color TEXT
+        )`,
+        `CREATE TABLE IF NOT EXISTS notification_types (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          key TEXT NOT NULL UNIQUE,
+          name TEXT NOT NULL,
+          description TEXT,
+          icon TEXT,
+          color TEXT,
+          isEnabled INTEGER DEFAULT 0,
+          requiresValue INTEGER DEFAULT 0,
+          valueLabel TEXT,
+          validationPattern TEXT,
+          validationError TEXT,
+          order_num INTEGER
+        )`,
+        `CREATE TABLE IF NOT EXISTS notification_values (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          notification_type_key TEXT NOT NULL,
+          value TEXT NOT NULL,
+          FOREIGN KEY (notification_type_key) REFERENCES notification_types(key) ON DELETE CASCADE
+        )`,
+        `CREATE TABLE IF NOT EXISTS database_version (
+          version INTEGER PRIMARY KEY
+        )`
+      ];
 
-      // Create initial cycles for existing tasks
-      `INSERT INTO task_cycles (taskId, cycleStartDate, cycleEndDate, status, completedAt)
-       SELECT id, startDate, 
-         CASE frequency
-           WHEN 'daily' THEN date(startDate, '+1 day')
-           WHEN 'weekly' THEN date(startDate, '+7 days')
-           WHEN 'monthly' THEN date(startDate, '+1 month')
-           WHEN 'yearly' THEN date(startDate, '+1 year')
-         END,
-         CASE WHEN isCompleted = 1 THEN 'completed' ELSE 'pending' END,
-         lastCompletedDate
-       FROM tasks`
-    ];
-
+      // Execute all DDL statements
     for (const statement of statements) {
       await this.executeQuery(statement, []);
-    }
-  }
-
-  private async migration4() {
-    console.log('Running migration 4: Adding Silent notification type and notification_values table');
-    
-    try {
-      // Create notification_values table if it doesn't exist
-      await this.executeQuery(`
-        CREATE TABLE IF NOT EXISTS notification_values (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          notification_type_key TEXT NOT NULL,
-          value TEXT NOT NULL,
-          FOREIGN KEY (notification_type_key) REFERENCES notification_types(key) ON DELETE CASCADE
-        )
-      `);
-
-      // Check if Silent notification type already exists
-      const result = await this.executeQuery(
-        'SELECT * FROM notification_types WHERE key = ?',
-        ['silent']
-      );
-
-      if (!result.values || result.values.length === 0) {
-        // Add Silent notification type
-        await this.executeQuery(`
-          INSERT INTO notification_types (
-            key, name, description, icon, color, isEnabled, requiresValue, valueLabel,
-            validationPattern, validationError, order_num
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-          'silent',
-          'Silent',
-          'Notifications without sound or alerts',
-          'alert-outline',
-          '#ffd534',
-          0,  // isEnabled = false
-          0,  // requiresValue = false
-          null, // valueLabel
-          null, // validationPattern
-          null, // validationError
-          1    // order_num
-        ]);
-
-        // Update order of other notification types
-        await this.executeQuery(`
-          UPDATE notification_types 
-          SET order_num = order_num + 1 
-          WHERE key != 'silent'
-        `);
       }
 
-      console.log('Migration 4 completed successfully');
-    } catch (error) {
-      console.error('Error in migration 4:', error);
-      throw error;
-    }
-  }
+      // Add default notification types
+      const notificationTypes = DEFAULT_NOTIFICATION_TYPES.map((type, index) => ({
+        key: type.key,
+        name: type.name,
+        description: type.description,
+        icon: type.icon,
+        color: type.color,
+        isEnabled: type.isEnabled ? 1 : 0,
+        requiresValue: type.requiresValue ? 1 : 0,
+        valueLabel: type.valueLabel || null,
+        validationPattern: type.validationPattern || null,
+        validationError: type.validationError || null,
+        order_num: type.order
+      }));
 
-  private async migration5() {
-    console.log('Running migration 5: Updating notification_values table and cleaning up invalid tasks');
-    
-    try {
-      // Drop and recreate notification_values table
-      await this.executeQuery('DROP TABLE IF EXISTS notification_values');
-      
-      await this.executeQuery(`
-        CREATE TABLE IF NOT EXISTS notification_values (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          notification_type_key TEXT NOT NULL,
-          value TEXT NOT NULL,
-          FOREIGN KEY (notification_type_key) REFERENCES notification_types(key) ON DELETE CASCADE
-        )
-      `);
+      for (const type of notificationTypes) {
+        await this.executeQuery(
+          `INSERT INTO notification_types (
+            key, name, description, icon, color, isEnabled, requiresValue,
+            valueLabel, validationPattern, validationError, order_num
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            type.key,
+            type.name,
+            type.description,
+            type.icon,
+            type.color,
+            type.isEnabled,
+            type.requiresValue,
+            type.valueLabel,
+            type.validationPattern,
+            type.validationError,
+            type.order_num
+          ]
+        );
+      }
 
-      // Clean up invalid tasks
-      await this.executeQuery(`
-        DELETE FROM tasks 
-        WHERE frequency IS NULL 
-           OR startDate IS NULL 
-           OR title IS NULL 
-           OR type IS NULL
-      `);
-
-      // If in web mode, also clean up the web store
-      if (!this.isNative) {
-        if (this.webStore['tasks']) {
-          this.webStore['tasks'] = this.webStore['tasks'].filter(task => 
-            task.frequency && 
-            task.startDate && 
-            task.title && 
-            task.type
-          );
-          this.saveWebStoreToLocalStorage();
+      // Add default task types
+      const defaultTaskTypes = [
+        {
+          name: 'Payment',
+          description: 'Payment reminder tasks',
+          isDefault: 1,
+          icon: 'cash-outline',
+          color: '#2dd36f'
+        },
+        {
+          name: 'Update',
+          description: 'General update tasks',
+          isDefault: 1,
+          icon: 'refresh-outline',
+          color: '#3880ff'
+        },
+        {
+          name: 'Custom',
+          description: 'Custom reminder tasks',
+          isDefault: 1,
+          icon: 'create-outline',
+          color: '#5260ff'
         }
+      ];
+
+      for (const type of defaultTaskTypes) {
+        await this.executeQuery(
+          `INSERT INTO task_types (name, description, isDefault, icon, color)
+           VALUES (?, ?, ?, ?, ?)`,
+          [type.name, type.description, type.isDefault, type.icon, type.color]
+        );
       }
 
-      console.log('Migration 5 completed successfully');
+      console.log('Consolidated migration completed successfully');
     } catch (error) {
-      console.error('Error in migration 5:', error);
+      console.error('Error in consolidated migration:', error);
       throw error;
     }
   }
+
+  // Remove old migrations as they're no longer needed
+  private async migration1() { }
+  private async migration2() { }
+  private async migration3() { }
+  private async migration4() { }
+  private async migration5() { }
 
   async executeQuery(statement: string, values?: any[]): Promise<any> {
     if (this.isNative) {
@@ -762,55 +757,81 @@ export class DatabaseService {
           }
           return { values: [] };
         }
-        // For other PRAGMA queries, return empty result
         return { values: [] };
       }
 
-      // Extract table name from the query
-      const tableMatch = statement.match(/FROM\s+(\w+)/i);
-      if (!tableMatch) throw new Error('Could not determine table name from query');
-      const tableName = tableMatch[1];
+      // Extract table name - handle both simple and complex queries
+      let mainTable: string | undefined;
+      
+      // Try to extract table name from different query patterns
+      const patterns = [
+        /FROM\s+(\w+)\s+(?:as\s+)?(\w+)?/i,  // Complex pattern with alias
+        /FROM\s+(\w+)/i,                      // Simple pattern
+        /FROM[\s\n]+(\w+)/i                   // Pattern with newlines
+      ];
 
-      // Get the data for this table
-      let data = this.webStore[tableName] || [];
+      for (const pattern of patterns) {
+        const match = statement.match(pattern);
+        if (match) {
+          mainTable = match[1];
+          break;
+        }
+      }
+
+      if (!mainTable) {
+        console.error('Failed to extract table name from query:', statement);
+        throw new Error('Could not determine table name from query');
+      }
+
+      // Get the base data
+      let data = [...(this.webStore[mainTable] || [])];
+      console.log(`Found table ${mainTable} with ${data.length} records`);
+
+      // Handle LEFT JOIN
+      if (statement.includes('LEFT JOIN')) {
+        const joinMatches = statement.matchAll(/LEFT JOIN\s+\(([^)]+)\)\s+(\w+)/g);
+        for (const match of Array.from(joinMatches)) {
+          const subQuery = match[1];
+          const joinAlias = match[2];
+          
+          // Handle subquery for task_cycles
+          if (subQuery.includes('task_cycles')) {
+            const cycles = this.webStore['task_cycles'] || [];
+            data = data.map(task => {
+              const taskCycles = cycles.filter(c => c.taskId === task.id)
+                .sort((a, b) => new Date(b.cycleStartDate).getTime() - new Date(a.cycleStartDate).getTime());
+              
+              if (taskCycles.length > 0) {
+            return {
+                  ...task,
+                  cycle_id: taskCycles[0].id,
+                  cycleStartDate: taskCycles[0].cycleStartDate,
+                  cycleEndDate: taskCycles[0].cycleEndDate,
+                  status: taskCycles[0].status,
+                  progress: taskCycles[0].progress,
+                  completedAt: taskCycles[0].completedAt
+                };
+              }
+              return task;
+            });
+          }
+        }
+      }
 
       // Handle WHERE conditions
       if (statement.includes('WHERE')) {
         const whereCondition = statement.split('WHERE')[1].split(/ORDER BY|LIMIT|GROUP BY/)[0].trim();
-        data = data.filter(record => this.evaluateWhereCondition(record, whereCondition, values));
+        data = data.filter(record => {
+          // Special handling for isArchived condition
+          if (whereCondition.includes('isArchived')) {
+            const isArchived = record.isArchived === 1 || record.isArchived === true;
+            return whereCondition.includes('= 0') ? !isArchived : isArchived;
+          }
+          return this.evaluateWhereCondition(record, whereCondition, values);
+        });
       }
 
-      // Special handling for isArchived field
-      if (tableName === 'tasks' && statement.includes('isArchived')) {
-        data = data.map(task => ({
-          ...task,
-          isArchived: task.isArchived === 1 || task.isArchived === true || task.isArchived === 'true' ? 1 : 0
-        }));
-      }
-
-      // Handle JOIN conditions
-      if (statement.includes('JOIN')) {
-        // Extract all table names and their aliases
-        const joinMatches = statement.matchAll(/JOIN\s+(\w+)(?:\s+(?:as\s+)?(\w+))?/gi);
-        for (const match of joinMatches) {
-          const joinTable = match[1];
-          const joinData = this.webStore[joinTable] || [];
-          
-          // Perform the join
-          data = data.map(record => {
-            const joinRecords = joinData.filter(jr => 
-              jr[`${tableName}Id`] === record.id || 
-              jr.id === record[`${joinTable}Id`]
-            );
-            
-            return {
-              ...record,
-              ...joinRecords[0]
-            };
-          });
-        }
-      }
-
+      console.log(`Returning ${data.length} records from table ${mainTable}`);
       return { values: data };
     } catch (error) {
       console.error('Error in handleWebSelect:', error);
@@ -1021,19 +1042,145 @@ export class DatabaseService {
           
           await this.db.open();
           await this.createSchema();
-          await this.migration2(); // This will add sample data
+          await this.consolidatedMigration();
         }
       } else {
         // Web platform - clear localStorage and reinitialize
         localStorage.removeItem(this.STORAGE_KEY);
         this.webStore = {};
-        await this.initializeWebDatabase();
-        await this.migration2(); // This will add sample data
         
+        // Initialize with sample data
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const nextWeek = new Date(now);
+      nextWeek.setDate(nextWeek.getDate() + 7);
+      const nextMonth = new Date(now);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+        // Initialize task types
+          this.webStore['task_types'] = [
+        {
+          id: 1,
+          name: 'Payment',
+          description: 'Payment reminder tasks',
+            isDefault: 1,
+          icon: 'cash-outline',
+          color: '#2dd36f'
+        },
+        {
+          id: 2,
+          name: 'Update',
+          description: 'General update tasks',
+            isDefault: 1,
+          icon: 'refresh-outline',
+          color: '#3880ff'
+        },
+        {
+          id: 3,
+          name: 'Custom',
+          description: 'Custom reminder tasks',
+            isDefault: 1,
+          icon: 'create-outline',
+          color: '#5260ff'
+        }
+          ];
+
+        // Initialize notification types
+        this.webStore['notification_types'] = DEFAULT_NOTIFICATION_TYPES.map((type, index) => ({
+          id: index + 1,
+          key: type.key,
+          name: type.name,
+          description: type.description,
+          icon: type.icon,
+          color: type.color,
+          isEnabled: type.isEnabled ? 1 : 0,
+          requiresValue: type.requiresValue ? 1 : 0,
+          valueLabel: type.valueLabel || null,
+          validationPattern: type.validationPattern || null,
+          validationError: type.validationError || null,
+          order_num: type.order
+        }));
+
+        // Sample tasks
+        const sampleTasks = [
+          {
+            id: 1,
+            title: 'Monthly Payment Review',
+            type: 'Payment',
+            frequency: 'monthly',
+            startDate: now.toISOString(),
+            notificationType: 'push',
+            notificationTime: '09:00',
+            isArchived: 0,
+            createdAt: now.toISOString()
+          },
+          {
+            id: 2,
+            title: 'Weekly Progress Update',
+            type: 'Update',
+            frequency: 'weekly',
+            startDate: now.toISOString(),
+            notificationType: 'push',
+            notificationTime: '10:00',
+            isArchived: 0,
+            createdAt: now.toISOString()
+          },
+          {
+            id: 3,
+            title: 'Daily System Check',
+            type: 'Custom',
+            frequency: 'daily',
+            startDate: now.toISOString(),
+            notificationType: 'push',
+            notificationTime: '08:00',
+            isArchived: 0,
+            createdAt: now.toISOString()
+          }
+        ];
+
+          this.webStore['tasks'] = sampleTasks;
+
+        // Initialize task cycles
+          this.webStore['task_cycles'] = sampleTasks.map((task, index) => {
+            const cycleStartDate = now.toISOString();
+            let cycleEndDate;
+            
+            switch (task.frequency) {
+              case 'daily':
+                cycleEndDate = tomorrow.toISOString();
+                break;
+              case 'weekly':
+                cycleEndDate = nextWeek.toISOString();
+                break;
+              case 'monthly':
+                cycleEndDate = nextMonth.toISOString();
+                break;
+              default:
+                cycleEndDate = nextMonth.toISOString();
+            }
+
+            return {
+              id: index + 1,
+              taskId: task.id,
+              cycleStartDate,
+              cycleEndDate,
+              status: 'pending',
+              progress: 0,
+              createdAt: now.toISOString()
+            };
+          });
+
+        // Initialize empty tables
+          this.webStore['customers'] = [];
+          this.webStore['task_history'] = [];
+          this.webStore['notification_values'] = [];
+        this.webStore['database_version'] = [{ version: 1 }];
+
         // Save changes
         this.saveWebStoreToLocalStorage();
         
-        console.log('Initialized empty web database with sample data');
+        console.log('Reinitialized web database with sample data:', this.webStore);
       }
     } catch (error) {
       console.error('Error reinitializing database:', error);
@@ -1088,207 +1235,6 @@ export class DatabaseService {
       }
     } catch (error) {
       console.error('Error setting database version:', error);
-      throw error;
-    }
-  }
-
-  private async migration1() {
-    // Initial schema migration - already handled in createSchema
-    console.log('Running migration 1');
-  }
-
-  private async migration2() {
-    try {
-      console.log('Running migration 2 - Adding sample data');
-      
-      // Add sample data
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const nextWeek = new Date(now);
-      nextWeek.setDate(nextWeek.getDate() + 7);
-      const nextMonth = new Date(now);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-
-      if (!this.isNative) {
-        // Web platform - initialize web store with sample data
-        
-        // Initialize task_types if empty
-        if (!this.webStore['task_types']?.length) {
-          this.webStore['task_types'] = [
-        {
-          id: 1,
-          name: 'Payment',
-          description: 'Payment reminder tasks',
-              isDefault: true,
-          icon: 'cash-outline',
-          color: '#2dd36f'
-        },
-        {
-          id: 2,
-          name: 'Update',
-          description: 'General update tasks',
-              isDefault: true,
-          icon: 'refresh-outline',
-          color: '#3880ff'
-        },
-        {
-          id: 3,
-          name: 'Custom',
-          description: 'Custom reminder tasks',
-              isDefault: true,
-          icon: 'create-outline',
-          color: '#5260ff'
-        }
-          ];
-        }
-
-        // Initialize notification_types if empty
-        if (!this.webStore['notification_types']?.length) {
-          this.webStore['notification_types'] = [
-        {
-          id: 1,
-          key: 'push',
-          name: 'Push Notifications',
-          description: 'Receive instant notifications on your device',
-          icon: 'notifications-outline',
-          color: '#2dd36f',
-              isEnabled: false,
-              requiresValue: false,
-          valueLabel: null,
-          validationPattern: null,
-          validationError: null,
-          order_num: 1
-        },
-        {
-          id: 2,
-          key: 'email',
-          name: 'Email Notifications',
-          description: 'Get notified via email',
-          icon: 'mail-outline',
-          color: '#3880ff',
-              isEnabled: false,
-              requiresValue: true,
-          valueLabel: 'Email Address',
-          validationPattern: '^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,4}$',
-          validationError: 'Please enter a valid email address',
-          order_num: 2
-        },
-        {
-          id: 3,
-          key: 'sms',
-          name: 'SMS Notifications',
-          description: 'Receive SMS text messages',
-          icon: 'chatbox-outline',
-          color: '#5260ff',
-              isEnabled: false,
-              requiresValue: true,
-          valueLabel: 'Phone Number',
-          validationPattern: '^\\+?[1-9]\\d{1,14}$',
-          validationError: 'Please enter a valid phone number in international format',
-          order_num: 3
-            }
-          ];
-        }
-
-        // Sample tasks with proper dates
-        const sampleTasks = [
-          {
-            id: 1,
-            title: 'Monthly Payment Review',
-            type: 'payment',
-            frequency: 'monthly',
-            startDate: now.toISOString(),
-            notificationType: 'push',
-            notificationTime: '09:00',
-            isArchived: false,
-            createdAt: now.toISOString()
-          },
-          {
-            id: 2,
-            title: 'Weekly Progress Update',
-            type: 'update',
-            frequency: 'weekly',
-            startDate: now.toISOString(),
-            notificationType: 'push',
-            notificationTime: '10:00',
-            isArchived: false,
-            createdAt: now.toISOString()
-          },
-          {
-            id: 3,
-            title: 'Daily System Check',
-            type: 'custom',
-            frequency: 'daily',
-            startDate: now.toISOString(),
-            notificationType: 'push',
-            notificationTime: '08:00',
-            isArchived: false,
-            createdAt: now.toISOString()
-          }
-        ];
-
-        // Initialize tasks if empty
-        if (!this.webStore['tasks']?.length) {
-          this.webStore['tasks'] = sampleTasks;
-        }
-
-        // Initialize task_cycles if empty
-        if (!this.webStore['task_cycles']?.length) {
-          this.webStore['task_cycles'] = sampleTasks.map((task, index) => {
-            const cycleStartDate = now.toISOString();
-            let cycleEndDate;
-            
-            switch (task.frequency) {
-              case 'daily':
-                cycleEndDate = tomorrow.toISOString();
-                break;
-              case 'weekly':
-                cycleEndDate = nextWeek.toISOString();
-                break;
-              case 'monthly':
-                cycleEndDate = nextMonth.toISOString();
-                break;
-              default:
-                cycleEndDate = nextMonth.toISOString();
-            }
-
-            return {
-              id: index + 1,
-              taskId: task.id,
-              cycleStartDate,
-              cycleEndDate,
-              status: 'pending',
-              progress: 0,
-              createdAt: now.toISOString()
-            };
-          });
-        }
-
-        // Initialize empty tables if they don't exist
-        if (!this.webStore['customers']) {
-          this.webStore['customers'] = [];
-        }
-        if (!this.webStore['task_history']) {
-          this.webStore['task_history'] = [];
-        }
-        if (!this.webStore['notification_values']) {
-          this.webStore['notification_values'] = [];
-        }
-        if (!this.webStore['database_version']) {
-          this.webStore['database_version'] = [{ version: 2 }];
-        }
-
-        // Save changes
-        this.saveWebStoreToLocalStorage();
-        
-        console.log('Migration 2 completed - Sample data added to web store');
-      } else {
-        // Native platform - use SQL queries
-        // ... existing native platform code ...
-      }
-    } catch (error) {
-      console.error('Error in migration2:', error);
       throw error;
     }
   }

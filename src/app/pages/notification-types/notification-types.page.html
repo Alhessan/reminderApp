@@ -9,148 +9,238 @@
 </ion-header>
 
 <ion-content class="ion-padding">
-  <ion-list>
-    <ion-item-group>
-      <ion-item-divider>
-        <ion-label>
-          <h2>Available Notification Methods</h2>
-          <p>Select up to 3 methods</p>
-        </ion-label>
-      </ion-item-divider>
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="notification-icon">
+      <ion-icon name="notifications-outline"></ion-icon>
+    </div>
+    <h2>Notification Preferences</h2>
+    <p>Choose how you'd like to receive reminders for your routines</p>
+  </div>
 
-      <form [formGroup]="notificationForm">
-        <ion-item *ngFor="let type of notificationTypes$ | async">
-          <ion-icon [name]="type.icon" slot="start" [style.color]="isTypeEnabled(type.key) ? type.color : 'var(--ion-color-medium)'"></ion-icon>
-          <ion-label>
-            <h2>{{ type.name }}</h2>
+  <!-- Notification Types List -->
+  <div class="notification-types-container">
+    <div class="section-header">
+      <h3>Available Methods</h3>
+      <ion-chip color="primary" outline="true">
+        <ion-label>{{ getEnabledCount() }}/3 selected</ion-label>
+      </ion-chip>
+    </div>
+
+    <form [formGroup]="notificationForm">
+      <div class="notification-grid">
+        <div 
+          *ngFor="let type of notificationTypes$ | async; trackBy: trackByTypeKey" 
+          class="notification-card"
+          [class.enabled]="isTypeEnabled(type.key)"
+          [class.disabled]="getEnabledCount() >= 3 && !isTypeEnabled(type.key)">
+          
+          <div class="card-header">
+            <div class="icon-container" [style.background-color]="isTypeEnabled(type.key) ? type.color + '20' : 'var(--ion-color-light)'">
+              <ion-icon 
+                [name]="type.icon" 
+                [style.color]="isTypeEnabled(type.key) ? type.color : 'var(--ion-color-medium)'">
+              </ion-icon>
+            </div>
+            <ion-toggle 
+              [checked]="isTypeEnabled(type.key)"
+              (ionChange)="onToggleChange(type)"
+              [disabled]="getEnabledCount() >= 3 && !isTypeEnabled(type.key)"
+              class="notification-toggle">
+            </ion-toggle>
+          </div>
+          
+          <div class="card-content">
+            <h4>{{ type.name }}</h4>
             <p>{{ type.description }}</p>
-          </ion-label>
-          <ion-toggle 
-            [checked]="isTypeEnabled(type.key)"
-            (ionChange)="onToggleChange(type)"
-            [disabled]="getEnabledCount() >= 3 && !isTypeEnabled(type.key)">
-          </ion-toggle>
-        </ion-item>
+            
+            <!-- Status indicator -->
+            <div class="status-indicator" *ngIf="isTypeEnabled(type.key)">
+              <ion-icon name="checkmark-circle" color="success"></ion-icon>
+              <span>Active</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-        <!-- Additional Fields for Enabled Types -->
-        <div class="additional-fields" *ngIf="showAdditionalFields">
-          <ion-item-divider>
-            <ion-label>Additional Information Required</ion-label>
-          </ion-item-divider>
+      <!-- Additional Fields for Enabled Types -->
+      <div class="additional-fields" *ngIf="showAdditionalFields">
+        <div class="section-header">
+          <h3>Additional Information</h3>
+          <p>Please provide the required details for your selected notification methods</p>
+        </div>
 
+        <div class="form-fields">
           <!-- Email Field -->
-          <ion-item *ngIf="isTypeEnabled('email')">
-            <ion-label position="stacked">Email Address</ion-label>
-            <ion-input 
-              type="email" 
-              formControlName="emailAddress"
-              placeholder="Enter your email address">
-            </ion-input>
-            <ion-note slot="error" *ngIf="notificationForm.get('emailAddress')?.touched && notificationForm.get('emailAddress')?.errors">
-              {{ getValidationError('email') }}
-            </ion-note>
-          </ion-item>
+          <div class="form-group" *ngIf="isTypeEnabled('email')">
+            <ion-item>
+              <ion-label position="stacked">
+                Email Address
+                <ion-text color="danger">*</ion-text>
+              </ion-label>
+              <ion-input 
+                type="email" 
+                formControlName="emailAddress"
+                placeholder="Enter your email address"
+                [class.error]="notificationForm.get('emailAddress')?.touched && notificationForm.get('emailAddress')?.errors">
+              </ion-input>
+              <ion-icon slot="end" name="mail-outline" class="field-icon"></ion-icon>
+            </ion-item>
+            <div *ngIf="notificationForm.get('emailAddress')?.touched && notificationForm.get('emailAddress')?.errors" class="error-message">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <small>{{ getValidationError('email') }}</small>
+            </div>
+          </div>
 
           <!-- SMS Field -->
-          <ion-item *ngIf="isTypeEnabled('sms')">
-            <ion-label position="stacked">Phone Number</ion-label>
-            <ion-input 
-              type="tel" 
-              formControlName="phoneNumber"
-              placeholder="Enter your phone number">
-            </ion-input>
-            <ion-note slot="error" *ngIf="notificationForm.get('phoneNumber')?.touched && notificationForm.get('phoneNumber')?.errors">
-              {{ getValidationError('sms') }}
-            </ion-note>
-          </ion-item>
+          <div class="form-group" *ngIf="isTypeEnabled('sms')">
+            <ion-item>
+              <ion-label position="stacked">
+                Phone Number
+                <ion-text color="danger">*</ion-text>
+              </ion-label>
+              <ion-input 
+                type="tel" 
+                formControlName="phoneNumber"
+                placeholder="Enter your phone number"
+                [class.error]="notificationForm.get('phoneNumber')?.touched && notificationForm.get('phoneNumber')?.errors">
+              </ion-input>
+              <ion-icon slot="end" name="call-outline" class="field-icon"></ion-icon>
+            </ion-item>
+            <div *ngIf="notificationForm.get('phoneNumber')?.touched && notificationForm.get('phoneNumber')?.errors" class="error-message">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <small>{{ getValidationError('sms') }}</small>
+            </div>
+          </div>
 
           <!-- WhatsApp Field -->
-          <ion-item *ngIf="isTypeEnabled('whatsapp')">
-            <ion-label position="stacked">WhatsApp Number</ion-label>
-            <ion-input 
-              type="tel" 
-              formControlName="whatsappNumber"
-              placeholder="Enter your WhatsApp number">
-            </ion-input>
-            <ion-note slot="error" *ngIf="notificationForm.get('whatsappNumber')?.touched && notificationForm.get('whatsappNumber')?.errors">
-              {{ getValidationError('whatsapp') }}
-            </ion-note>
-          </ion-item>
+          <div class="form-group" *ngIf="isTypeEnabled('whatsapp')">
+            <ion-item>
+              <ion-label position="stacked">
+                WhatsApp Number
+                <ion-text color="danger">*</ion-text>
+              </ion-label>
+              <ion-input 
+                type="tel" 
+                formControlName="whatsappNumber"
+                placeholder="Enter your WhatsApp number"
+                [class.error]="notificationForm.get('whatsappNumber')?.touched && notificationForm.get('whatsappNumber')?.errors">
+              </ion-input>
+              <ion-icon slot="end" name="logo-whatsapp" class="field-icon"></ion-icon>
+            </ion-item>
+            <div *ngIf="notificationForm.get('whatsappNumber')?.touched && notificationForm.get('whatsappNumber')?.errors" class="error-message">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <small>{{ getValidationError('whatsapp') }}</small>
+            </div>
+          </div>
 
           <!-- Telegram Field -->
-          <ion-item *ngIf="isTypeEnabled('telegram')">
-            <ion-label position="stacked">Telegram Username</ion-label>
-            <ion-input 
-              type="text" 
-              formControlName="telegramUsername"
-              placeholder="Enter your Telegram username">
-            </ion-input>
-            <ion-note slot="error" *ngIf="notificationForm.get('telegramUsername')?.touched && notificationForm.get('telegramUsername')?.errors">
-              {{ getValidationError('telegram') }}
-            </ion-note>
-          </ion-item>
+          <div class="form-group" *ngIf="isTypeEnabled('telegram')">
+            <ion-item>
+              <ion-label position="stacked">
+                Telegram Username
+                <ion-text color="danger">*</ion-text>
+              </ion-label>
+              <ion-input 
+                type="text" 
+                formControlName="telegramUsername"
+                placeholder="Enter your Telegram username"
+                [class.error]="notificationForm.get('telegramUsername')?.touched && notificationForm.get('telegramUsername')?.errors">
+              </ion-input>
+              <ion-icon slot="end" name="paper-plane-outline" class="field-icon"></ion-icon>
+            </ion-item>
+            <div *ngIf="notificationForm.get('telegramUsername')?.touched && notificationForm.get('telegramUsername')?.errors" class="error-message">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+              <small>{{ getValidationError('telegram') }}</small>
+            </div>
+          </div>
         </div>
-      </form>
-    </ion-item-group>
-  </ion-list>
+      </div>
+    </form>
+  </div>
 
   <!-- Save Button -->
-  <ion-button 
-    expand="block" 
-    class="ion-margin" 
-    (click)="saveSettings()"
-    [disabled]="notificationForm.invalid && showAdditionalFields">
-    <ion-icon name="save-outline" slot="start"></ion-icon>
-    Save Settings
-  </ion-button>
+  <div class="save-section">
+    <ion-button 
+      expand="block" 
+      (click)="saveSettings()"
+      [disabled]="(notificationForm.invalid && showAdditionalFields) || isSubmitting"
+      [class.loading]="isSubmitting">
+      <ion-spinner *ngIf="isSubmitting" name="crescent"></ion-spinner>
+      <span *ngIf="!isSubmitting">
+        <ion-icon slot="start" name="save-outline"></ion-icon>
+        Save Notification Settings
+      </span>
+    </ion-button>
+  </div>
 
-  <!-- Information Card - Now outside the form -->
-  <ion-card class="ion-margin">
+  <!-- Information Card -->
+  <ion-card class="info-card">
     <ion-card-header>
       <ion-card-title>
         <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-        About Notification Methods
+        How It Works
       </ion-card-title>
     </ion-card-header>
     <ion-card-content>
-      <p>Enable up to three notification methods for your routines. Some methods require additional information:</p>
-      <ion-list>
-        <ion-item lines="none">
-          <ion-icon name="notifications-outline" slot="start" color="success"></ion-icon>
-          <ion-label>
-            <h3>Push Notifications</h3>
-            <p>Instant notifications on your device</p>
-          </ion-label>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-icon name="mail-outline" slot="start" color="primary"></ion-icon>
-          <ion-label>
-            <h3>Email Notifications</h3>
-            <p>Get reminders in your inbox</p>
-          </ion-label>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-icon name="chatbox-outline" slot="start" color="tertiary"></ion-icon>
-          <ion-label>
-            <h3>SMS Notifications</h3>
-            <p>Text message reminders</p>
-          </ion-label>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-icon name="logo-whatsapp" slot="start" style="color: #25D366"></ion-icon>
-          <ion-label>
-            <h3>WhatsApp Notifications</h3>
-            <p>Get reminders via WhatsApp</p>
-          </ion-label>
-        </ion-item>
-        <ion-item lines="none">
-          <ion-icon name="paper-plane-outline" slot="start" style="color: #0088cc"></ion-icon>
-          <ion-label>
-            <h3>Telegram Notifications</h3>
-            <p>Receive reminders on Telegram</p>
-          </ion-label>
-        </ion-item>
-      </ion-list>
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-icon">
+            <ion-icon name="notifications-outline" color="success"></ion-icon>
+          </div>
+          <div class="info-content">
+            <h4>Push Notifications</h4>
+            <p>Instant alerts on your device - no setup required</p>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-icon">
+            <ion-icon name="mail-outline" color="primary"></ion-icon>
+          </div>
+          <div class="info-content">
+            <h4>Email Reminders</h4>
+            <p>Get detailed reminders in your inbox</p>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-icon">
+            <ion-icon name="chatbox-outline" color="tertiary"></ion-icon>
+          </div>
+          <div class="info-content">
+            <h4>SMS Messages</h4>
+            <p>Quick text reminders to your phone</p>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-icon">
+            <ion-icon name="logo-whatsapp" style="color: #25D366"></ion-icon>
+          </div>
+          <div class="info-content">
+            <h4>WhatsApp</h4>
+            <p>Rich notifications via WhatsApp</p>
+          </div>
+        </div>
+        
+        <div class="info-item">
+          <div class="info-icon">
+            <ion-icon name="paper-plane-outline" style="color: #0088cc"></ion-icon>
+          </div>
+          <div class="info-content">
+            <h4>Telegram</h4>
+            <p>Secure messaging with bot integration</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="info-note">
+        <ion-icon name="bulb-outline" color="warning"></ion-icon>
+        <p><strong>Tip:</strong> You can select up to 3 notification methods to ensure you never miss important reminders.</p>
+      </div>
     </ion-card-content>
   </ion-card>
-</ion-content> 
+
+</ion-content>
+

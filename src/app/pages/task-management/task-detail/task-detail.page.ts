@@ -1,5 +1,5 @@
 import { Component, OnInit } from "@angular/core";
-import { ActivatedRoute, Router } from "@angular/router";
+import { ActivatedRoute, Router, RouterModule } from "@angular/router";
 import { AlertController, NavController, IonicModule } from "@ionic/angular"; // Added IonicModule
 import { Task, TaskHistoryEntry } from "../../../models/task.model";
 import { TaskService } from "../../../services/task.service";
@@ -12,7 +12,7 @@ import { FormsModule } from "@angular/forms"; // Added FormsModule
   templateUrl: "./task-detail.page.html",
   styleUrls: ["./task-detail.page.scss"],
   standalone: true, // Mark as standalone
-  imports: [IonicModule, CommonModule, FormsModule, DatePipe] // Import necessary modules
+  imports: [IonicModule, CommonModule, FormsModule, DatePipe, RouterModule] // Import necessary modules
 })
 export class TaskDetailPage implements OnInit {
   task: Task | null = null;
@@ -38,8 +38,8 @@ export class TaskDetailPage implements OnInit {
         await this.loadTaskDetails(+id);
       } else {
         this.isLoading = false;
-        this.presentErrorAlert("Task ID not found in URL.");
-        this.navController.navigateBack("/task-list");
+        await this.presentErrorAlert("Task ID not found in URL.");
+        this.navController.navigateBack("/tasks");
       }
     });
   }
@@ -63,15 +63,15 @@ export class TaskDetailPage implements OnInit {
       } else {
         this.task = null;
         this.taskHistory = [];
-        this.presentErrorAlert("Task not found.");
-        // Optionally navigate back if task is crucial for this view
-        // this.navController.navigateBack("/task-list");
+        await this.presentErrorAlert("Task not found.");
+        this.navController.navigateBack("/tasks");
       }
     } catch (error) {
       console.error("Error loading task details or history:", error);
-      this.presentErrorAlert("Failed to load task details. Please try again.");
+      await this.presentErrorAlert("Failed to load task details. Please try again.");
       this.task = null;
       this.taskHistory = [];
+      this.navController.navigateBack("/tasks");
     } finally {
       this.isLoading = false;
     }
@@ -79,7 +79,7 @@ export class TaskDetailPage implements OnInit {
 
   navigateToEditTask() {
     if (this.taskId) {
-      this.router.navigate(['/task-form', this.taskId]);
+      this.router.navigate(['/tasks/edit', this.taskId]);
     }
   }
 
@@ -92,7 +92,7 @@ export class TaskDetailPage implements OnInit {
     await alert.present();
   }
 
-  goBack() { // Added goBack method as it was in the original template but removed in the failed replacement attempt
-    this.navController.back();
+  goBack() {
+    this.navController.navigateBack("/tasks");
   }
 }

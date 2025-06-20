@@ -4,35 +4,126 @@
       <ion-back-button defaultHref="/customer-list"></ion-back-button>
     </ion-buttons>
     <ion-title>{{ isEditMode ? 'Edit Customer' : 'Add Customer' }}</ion-title>
+    <ion-buttons slot="end" *ngIf="isEditMode">
+      <ion-button fill="clear" (click)="presentDeleteConfirm()">
+        <ion-icon slot="icon-only" name="trash-outline" color="danger"></ion-icon>
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <form [formGroup]="customerForm" (ngSubmit)="onSubmit()">
-    <ion-item>
-      <ion-label position="stacked">Name <ion-text color="danger">*</ion-text></ion-label>
-      <ion-input formControlName="name" type="text" placeholder="Enter customer name"></ion-input>
-    </ion-item>
-    <div *ngIf="customerForm.get('name')?.invalid && (customerForm.get('name')?.dirty || customerForm.get('name')?.touched)" class="error-message">
-      <small *ngIf="customerForm.get('name')?.errors?.['required']">Name is required.</small>
+  <!-- Form Header -->
+  <div class="form-header">
+    <div class="customer-avatar-large" [style.background-color]="(customerForm.get('color')?.value || '#3880ff') + '20'">
+      <ion-icon [name]="customerForm.get('icon')?.value || 'person-outline'" [style.color]="customerForm.get('color')?.value || '#3880ff'"></ion-icon>
+    </div>
+    <h2>{{ isEditMode ? 'Update Customer Information' : 'Create New Customer' }}</h2>
+    <p>{{ isEditMode ? 'Modify the customer details below' : 'Fill in the customer information to get started' }}</p>
+  </div>
+
+  <!-- Customer Form -->
+  <form [formGroup]="customerForm" (ngSubmit)="onSubmit()" *ngIf="formInitialized">
+    <!-- Name Field -->
+    <div class="form-group">
+      <ion-item>
+        <ion-label position="stacked">
+          Full Name 
+          <ion-text color="danger">*</ion-text>
+        </ion-label>
+        <ion-input 
+          formControlName="name" 
+          type="text" 
+          placeholder="Enter customer's full name"
+          [class.error]="customerForm.get('name')?.invalid && (customerForm.get('name')?.dirty || customerForm.get('name')?.touched)">
+        </ion-input>
+        <ion-icon slot="end" name="person-outline" class="field-icon"></ion-icon>
+      </ion-item>
+      <div *ngIf="customerForm.get('name')?.invalid && (customerForm.get('name')?.dirty || customerForm.get('name')?.touched)" class="error-message">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <small *ngIf="customerForm.get('name')?.errors?.['required']">Customer name is required</small>
+      </div>
     </div>
 
-    <ion-item>
-      <ion-label position="stacked">Email</ion-label>
-      <ion-input formControlName="email" type="email" placeholder="Enter email address"></ion-input>
-    </ion-item>
-    <div *ngIf="customerForm.get('email')?.invalid && (customerForm.get('email')?.dirty || customerForm.get('email')?.touched)" class="error-message">
-      <small *ngIf="customerForm.get('email')?.errors?.['email']">Please enter a valid email.</small>
+    <!-- Email Field -->
+    <div class="form-group">
+      <ion-item>
+        <ion-label position="stacked">Email Address</ion-label>
+        <ion-input 
+          formControlName="email" 
+          type="email" 
+          placeholder="Enter email address"
+          [class.error]="customerForm.get('email')?.invalid && (customerForm.get('email')?.dirty || customerForm.get('email')?.touched)">
+        </ion-input>
+        <ion-icon slot="end" name="mail-outline" class="field-icon"></ion-icon>
+      </ion-item>
+      <div *ngIf="customerForm.get('email')?.invalid && (customerForm.get('email')?.dirty || customerForm.get('email')?.touched)" class="error-message">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        <small *ngIf="customerForm.get('email')?.errors?.['email']">Please enter a valid email address</small>
+      </div>
     </div>
 
-    <ion-item>
-      <ion-label position="stacked">Phone</ion-label>
-      <ion-input formControlName="phone" type="tel" placeholder="Enter phone number"></ion-input>
-    </ion-item>
+    <!-- Phone Field -->
+    <div class="form-group">
+      <ion-item>
+        <ion-label position="stacked">Phone Number</ion-label>
+        <ion-input 
+          formControlName="phone" 
+          type="tel" 
+          placeholder="Enter phone number">
+        </ion-input>
+        <ion-icon slot="end" name="call-outline" class="field-icon"></ion-icon>
+      </ion-item>
+    </div>
 
-    <ion-button type="submit" expand="block" [disabled]="customerForm.invalid" class="ion-margin-top">
-      {{ isEditMode ? 'Update Customer' : 'Save Customer' }}
-    </ion-button>
+    <!-- Color and Icon Picker -->
+    <div class="form-group">
+      <div class="section-header">
+        <h3>Visual Identity</h3>
+        <p>Choose a color and icon to help identify this customer</p>
+      </div>
+      <app-color-icon-picker
+        [context]="'customer'"
+        [selectedIcon]="customerForm.get('icon')?.value || 'person-outline'"
+        [selectedColor]="customerForm.get('color')?.value || '#3880ff'"
+        [showTitle]="false"
+        [compact]="true"
+        (iconChange)="onIconChange($event)"
+        (colorChange)="onColorChange($event)">
+      </app-color-icon-picker>
+    </div>
+
+    <!-- Form Actions -->
+    <div class="form-actions">
+      <ion-button 
+        type="submit" 
+        expand="block" 
+        [disabled]="customerForm.invalid || isSubmitting"
+        [class.loading]="isSubmitting">
+        <ion-spinner *ngIf="isSubmitting" name="crescent"></ion-spinner>
+        <span *ngIf="!isSubmitting">
+          <ion-icon slot="start" [name]="isEditMode ? 'save-outline' : 'add-outline'"></ion-icon>
+          {{ isEditMode ? 'Update Customer' : 'Save Customer' }}
+        </span>
+      </ion-button>
+
+      <ion-button 
+        fill="clear" 
+        expand="block" 
+        (click)="onCancel()"
+        [disabled]="isSubmitting"
+        class="cancel-button">
+        <ion-icon slot="start" name="close-outline"></ion-icon>
+        Cancel
+      </ion-button>
+    </div>
   </form>
+
+  <!-- Loading State -->
+  <div *ngIf="!formInitialized" class="loading-container">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading customer information...</p>
+  </div>
+
 </ion-content>
 

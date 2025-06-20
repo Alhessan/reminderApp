@@ -1,0 +1,87 @@
+<ion-card class="picker-card" [class.compact]="compact">
+  <ion-card-header *ngIf="showTitle && !compact">
+    <ion-card-title>
+      <ion-icon name="color-palette-outline" color="primary"></ion-icon>
+      {{ contextTitle }}
+    </ion-card-title>
+    <ion-card-subtitle>Choose an icon and color to personalize your {{ context }}</ion-card-subtitle>
+  </ion-card-header>
+  
+  <ion-card-content>
+    <div class="picker-container" [class.compact-container]="compact">
+      <!-- Preview Section -->
+      <div class="preview-section" *ngIf="!compact">
+        <div class="preview-item">
+          <div class="preview-icon-container" [style.background-color]="selectedColor + '20'">
+            <ion-icon [name]="selectedIcon" [style.color]="selectedColor" class="preview-icon"></ion-icon>
+          </div>
+          <div class="preview-info">
+            <h4>Preview</h4>
+            <p>{{ getColorName(selectedColor) }} • {{ selectedIcon.replace('-outline', '').replace('-', ' ') | titlecase }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Icon Selection -->
+      <div class="picker-section">
+        <div class="picker-header" (click)="toggleIconPicker()">
+          <div class="header-content">
+            <ion-icon [name]="selectedIcon" [style.color]="selectedColor" class="selected-icon"></ion-icon>
+            <div class="header-text">
+              <ion-label class="section-title">Icon</ion-label>
+              <p class="section-subtitle" *ngIf="!compact">Choose from {{ availableIcons.length }} {{ context }} icons</p>
+            </div>
+          </div>
+          <ion-icon name="chevron-down-outline" class="toggle-icon" [class.rotated]="showIconPicker"></ion-icon>
+        </div>
+        
+        <div class="icon-grid-container" *ngIf="showIconPicker">
+          <div class="icon-grid">
+            <div 
+              *ngFor="let icon of availableIcons; trackBy: trackByIcon" 
+              class="icon-item" 
+              [class.selected]="icon === selectedIcon"
+              (click)="selectIcon(icon)"
+              [attr.aria-label]="icon.replace('-outline', '').replace('-', ' ')">
+              <ion-icon [name]="icon" [style.color]="selectedColor"></ion-icon>
+              <div class="icon-name">{{ icon.replace('-outline', '').replace('-', ' ') | titlecase }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Color Selection -->
+      <div class="picker-section">
+        <div class="picker-header" (click)="toggleColorPicker()">
+          <div class="header-content">
+            <div class="color-preview" [style.background-color]="selectedColor"></div>
+            <div class="header-text">
+              <ion-label class="section-title">Color</ion-label>
+              <p class="section-subtitle" *ngIf="!compact">{{ getColorName(selectedColor) }}</p>
+            </div>
+          </div>
+          <ion-icon name="chevron-down-outline" class="toggle-icon" [class.rotated]="showColorPicker"></ion-icon>
+        </div>
+        
+        <div class="color-grid-container" *ngIf="showColorPicker">
+          <div *ngFor="let category of colorCategories" class="color-category">
+            <h5 class="category-title">{{ getCategoryDisplayName(category) }}</h5>
+            <div class="color-grid">
+              <div 
+                *ngFor="let color of getColorsByCategory(category); trackBy: trackByColor" 
+                class="color-item" 
+                [style.background-color]="color.value"
+                [class.selected]="color.value === selectedColor"
+                (click)="selectColor(color.value)"
+                [attr.aria-label]="color.name">
+                <ion-icon name="checkmark" *ngIf="color.value === selectedColor"></ion-icon>
+                <div class="color-tooltip">{{ color.name }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ion-card-content>
+</ion-card>
+

@@ -1,7 +1,7 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/task-list"></ion-back-button>
+      <ion-back-button defaultHref="/tasks"></ion-back-button>
     </ion-buttons>
     <ion-title>{{ task?.title || "Routine Detail" }}</ion-title>
     <ion-buttons slot="end">
@@ -19,13 +19,17 @@
 
   <div *ngIf="!isLoading && !task" class="ion-text-center ion-padding">
     <p>Routine not found or failed to load.</p>
+    <ion-button fill="clear" (click)="goBack()">
+      <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+      Back to List
+    </ion-button>
   </div>
 
   <ion-card *ngIf="!isLoading && task">
     <ion-card-header>
       <ion-card-title>{{ task.title }}</ion-card-title>
       <ion-card-subtitle>
-        Status: {{ task.isCompleted ? (	"Completed on " + (task.lastCompletedDate | date:	"medium")) : 	"Pending" }}
+        Status: {{ task.isCompleted ? ("Completed on " + (task.lastCompletedDate | date:"medium")) : "Pending" }}
       </ion-card-subtitle>
     </ion-card-header>
     <ion-card-content>
@@ -36,14 +40,14 @@
         <ion-item *ngIf="task.customer?.name">
           <ion-label><strong>Customer:</strong> {{ task.customer?.name }}</ion-label>
         </ion-item>
-         <ion-item *ngIf="!task.customer?.name && task.customerId">
+        <ion-item *ngIf="!task.customer?.name && task.customerId">
           <ion-label><strong>Customer ID:</strong> {{ task.customerId }} (Name not found)</ion-label>
         </ion-item>
         <ion-item>
           <ion-label><strong>Frequency:</strong> {{ task.frequency }}</ion-label>
         </ion-item>
         <ion-item>
-          <ion-label><strong>Start Date:</strong> {{ task.startDate | date:	"fullDate" }}</ion-label>
+          <ion-label><strong>Start Date:</strong> {{ task.startDate | date:"fullDate" }}</ion-label>
         </ion-item>
         <ion-item>
           <ion-label><strong>Notification:</strong> {{ task.notificationType }}</ion-label>
@@ -62,7 +66,7 @@
     <ion-item *ngFor="let entry of taskHistory">
       <ion-label>
         <h2>{{ entry.action }}</h2>
-        <p>{{ entry.timestamp | date:	"medium" }}</p>
+        <p>{{ entry.timestamp | date:"medium" }}</p>
         <p *ngIf="entry.details">{{ entry.details }}</p>
       </ion-label>
     </ion-item>

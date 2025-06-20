@@ -1,5 +1,5 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AlertController, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule, ActionSheetButton, ToastController } from '@ionic/angular'; // Added IonicModule, ToastController
 import { Task } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
@@ -18,7 +18,14 @@ import { BehaviorSubject, Subscription } from 'rxjs';
   templateUrl: './task-list.page.html',
   styleUrls: [ './task-list.page.scss' ],
   standalone: true, // Mark as standalone
-  imports: [IonicModule, CommonModule, FormsModule, DatePipe, TaskListItemComponent] // Import necessary modules
+  imports: [
+    IonicModule,
+    CommonModule,
+    FormsModule,
+    DatePipe,
+    TaskListItemComponent,
+    RouterModule
+  ]
 })
 export class TaskListPage implements OnInit {
   allTasks: Task[] = [];
@@ -59,17 +66,19 @@ export class TaskListPage implements OnInit {
     });
 
     // Subscribe to task list updates
-    this.taskListSubscription = this.taskCycleService.taskList$.subscribe(
-      tasks => {
-        console.log('Received tasks in subscription:', tasks);
+    this.taskListSubscription = this.taskCycleService.taskList$.subscribe({
+      next: (tasks) => {
+        console.log('TaskListPage: Received tasks in subscription:', tasks);
+        console.log('TaskListPage: Number of tasks:', tasks.length);
+        console.log('TaskListPage: First task if exists:', tasks[0]);
         this.filteredTasks = tasks;
         this.isLoading = false;
       },
-      error => {
+      error: (error) => {
         console.error('Error in task list subscription:', error);
         this.isLoading = false;
       }
-    );
+    });
   }
 
   ngOnDestroy() {
@@ -104,10 +113,11 @@ export class TaskListPage implements OnInit {
 
   async loadTasks() {
     this.isLoading = true;
-    console.log('Loading tasks with filter:', this.filterSegment);
+    console.log('TaskListPage: Loading tasks with filter:', this.filterSegment);
     try {
       await this.taskCycleService.loadTaskList(this.filterSegment as 'all' | 'overdue' | 'in_progress' | 'upcoming');
-      console.log('Task list loaded successfully');
+      console.log('TaskListPage: Task list loaded successfully');
+      console.log('TaskListPage: Current filtered tasks:', this.filteredTasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
       this.presentErrorAlert('Failed to load tasks. Please try again.');
@@ -132,41 +142,59 @@ export class TaskListPage implements OnInit {
   }
 
   async presentSortOptions() {
+    // Add inert attribute to main content
+    document.querySelector('ion-content')?.setAttribute('inert', '');
+    
     const actionSheet = await this.actionSheetCtrl.create({
       header: 'Sort Tasks By',
+      cssClass: 'accessible-action-sheet',
       buttons: [
         {
-          text: 'Due Date (Asc)', handler: () => { this.setSort('startDate', 'asc'); }
+          text: 'Due Date (Asc)',
+          handler: () => { this.setSort('startDate', 'asc'); }
         },
         {
-          text: 'Due Date (Desc)', handler: () => { this.setSort('startDate', 'desc'); }
+          text: 'Due Date (Desc)',
+          handler: () => { this.setSort('startDate', 'desc'); }
         },
         {
-          text: 'Title (A-Z)', handler: () => { this.setSort('title', 'asc'); }
+          text: 'Title (A-Z)',
+          handler: () => { this.setSort('title', 'asc'); }
         },
         {
-          text: 'Title (Z-A)', handler: () => { this.setSort('title', 'desc'); }
+          text: 'Title (Z-A)',
+          handler: () => { this.setSort('title', 'desc'); }
         },
         {
-          text: 'Type (A-Z)', handler: () => { this.setSort('type', 'asc'); }
+          text: 'Type (A-Z)',
+          handler: () => { this.setSort('type', 'asc'); }
         },
         {
-          text: 'Type (Z-A)', handler: () => { this.setSort('type', 'desc'); }
+          text: 'Type (Z-A)',
+          handler: () => { this.setSort('type', 'desc'); }
         },
         {
-          text: 'Customer (A-Z)', handler: () => { this.setSort('customerName', 'asc'); },
-          disabled: !!this.customerIdFilter // Disable if already filtered by a customer
-        },
-        {
-          text: 'Customer (Z-A)', handler: () => { this.setSort('customerName', 'desc'); },
+          text: 'Customer (A-Z)',
+          handler: () => { this.setSort('customerName', 'asc'); },
           disabled: !!this.customerIdFilter
         },
         {
-          text: 'Cancel', role: 'cancel'
+          text: 'Customer (Z-A)',
+          handler: () => { this.setSort('customerName', 'desc'); },
+          disabled: !!this.customerIdFilter
+        },
+        {
+          text: 'Cancel',
+          role: 'cancel'
         }
       ]
     });
+
     await actionSheet.present();
+
+    // Remove inert attribute when action sheet is dismissed
+    await actionSheet.onDidDismiss();
+    document.querySelector('ion-content')?.removeAttribute('inert');
   }
 
   setSort(sortBy: string, sortOrder: string) {
@@ -175,16 +203,107 @@ export class TaskListPage implements OnInit {
     this.loadTasks();
   }
 
-  navigateAddTask() {
-    this.router.navigate(['/task-form']);
+  // Add this method to debug navigation issues
+debugNavigation() {
+  console.log('Current route:', this.router.url);
+  console.log('Route configuration:', this.router.config);
+  
+  // Test navigation with promise to catch errors
+  this.router.navigate(['/tasks/new']).then(
+    (success) => console.log('Navigation success:', success),
+    (error) => console.error('Navigation error:', error)
+  );
+}
+
+// Update your navigation methods to include error handling
+async navigateAddTask() {
+  try {
+    // Remove focus from any active element before navigation
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement) {
+      activeElement.blur();
+    }
+    
+    // Use root direction for cleaner transitions
+    await this.navController.navigateRoot('/tasks/new', {
+      animated: true,
+      animationDirection: 'forward'
+    });
+  } catch (error) {
+    console.error('Navigation error:', error);
+  }
+}
+
+async navigateToEditTask(taskId: number) {
+  try {
+    // Remove focus from any active element before navigation
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement) {
+      activeElement.blur();
+    }
+
+    await this.navController.navigateForward(`/tasks/edit/${taskId}`, {
+      animated: true,
+      animationDirection: 'forward'
+    });
+  } catch (error) {
+    console.error('Navigation error:', error);
+  }
+}
+
+async navigateToTaskDetail(taskId: number) {
+  try {
+    // Remove focus from any active element before navigation
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement) {
+      activeElement.blur();
   }
 
-  navigateToEditTask(taskId: number) {
-    this.router.navigate(['/task-form', taskId]);
+    await this.navController.navigateForward(`/tasks/detail/${taskId}`, {
+      animated: true,
+      animationDirection: 'forward'
+    });
+  } catch (error) {
+    console.error('Navigation error:', error);
+  }
+}
+
+async navigateToArchive() {
+  try {
+    // Remove focus from any active element before navigation
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement) {
+      activeElement.blur();
+    }
+
+    await this.navController.navigateForward('/tasks/archive', {
+      animated: true,
+      animationDirection: 'forward'
+    });
+  } catch (error) {
+    console.error('Navigation error:', error);
+  }
+}
+
+  // Add lifecycle hooks to handle page transitions
+  ionViewWillLeave() {
+    // Remove focus and make page inert when leaving
+    const pageElement = document.querySelector('ion-content');
+    if (pageElement) {
+      pageElement.setAttribute('inert', '');
+    }
+    const activeElement = document.activeElement as HTMLElement;
+    if (activeElement) {
+      activeElement.blur();
+    }
   }
 
-  navigateToTaskDetail(taskId: number) {
-    this.router.navigate(['/task-detail', taskId]);
+  ionViewDidLeave() {
+    // Clean up when page is fully left
+    const pageElement = document.querySelector('ion-content');
+    if (pageElement) {
+      pageElement.removeAttribute('inert');
+    }
   }
 
   async toggleCompletion(task: Task, event: any) {
@@ -264,12 +383,12 @@ export class TaskListPage implements OnInit {
   }
 
   async openStatusActionSheet(taskItem: TaskListItem) {
+    // Add inert attribute to main content
+    document.querySelector('ion-content')?.setAttribute('inert', '');
+    
     const buttons = [];
     const currentStatus = taskItem.currentCycle.status;
 
-    // Start option - Only show if:
-    // 1. Status is pending AND
-    // 2. Either it's within the start date or canStartEarly is true
     if (currentStatus === 'pending' && taskItem.canStartEarly) {
       buttons.push({
         text: 'Start',
@@ -279,9 +398,6 @@ export class TaskListPage implements OnInit {
       });
     }
 
-    // Complete option - Only show if:
-    // 1. Status is in_progress AND
-    // 2. canComplete is true
     if (currentStatus === 'in_progress' && taskItem.canComplete) {
       buttons.push({
         text: 'Complete',
@@ -291,7 +407,6 @@ export class TaskListPage implements OnInit {
       });
     }
 
-    // Skip option - Only show for pending or in_progress tasks
     if (currentStatus === 'pending' || currentStatus === 'in_progress') {
       buttons.push({
         text: 'Skip',
@@ -301,7 +416,6 @@ export class TaskListPage implements OnInit {
       });
     }
 
-    // Reset option - Only show for in_progress or skipped tasks
     if (currentStatus === 'in_progress' || currentStatus === 'skipped') {
       buttons.push({
         text: 'Reset',
@@ -311,7 +425,6 @@ export class TaskListPage implements OnInit {
       });
     }
 
-    // Always add the cancel button
     buttons.push({
       text: 'Cancel',
       icon: 'close-outline',
@@ -320,11 +433,15 @@ export class TaskListPage implements OnInit {
 
     const actionSheet = await this.actionSheetCtrl.create({
       header: 'Update Status',
-      cssClass: 'task-action-sheet',
+      cssClass: 'accessible-action-sheet',
       buttons
     });
 
     await actionSheet.present();
+
+    // Remove inert attribute when action sheet is dismissed
+    await actionSheet.onDidDismiss();
+    document.querySelector('ion-content')?.removeAttribute('inert');
   }
 
   async updateTaskStatus(taskItem: TaskListItem, status: TaskCycleStatus) {
@@ -398,9 +515,17 @@ export class TaskListPage implements OnInit {
   }
 
   async openTaskMenu(taskItem: TaskListItem) {
-    const actionSheet = await this.actionSheetCtrl.create({
-      header: 'Task Options',
-      buttons: [
+    // Add inert attribute to main content
+    document.querySelector('ion-content')?.setAttribute('inert', '');
+    
+    const buttons: ActionSheetButton[] = [
+      {
+        text: 'View Details',
+        icon: 'eye-outline',
+        handler: () => {
+          this.navigateToTaskDetail(taskItem.task.id);
+        }
+      },
         {
           text: 'Edit',
           icon: 'create-outline',
@@ -425,12 +550,22 @@ export class TaskListPage implements OnInit {
         },
         {
           text: 'Cancel',
-          icon: 'close',
+        icon: 'close-outline',
           role: 'cancel'
         }
-      ]
+    ];
+
+    const actionSheet = await this.actionSheetCtrl.create({
+      header: 'Task Options',
+      cssClass: 'accessible-action-sheet',
+      buttons
     });
+
     await actionSheet.present();
+
+    // Remove inert attribute when action sheet is dismissed
+    await actionSheet.onDidDismiss();
+    document.querySelector('ion-content')?.removeAttribute('inert');
   }
 
   async archiveTask(taskItem: TaskListItem) {
@@ -457,10 +592,6 @@ export class TaskListPage implements OnInit {
       ]
     });
     await alert.present();
-  }
-
-  navigateToArchive() {
-    this.router.navigate(['/tasks/archive']);
   }
 
   async reinitializeDatabase() {

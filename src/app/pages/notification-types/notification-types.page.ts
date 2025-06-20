@@ -20,6 +20,7 @@ export class NotificationTypesPage implements OnInit {
   notificationTypes$: Observable<NotificationType[]>;
   notificationForm: FormGroup;
   showAdditionalFields = false;
+  isSubmitting = false;
   private enabledTypes: Set<string> = new Set();
 
   private readonly controlMapping: Record<string, string> = {
@@ -66,6 +67,11 @@ export class NotificationTypesPage implements OnInit {
     });
   }
 
+  // TrackBy function for better performance with *ngFor
+  trackByTypeKey(index: number, type: NotificationType): string {
+    return type.key;
+  }
+
   async loadNotificationSettings() {
     try {
       const settings = await this.notificationTypeService.getNotificationSettings();
@@ -83,7 +89,7 @@ export class NotificationTypesPage implements OnInit {
       }
     } catch (error) {
       console.error('Error loading notification settings:', error);
-      await this.presentToast('Failed to load notification settings.');
+      await this.presentToast('Failed to load notification settings.', 'danger');
     }
   }
 
@@ -99,7 +105,7 @@ export class NotificationTypesPage implements OnInit {
     const newEnabledState = !this.isTypeEnabled(type.key);
 
     if (newEnabledState && this.getEnabledCount() >= 3) {
-      await this.presentToast('You can only enable up to 3 notification methods.');
+      await this.presentToast('You can only enable up to 3 notification methods.', 'warning');
       return;
     }
 
@@ -132,10 +138,10 @@ export class NotificationTypesPage implements OnInit {
       this.updateAdditionalFieldsVisibility();
 
       // Show success message
-      await this.presentToast(`${type.name} notifications ${newEnabledState ? 'enabled' : 'disabled'}.`);
+      await this.presentToast(`${type.name} notifications ${newEnabledState ? 'enabled' : 'disabled'}.`, 'success');
     } catch (error) {
       console.error('Error toggling notification type:', error);
-      await this.presentToast('Failed to update notification settings.');
+      await this.presentToast('Failed to update notification settings.', 'danger');
       
       // Revert the local state
       if (newEnabledState) {
@@ -196,9 +202,12 @@ export class NotificationTypesPage implements OnInit {
 
   async saveSettings() {
     if (this.showAdditionalFields && this.notificationForm.invalid) {
-      this.presentToast('Please fill in all required fields correctly.');
+      this.notificationForm.markAllAsTouched();
+      this.presentToast('Please fill in all required fields correctly.', 'danger');
       return;
     }
+
+    this.isSubmitting = true;
 
     try {
       // Get form values directly
@@ -206,19 +215,27 @@ export class NotificationTypesPage implements OnInit {
       console.log('Form values to save:', formValues);
       
       await this.notificationTypeService.saveNotificationSettings(formValues);
-      await this.presentToast('Settings saved successfully!');
+      await this.presentToast('Notification settings saved successfully!', 'success');
     } catch (error) {
       console.error('Error saving settings:', error);
-      await this.presentToast('Failed to save settings. Please try again.');
+      await this.presentToast('Failed to save settings. Please try again.', 'danger');
+    } finally {
+      this.isSubmitting = false;
     }
   }
 
-  private async presentToast(message: string) {
+  private async presentToast(message: string, color: 'success' | 'danger' | 'warning' = 'success') {
     const toast = await this.toastController.create({
       message,
-      duration: 2000,
+      duration: 3000,
       position: 'bottom',
-      color: message.includes('error') || message.includes('Failed') ? 'danger' : 'success'
+      color: color,
+      buttons: [
+        {
+          text: 'Dismiss',
+          role: 'cancel'
+        }
+      ]
     });
     toast.present();
   }
@@ -248,4 +265,5 @@ export class NotificationTypesPage implements OnInit {
       default: return 'Invalid value';
     }
   }
-} 
+}
+

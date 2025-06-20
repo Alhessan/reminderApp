@@ -1,0 +1,199 @@
+// App Component Styles
+// Ensure full-width layout on all devices, especially mobile
+
+:host {
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+  background: var(--ion-background-color);
+}
+
+ion-app {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: var(--ion-background-color);
+}
+
+ion-split-pane {
+  width: 100% !important;
+  height: 100% !important;
+  background: var(--ion-background-color);
+}
+
+ion-menu {
+  --width: 270px;
+  --max-width: 280px;
+  
+  ion-content {
+    --background: var(--ion-background-color);
+    
+    &::part(background) {
+      background: var(--ion-background-color);
+    }
+    
+    &::part(scroll) {
+      background: var(--ion-background-color);
+    }
+    
+    ion-list {
+      background: transparent;
+      padding: 0;
+      
+      ion-item {
+        --background: transparent;
+        --background-hover: var(--ion-color-primary-contrast);
+        --background-focused: var(--ion-color-primary-contrast);
+        --border-color: var(--ion-border-color);
+        --padding-start: 16px;
+        --padding-end: 16px;
+        --min-height: 48px;
+        
+        &.selected {
+          --background: rgba(var(--ion-color-primary-rgb), 0.1);
+          --color: var(--ion-color-primary);
+          font-weight: 500;
+          
+          ion-icon {
+            color: var(--ion-color-primary);
+          }
+        }
+        
+        ion-icon {
+          color: var(--ion-text-color);
+          margin-right: 16px;
+          font-size: 20px;
+        }
+      }
+    }
+  }
+}
+
+// Main content area
+ion-router-outlet {
+  width: 100% !important;
+  height: 100% !important;
+  background: var(--ion-background-color);
+}
+
+// Ensure proper page transitions
+.ion-page {
+  width: 100% !important;
+  height: 100% !important;
+  background: var(--ion-background-color);
+  
+  ion-content {
+    --background: var(--ion-background-color);
+    
+    &::part(background) {
+      background: var(--ion-background-color);
+    }
+    
+    &::part(scroll) {
+      background: var(--ion-background-color);
+    }
+  }
+  
+  &.ion-page-invisible {
+    opacity: 0;
+  }
+  
+  &.ion-page-visible {
+    opacity: 1;
+  }
+}
+
+// Dark mode adjustments
+@media (prefers-color-scheme: dark) {
+  ion-menu ion-content {
+    --background: var(--ion-background-color);
+    
+    ion-list ion-item {
+      --background-hover: rgba(var(--ion-color-light-rgb), 0.05);
+      --background-focused: rgba(var(--ion-color-light-rgb), 0.05);
+    }
+  }
+}
+
+// Mobile-specific overrides
+@media (max-width: 768px) {
+  :host {
+    width: 100vw !important;
+    height: 100vh !important;
+    background: var(--ion-background-color);
+  }
+  
+  ion-app {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    min-width: 100vw !important;
+    background: var(--ion-background-color);
+  }
+  
+  ion-split-pane {
+    width: 100vw !important;
+    height: 100vh !important;
+    background: var(--ion-background-color);
+  }
+  
+  .ion-page {
+    width: 100vw !important;
+    height: 100vh !important;
+    background: var(--ion-background-color);
+  }
+  
+  ion-header {
+    width: 100vw !important;
+  }
+  
+  ion-toolbar {
+    width: 100vw !important;
+  }
+  
+  ion-content {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    --background: var(--ion-background-color);
+    
+    &::part(background) {
+      background: var(--ion-background-color);
+    }
+    
+    &::part(scroll) {
+      background: var(--ion-background-color);
+    }
+  }
+  
+  ion-router-outlet {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    background: var(--ion-background-color);
+  }
+}
+
+ion-header {
+  width: 100% !important;
+}
+
+ion-toolbar {
+  width: 100% !important;
+}
+
+ion-content {
+  width: 100% !important;
+  --padding-start: 0;
+  --padding-end: 0;
+  --background: var(--ion-background-color);
+  
+  &::part(background) {
+    background: var(--ion-background-color);
+  }
+  
+  &::part(scroll) {
+    background: var(--ion-background-color);
+  }
+}
+

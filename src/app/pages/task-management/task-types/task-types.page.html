@@ -5,48 +5,173 @@
     </ion-buttons>
     <ion-title>Routine Types</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="addTaskType()">
-        <ion-icon name="add"></ion-icon>
+      <ion-button (click)="addTaskType()" class="add-button">
+        <ion-icon name="add-circle-outline"></ion-icon>
+        <ion-label>Add</ion-label>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  <ion-list>
-    <ion-item-sliding *ngFor="let type of taskTypes$ | async">
-      <ion-item>
-        <ion-icon [name]="type.icon" slot="start" [style.color]="type.color"></ion-icon>
+  <ion-list class="animated-list">
+    <ion-item-sliding *ngFor="let type of taskTypes$ | async" class="item-sliding">
+      <ion-item class="task-type-item" detail="false" (click)="editTaskType(type)">
+        <ion-icon [name]="type.icon" slot="start" [style.color]="type.color" class="type-icon"></ion-icon>
         <ion-label>
           <h2>{{ type.name }}</h2>
           <p>{{ type.description }}</p>
         </ion-label>
-        <ion-badge *ngIf="type.isDefault" color="primary" slot="end">Default</ion-badge>
+        <ion-badge *ngIf="type.isDefault" color="primary" slot="end" class="default-badge">Default</ion-badge>
+        <ion-icon name="chevron-forward" slot="end" color="medium" class="chevron-icon"></ion-icon>
       </ion-item>
       
       <ion-item-options side="end">
-        <ion-item-option (click)="editTaskType(type)" color="primary">
-          <ion-icon slot="icon-only" name="create"></ion-icon>
+        <ion-item-option (click)="editTaskType(type)" color="primary" class="edit-option">
+          <ion-icon slot="icon-only" name="create-outline"></ion-icon>
         </ion-item-option>
-        <ion-item-option (click)="deleteTaskType(type)" color="danger" [disabled]="type.isDefault">
-          <ion-icon slot="icon-only" name="trash"></ion-icon>
+        <ion-item-option (click)="deleteTaskType(type)" color="danger" [disabled]="type.isDefault" class="delete-option">
+          <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
         </ion-item-option>
       </ion-item-options>
     </ion-item-sliding>
   </ion-list>
 
-  <ion-list>
-    <ion-list-header>
-      <ion-label>Available Icons</ion-label>
-    </ion-list-header>
-    <ion-item>
-      <ion-grid>
-        <ion-row>
-          <ion-col size="2" *ngFor="let icon of availableIcons">
-            <ion-icon [name]="icon" size="large"></ion-icon>
-          </ion-col>
-        </ion-row>
-      </ion-grid>
-    </ion-item>
-  </ion-list>
+  <ion-card class="icon-showcase-card">
+    <ion-card-header>
+      <ion-card-title>
+        <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+        Available Icons
+      </ion-card-title>
+      <ion-card-subtitle>Tap an icon to copy its name</ion-card-subtitle>
+    </ion-card-header>
+    <ion-card-content>
+      <div class="icon-showcase">
+        <div *ngFor="let icon of availableIcons" class="icon-showcase-item" (click)="copyIconName(icon)">
+          <ion-icon [name]="icon" class="showcase-icon"></ion-icon>
+          <div class="icon-name">{{ icon }}</div>
+        </div>
+      </div>
+    </ion-card-content>
+  </ion-card>
 </ion-content>
+
+<style>
+  .add-button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .task-type-item {
+    --padding-start: 16px;
+    --padding-end: 16px;
+    --padding-top: 12px;
+    --padding-bottom: 12px;
+    --border-radius: 8px;
+    margin: 4px 8px;
+    --background: var(--ion-card-background);
+    box-shadow: var(--ion-shadow-1);
+  }
+
+  .type-icon {
+    font-size: 24px;
+    margin-right: 16px;
+  }
+
+  .default-badge {
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 12px;
+  }
+
+  .chevron-icon {
+    font-size: 18px;
+    opacity: 0.6;
+  }
+
+  .animated-list ion-item-sliding {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .edit-option, .delete-option {
+    --ion-item-background: var(--ion-color-primary);
+    --padding-top: 0;
+    --padding-bottom: 0;
+    --padding-start: 0;
+    --padding-end: 0;
+    width: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .delete-option {
+    --ion-item-background: var(--ion-color-danger);
+  }
+
+  .icon-showcase-card {
+    margin: 16px;
+    border-radius: 12px;
+    box-shadow: var(--ion-shadow-2);
+  }
+
+  .icon-showcase {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 8px 0;
+  }
+
+  .icon-showcase-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 8px;
+    border-radius: 8px;
+    background: var(--ion-item-background);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .icon-showcase-item:hover, .icon-showcase-item:active {
+    background: var(--ion-color-light);
+    transform: scale(1.05);
+  }
+
+  .showcase-icon {
+    font-size: 24px;
+    color: var(--ion-color-primary);
+    margin-bottom: 8px;
+  }
+
+  .icon-name {
+    font-size: 10px;
+    color: var(--ion-color-medium);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* Dark mode specific styles */
+  @media (prefers-color-scheme: dark) {
+    .task-type-item {
+      --background: var(--ion-background-color-step-50, #1e1e1e);
+    }
+    
+    .icon-showcase-item {
+      background: var(--ion-background-color-step-50, #1e1e1e);
+    }
+    
+    .icon-showcase-item:hover, .icon-showcase-item:active {
+      background: var(--ion-background-color-step-150, #2a2a2a);
+    }
+  }
+</style>

@@ -1,0 +1,428 @@
+// Customer Form Component Styles
+// Enhanced theme-aware styling for both dark and light modes
+
+// Form header styling with dynamic color
+.form-header {
+  text-align: center;
+  padding: 24px 16px 32px;
+  background: linear-gradient(135deg, var(--ion-color-primary) 0%, var(--ion-color-primary-shade) 100%);
+  margin: -16px -16px 24px -16px;
+  color: white;
+
+  .customer-avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+
+    ion-icon {
+      font-size: 2.5rem;
+      transition: all 0.3s ease;
+    }
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    letter-spacing: 0.5px;
+  }
+
+  p {
+    font-size: 0.95rem;
+    opacity: 0.9;
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+// Form group styling
+.form-group {
+  margin-bottom: 24px;
+}
+
+// Section header styling
+.section-header {
+  margin-bottom: 16px;
+  padding: 0 4px;
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--ion-color-dark);
+    margin: 0 0 4px 0;
+  }
+
+  p {
+    font-size: 0.9rem;
+    color: var(--ion-color-medium);
+    margin: 0;
+    line-height: 1.4;
+  }
+}
+
+// Dark mode section header
+@media (prefers-color-scheme: dark) {
+  .section-header {
+    h3 {
+      color: var(--ion-color-light);
+    }
+  }
+}
+
+// Enhanced item styling
+ion-item {
+  --border-radius: 12px;
+  --background: var(--ion-color-light);
+  --border-color: var(--ion-color-medium-tint);
+  --border-width: 1px;
+  --border-style: solid;
+  --padding-start: 20px;
+  --padding-end: 20px;
+  --min-height: 64px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    --border-color: var(--ion-color-primary-tint);
+  }
+
+  &:focus-within {
+    --border-color: var(--ion-color-primary);
+    box-shadow: 0 0 0 3px rgba(var(--ion-color-primary-rgb), 0.1);
+
+    &::before {
+      transform: scaleX(1);
+    }
+  }
+
+  &.error {
+    --border-color: var(--ion-color-danger);
+    animation: shake 0.5s ease-in-out;
+  }
+}
+
+// Dark mode item styling
+@media (prefers-color-scheme: dark) {
+  ion-item {
+    --background: var(--ion-color-dark-tint);
+    --border-color: var(--ion-color-medium);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+
+    &:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+  }
+}
+
+// Label styling
+ion-label {
+  font-weight: 500;
+  color: var(--ion-color-dark);
+  margin-bottom: 8px;
+
+  ion-text[color="danger"] {
+    font-weight: 600;
+    margin-left: 4px;
+  }
+}
+
+// Dark mode label styling
+@media (prefers-color-scheme: dark) {
+  ion-label {
+    color: var(--ion-color-light);
+  }
+}
+
+// Input styling
+ion-input {
+  --padding-start: 0;
+  --padding-end: 40px;
+  font-size: 16px;
+  font-weight: 400;
+
+  &.error {
+    --color: var(--ion-color-danger);
+  }
+}
+
+// Field icon styling
+.field-icon {
+  color: var(--ion-color-medium);
+  font-size: 1.2rem;
+  transition: color 0.3s ease;
+}
+
+ion-item:focus-within .field-icon {
+  color: var(--ion-color-primary);
+}
+
+// Error message styling
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ion-color-danger);
+  margin-top: 8px;
+  margin-left: 16px;
+  font-size: 0.875rem;
+  animation: slideInDown 0.3s ease-out;
+
+  ion-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  small {
+    margin: 0;
+    line-height: 1.3;
+  }
+}
+
+// Form actions styling
+.form-actions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 2px solid var(--ion-color-light-shade);
+}
+
+// Dark mode form actions
+@media (prefers-color-scheme: dark) {
+  .form-actions {
+    border-top-color: var(--ion-color-dark-shade);
+  }
+}
+
+// Enhanced button styling
+ion-button {
+  --border-radius: 12px;
+  height: 52px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+
+  &[type="submit"] {
+    --background: linear-gradient(135deg, var(--ion-color-primary) 0%, var(--ion-color-primary-shade) 100%);
+    --color: white;
+    box-shadow: 0 4px 16px rgba(var(--ion-color-primary-rgb), 0.3);
+
+    &:not([disabled]):hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(var(--ion-color-primary-rgb), 0.4);
+    }
+
+    &[disabled] {
+      opacity: 0.6;
+      transform: none;
+      box-shadow: none;
+    }
+
+    &.loading {
+      --color: transparent;
+
+      ion-spinner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        --color: white;
+      }
+    }
+  }
+
+  &.cancel-button {
+    --color: var(--ion-color-medium);
+    --background: transparent;
+    margin-top: 8px;
+
+    &:hover {
+      --color: var(--ion-color-dark);
+      --background: var(--ion-color-light);
+    }
+  }
+}
+
+// Dark mode button styling
+@media (prefers-color-scheme: dark) {
+  ion-button.cancel-button {
+    &:hover {
+      --color: var(--ion-color-light);
+      --background: var(--ion-color-dark-tint);
+    }
+  }
+}
+
+// Loading container styling
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+
+  ion-spinner {
+    --color: var(--ion-color-primary);
+    transform: scale(1.2);
+    margin-bottom: 16px;
+  }
+
+  p {
+    color: var(--ion-color-medium);
+    font-size: 0.95rem;
+    margin: 0;
+  }
+}
+
+// Color icon picker integration styling
+app-color-icon-picker {
+  display: block;
+  margin-top: 8px;
+}
+
+// Animations
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Form container animation
+form {
+  animation: slideInUp 0.4s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .form-header {
+    padding: 20px 16px 24px;
+    margin: -16px -16px 20px -16px;
+
+    .customer-avatar-large {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 12px;
+
+      ion-icon {
+        font-size: 2rem;
+      }
+    }
+
+    h2 {
+      font-size: 1.25rem;
+    }
+
+    p {
+      font-size: 0.9rem;
+    }
+  }
+
+  ion-item {
+    --min-height: 56px;
+    --padding-start: 16px;
+    --padding-end: 16px;
+  }
+
+  ion-button {
+    height: 48px;
+  }
+
+  .section-header {
+    h3 {
+      font-size: 1rem;
+    }
+
+    p {
+      font-size: 0.85rem;
+    }
+  }
+}
+
+// Custom alert styling (global)
+:root {
+  .custom-alert {
+    --backdrop-opacity: 0.6;
+    
+    .alert-wrapper {
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+    
+    .alert-head {
+      padding: 20px 20px 0;
+    }
+    
+    .alert-message {
+      padding: 16px 20px;
+      line-height: 1.5;
+    }
+    
+    .alert-button-group {
+      padding: 0 20px 20px;
+      
+      .alert-button {
+        border-radius: 8px;
+        font-weight: 600;
+        margin: 0 4px;
+        
+        &.alert-button-role-cancel {
+          --color: var(--ion-color-medium);
+        }
+        
+        &.danger {
+          --color: var(--ion-color-danger);
+        }
+      }
+    }
+  }
+}
+

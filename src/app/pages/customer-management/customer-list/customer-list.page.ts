@@ -1,18 +1,18 @@
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { AlertController, IonItemSliding, NavController, IonicModule } from '@ionic/angular'; // Added IonicModule
+import { AlertController, IonItemSliding, NavController, IonicModule, ToastController } from '@ionic/angular';
 import { Customer } from '../../../models/customer.model';
 import { CustomerService } from '../../../services/customer.service';
 import { DatabaseService } from '../../../services/database.service';
-import { CommonModule } from '@angular/common'; // Added CommonModule
-import { FormsModule } from '@angular/forms'; // Added FormsModule
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-customer-list',
   templateUrl: './customer-list.page.html',
   styleUrls: ['./customer-list.page.scss'],
-  standalone: true, // Mark as standalone
-  imports: [IonicModule, CommonModule, FormsModule] // Import necessary modules for standalone components
+  standalone: true,
+  imports: [IonicModule, CommonModule, FormsModule]
 })
 export class CustomerListPage implements OnInit {
   customers: Customer[] = [];
@@ -23,12 +23,12 @@ export class CustomerListPage implements OnInit {
     private router: Router,
     private alertController: AlertController,
     private navController: NavController,
-    private databaseService: DatabaseService // Inject DatabaseService
+    private databaseService: DatabaseService,
+    private toastController: ToastController
   ) { }
 
   async ngOnInit() {
     // Ensure database is initialized before loading customers
-    // This might be better handled in an app initialization service or app.component
     await this.databaseService.initializeDatabase(); 
     await this.loadCustomers();
   }
@@ -44,46 +44,106 @@ export class CustomerListPage implements OnInit {
       this.customers = await this.customerService.getAllCustomers();
     } catch (error) {
       console.error('Error loading customers:', error);
-      // Optionally, show a toast or alert to the user
-      this.presentErrorAlert('Failed to load customers. Please try again.');
+      this.presentErrorToast('Failed to load customers. Please try again.');
     } finally {
       this.isLoading = false;
     }
   }
 
-  navigateToAddCustomer() {
-    // Navigate to a dedicated page or use a modal for adding/editing
-    // For simplicity, let's assume a route like '/customer-form' for new, and '/customer-form/:id' for edit
-    this.router.navigate(['/customer-form']); 
+  // TrackBy function for better performance with *ngFor
+  trackByCustomerId(index: number, customer: Customer): number {
+    return customer.id || index;
   }
 
-  navigateToEditCustomer(customerId: number, slidingItem?: IonItemSliding) {
-    if (slidingItem) {
-      slidingItem.close();
-    }
-    this.router.navigate(['/customer-form', customerId]);
+  // Statistics methods
+  getCustomersWithEmail(): number {
+    return this.customers.filter(c => c.email && c.email.trim() !== '').length;
   }
 
-  navigateToCustomerDetail(customerId: number, slidingItem?: IonItemSliding) {
-    // This page is not explicitly in MVP, but good for viewing tasks per customer
-    // For now, let's assume it navigates to a detail page that might show tasks
-    if (slidingItem) {
-      slidingItem.close();
+  getCustomersWithPhone(): number {
+    return this.customers.filter(c => c.phone && c.phone.trim() !== '').length;
+  }
+
+  getCustomersWithBoth(): number {
+    return this.customers.filter(c => 
+      c.email && c.email.trim() !== '' && 
+      c.phone && c.phone.trim() !== ''
+    ).length;
+  }
+
+  async navigateToAddCustomer() {
+    try {
+      // Remove focus from any active element before navigation
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement) {
+        activeElement.blur();
+      }
+      
+      // Use navigateRoot to ensure proper navigation
+      await this.navController.navigateRoot('/customers/new', {
+        animated: true,
+        animationDirection: 'forward'
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      this.presentErrorToast('Failed to navigate to add customer form.');
     }
-    // Replace with actual route if a customer detail page is implemented
-    // For now, it can also just navigate to edit or simply do nothing if no detail view
-    console.log('Navigate to customer detail for ID:', customerId);
-    // this.router.navigate(['/customer-detail', customerId]); 
-    this.navigateToEditCustomer(customerId); // Or navigate to edit for now
+  }
+
+  async navigateToEditCustomer(customerId: number, slidingItem?: IonItemSliding) {
+    try {
+      if (slidingItem) {
+        await slidingItem.close();
+      }
+      
+      // Remove focus from any active element before navigation
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement) {
+        activeElement.blur();
+      }
+      
+      // Use navigateRoot to ensure proper navigation
+      await this.navController.navigateRoot(`/customers/edit/${customerId}`, {
+        animated: true,
+        animationDirection: 'forward'
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      this.presentErrorToast('Failed to navigate to edit customer form.');
+    }
+  }
+
+  async navigateToCustomerDetail(customerId: number, slidingItem?: IonItemSliding) {
+    try {
+      if (slidingItem) {
+        await slidingItem.close();
+      }
+      
+      // Remove focus from any active element before navigation
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement) {
+        activeElement.blur();
+      }
+      
+      // Use navigateRoot to ensure proper navigation
+      await this.navController.navigateRoot(`/customers/detail/${customerId}`, {
+        animated: true,
+        animationDirection: 'forward'
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+      this.presentErrorToast('Failed to navigate to customer details.');
+    }
   }
 
   async presentDeleteConfirm(customerId: number, customerName: string, slidingItem?: IonItemSliding) {
     if (slidingItem) {
-      slidingItem.close(); // Close the sliding item before showing the alert
+      slidingItem.close();
     }
+    
     const alert = await this.alertController.create({
-      header: 'Confirm Delete',
-      message: `Are you sure you want to delete ${customerName}? Associated tasks will have their customer link removed (but tasks themselves won't be deleted).`,
+      header: 'Delete Customer',
+      message: `Are you sure you want to delete "${customerName}"? Associated tasks will have their customer link removed.`,
       buttons: [
         {
           text: 'Cancel',
@@ -92,32 +152,63 @@ export class CustomerListPage implements OnInit {
         },
         {
           text: 'Delete',
+          cssClass: 'danger',
           handler: async () => {
-            await this.deleteCustomer(customerId);
+            await this.deleteCustomer(customerId, customerName);
           },
         },
       ],
+      cssClass: 'custom-alert'
     });
     await alert.present();
   }
 
-  async deleteCustomer(customerId: number) {
+  async deleteCustomer(customerId: number, customerName: string) {
     try {
       await this.customerService.deleteCustomer(customerId);
-      // Refresh the list
+      // Remove from local array for immediate UI update
       this.customers = this.customers.filter(c => c.id !== customerId);
-      // Optionally, show a success toast
+      // Show success message
+      this.presentSuccessToast(`${customerName} has been deleted successfully.`);
     } catch (error) {
       console.error('Error deleting customer:', error);
-      this.presentErrorAlert('Failed to delete customer. Please try again.');
+      this.presentErrorToast('Failed to delete customer. Please try again.');
     }
+  }
+
+  async presentErrorToast(message: string) {
+    const toast = await this.toastController.create({
+      message: message,
+      duration: 3000,
+      position: 'bottom',
+      color: 'danger',
+      buttons: [
+        {
+          text: 'Dismiss',
+          role: 'cancel'
+        }
+      ]
+    });
+    await toast.present();
+  }
+
+  async presentSuccessToast(message: string) {
+    const toast = await this.toastController.create({
+      message: message,
+      duration: 2000,
+      position: 'bottom',
+      color: 'success',
+      icon: 'checkmark-circle-outline'
+    });
+    await toast.present();
   }
 
   async presentErrorAlert(message: string) {
     const alert = await this.alertController.create({
       header: 'Error',
       message: message,
-      buttons: ['OK']
+      buttons: ['OK'],
+      cssClass: 'custom-alert'
     });
     await alert.present();
   }

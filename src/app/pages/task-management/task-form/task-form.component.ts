@@ -1,18 +1,37 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { AlertController, NavController, IonicModule, ModalController, AlertInput } from '@ionic/angular';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { AlertController, NavController, IonicModule, AlertInput } from '@ionic/angular';
 import { TaskService } from '../../../services/task.service';
 import { CustomerService } from '../../../services/customer.service';
 import { TaskTypeService } from '../../../services/task-type.service';
 import { NotificationTypeService } from '../../../services/notification-type.service';
-import { Task, CreateTaskDTO } from '../../../models/task.model';
+import { Task } from '../../../models/task.model';
 import { NotificationType } from '../../../models/notification-type.model';
-import { TaskType } from '../../../services/task-type.service';
 import { Customer } from '../../../models/customer.model';
 import { DatabaseService } from '../../../services/database.service';
 import { CommonModule } from '@angular/common';
 import { map } from 'rxjs/operators';
+import { addIcons } from 'ionicons';
+import { 
+  checkmarkOutline,
+  informationCircleOutline,
+  repeatOutline,
+  documentTextOutline,
+  notificationsOutline,
+  sunnyOutline,
+  calendarOutline,
+  calendarNumberOutline,
+  hourglassOutline,
+  chevronBackOutline,
+  addCircleOutline,
+  personAddOutline,
+  eyeOutline,
+  settingsOutline,
+  moonOutline,
+  sunny
+} from 'ionicons/icons';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-task-form',
@@ -23,41 +42,27 @@ import { map } from 'rxjs/operators';
     IonicModule, 
     CommonModule, 
     ReactiveFormsModule, 
-    FormsModule
+    FormsModule,
+    RouterModule
   ]
 })
-export class TaskFormComponent implements OnInit {
+export class TaskFormComponent implements OnInit, OnDestroy {
   taskForm: FormGroup;
   isEditMode = false;
   taskId?: number;
   customers: Customer[] = [];
-  formInitialized = false;
-  selectedNotificationTypes: NotificationType[] = [];
-  private lastNotificationType: string = 'silent reminder';
   isSubmitting = false;
-
-  taskTypes = [
-    { key: 'payment', name: 'Payment', icon: 'cash-outline', color: 'success' },
-    { key: 'update', name: 'Update', icon: 'refresh-outline', color: 'primary' },
-    { key: 'custom', name: 'Custom', icon: 'create-outline', color: 'tertiary' }
-  ];
-
-  frequencies: { key: string; name: string; icon: string }[] = [
-    { key: 'daily', name: 'Daily', icon: 'calendar-outline' },
-    { key: 'weekly', name: 'Weekly', icon: 'calendar-outline' },
-    { key: 'monthly', name: 'Monthly', icon: 'calendar-outline' },
-    { key: 'yearly', name: 'Yearly', icon: 'calendar-outline' },
-    { key: 'once', name: 'One Time', icon: 'calendar-outline' }
-  ];
 
   taskTypes$ = this.taskTypeService.getTaskTypes();
   enabledNotificationTypes$ = this.notificationTypeService.getNotificationTypes().pipe(
     map(types => types.filter(type => type.isEnabled))
   );
 
-  // New properties for improved form
   minDate = new Date().toISOString();
   maxDate = new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString();
+
+  private notificationTypes: NotificationType[] = [];
+  private notificationTypesSubscription?: Subscription;
 
   constructor(
     private taskTypeService: TaskTypeService,
@@ -69,9 +74,29 @@ export class TaskFormComponent implements OnInit {
     private navController: NavController,
     private alertController: AlertController,
     private databaseService: DatabaseService,
-    private router: Router,
-    private modalController: ModalController
+    private router: Router
   ) {
+    console.log('TaskFormComponent constructor called');
+    // Register Ionic icons
+    addIcons({
+      'checkmark-outline': checkmarkOutline,
+      'information-circle-outline': informationCircleOutline,
+      'repeat-outline': repeatOutline,
+      'document-text-outline': documentTextOutline,
+      'notifications-outline': notificationsOutline,
+      'sunny-outline': sunnyOutline,
+      'calendar-outline': calendarOutline,
+      'calendar-number-outline': calendarNumberOutline,
+      'hourglass-outline': hourglassOutline,
+      'chevron-back-outline': chevronBackOutline,
+      'add-circle-outline': addCircleOutline,
+      'person-add-outline': personAddOutline,
+      'eye-outline': eyeOutline,
+      'settings-outline': settingsOutline,
+      'moon-outline': moonOutline,
+      'sunny': sunny
+    });
+
     this.taskForm = this.fb.group({
       title: ['', Validators.required],
       type: ['custom', Validators.required],
@@ -84,208 +109,155 @@ export class TaskFormComponent implements OnInit {
       notes: ['']
     });
 
-    // Watch for notificationType changes
+    // Subscribe to notification types
+    this.notificationTypesSubscription = this.enabledNotificationTypes$.subscribe(types => {
+      this.notificationTypes = types;
+    });
+
+    // Handle notification value validation
     this.taskForm.get('notificationType')?.valueChanges.subscribe(value => {
-      if (value === 'manage') {
-        this.manageNotificationTypes();
-        // Reset back to previous value after opening management
-        setTimeout(() => {
-          this.taskForm.patchValue({ notificationType: this.lastNotificationType || 'push' }, { emitEvent: false });
-        });
+      const type = this.getNotificationTypeDetails(value);
+      if (type?.requiresValue) {
+        this.taskForm.get('notificationValue')?.setValidators([
+          Validators.required,
+          Validators.pattern(type.validationPattern || '')
+        ]);
       } else {
-        this.lastNotificationType = value;
-        // Handle validation for notification value based on type
-        const type = this.getNotificationTypeDetails(value);
-        if (type?.requiresValue) {
-          this.taskForm.get('notificationValue')?.setValidators([
-            Validators.required,
-            Validators.pattern(type.validationPattern || '')
-          ]);
-        } else {
-          this.taskForm.get('notificationValue')?.clearValidators();
-        }
-        this.taskForm.get('notificationValue')?.updateValueAndValidity();
+        this.taskForm.get('notificationValue')?.clearValidators();
       }
-    });
-
-    // Watch for notification time changes
-    this.taskForm.get('notificationTime')?.valueChanges.subscribe(value => {
-    });
-
-    // Watch for start date changes
-    this.taskForm.get('startDate')?.valueChanges.subscribe(value => {
-    });
-
-    // Subscribe to enabled notification types to set default if needed
-    this.enabledNotificationTypes$.subscribe(types => {
-      if (types.length > 0) {
-        if (!this.lastNotificationType || this.lastNotificationType === 'manage' || !types.some(t => t.key === this.lastNotificationType)) {
-          // If push is enabled, use it as default, otherwise use silent
-          const pushType = types.find(t => t.key === 'push');
-          const defaultType = pushType ? 'push/local' : 'silent';
-          this.taskForm.patchValue({ notificationType: defaultType }, { emitEvent: false });
-          this.lastNotificationType = defaultType;
-        }
-      }
+      this.taskForm.get('notificationValue')?.updateValueAndValidity();
     });
   }
 
-  getNotificationTypeDetails(typeKey: string): any {
-    let types: any[] = [];
-    this.enabledNotificationTypes$.subscribe(t => types = t).unsubscribe();
-    return types.find(t => t.key === typeKey);
+  ngOnDestroy() {
+    console.log('TaskFormComponent ngOnDestroy called');
+    if (this.notificationTypesSubscription) {
+      this.notificationTypesSubscription.unsubscribe();
+    }
+  }
+
+  getNotificationTypeDetails(typeKey: string): NotificationType | undefined {
+    return this.notificationTypes.find(t => t.key === typeKey);
   }
 
   async manageNotificationTypes() {
-    await this.router.navigate(['/notification-types']);
-  }
-
-  onNotificationTypeChange(type: NotificationType) {
-    const isSelected = this.taskForm.get(`notification_${type.key}`)?.value;
-    
-    if (isSelected) {
-      this.selectedNotificationTypes.push(type);
-      if (type.requiresValue) {
-        this.taskForm.get(`notificationValue_${type.key}`)?.setValidators([Validators.required]);
-      }
-    } else {
-      this.selectedNotificationTypes = this.selectedNotificationTypes.filter(t => t.key !== type.key);
-      if (type.requiresValue) {
-        this.taskForm.get(`notificationValue_${type.key}`)?.clearValidators();
-        this.taskForm.get(`notificationValue_${type.key}`)?.setValue('');
-      }
-    }
-    
-    if (type.requiresValue) {
-      this.taskForm.get(`notificationValue_${type.key}`)?.updateValueAndValidity();
-    }
-  }
-
-  onNotificationTabChange(event: any) {
-    if (event.detail.value === 'manage') {
-      // Navigate to notification types management
-      this.router.navigate(['/notification-types']);
-      // Reset back to previous value
-      const previousValue = this.taskForm.get('notificationType')?.value;
-      if (previousValue && previousValue !== 'manage') {
-        setTimeout(() => {
-          this.taskForm.patchValue({ notificationType: previousValue });
-        });
-      } else {
-        this.taskForm.patchValue({ notificationType: 'push/local' });
-      }
+    try {
+      // Store current form values
+      const currentValues = this.taskForm.value;
+      
+      // Navigate to notification types page
+      await this.router.navigate(['/settings/notification-types']);
+      
+      // When returning, restore form values
+      this.taskForm.patchValue(currentValues);
+    } catch (error) {
+      console.error('Error navigating to notification types:', error);
+      await this.presentErrorAlert('Failed to open notification settings.');
     }
   }
 
   async ngOnInit() {
-    await this.databaseService.initializeDatabase();
-    await this.loadCustomers();
+    console.log('TaskFormComponent ngOnInit called');
+    try {
+      console.log('Initializing database...');
+      await this.databaseService.initializeDatabase();
+      
+      console.log('Loading customers...');
+      await this.loadCustomers();
+      console.log('Customers loaded:', this.customers);
 
-    this.route.paramMap.subscribe(async params => {
-      const id = params.get('id');
-      if (id) {
-        this.isEditMode = true;
-        this.taskId = +id;
-        await this.loadTaskData(+id);
-      }
-    });
+      console.log('Loading task types...');
+      this.taskTypes$.subscribe(types => {
+        console.log('Task types loaded:', types);
+      });
+
+      console.log('Loading notification types...');
+      this.enabledNotificationTypes$.subscribe(types => {
+        console.log('Notification types loaded:', types);
+      });
+
+      this.route.paramMap.subscribe(async params => {
+        const id = params.get('id');
+        console.log('Route params:', params);
+        if (id) {
+          console.log('Loading task data for id:', id);
+          this.isEditMode = true;
+          this.taskId = +id;
+          await this.loadTaskData(+id);
+        } else {
+          console.log('Creating new task');
+        }
+      });
+    } catch (error) {
+      console.error('Error in ngOnInit:', error);
+      await this.presentErrorAlert('Failed to initialize form. Please try again.');
+    }
   }
 
-  private async loadCustomers() {
+  async loadCustomers() {
     try {
       this.customers = await this.customerService.getAllCustomers();
     } catch (error) {
-      console.error('Error loading customers for form:', error);
-      this.presentErrorAlert('Failed to load customer list.');
+      console.error('Error loading customers:', error);
+      await this.presentErrorAlert('Failed to load customers.');
     }
   }
 
   async loadTaskData(id: number) {
-    console.log('TaskForm: Loading task data for ID:', id);
     try {
       const task = await this.taskService.getTaskById(id);
       if (task) {
-        console.log('TaskForm: Retrieved task data:', task);
-        // Only extract the fields that are part of the form
-        const taskDataForForm = {
+        this.taskForm.patchValue({
           title: task.title,
           type: task.type,
-          customerId: task.customerId || null,
+          customerId: task.customerId,
           frequency: task.frequency,
-          startDate: task.startDate ? new Date(task.startDate).toISOString().substring(0, 10) : null,
+          startDate: task.startDate,
           notificationTime: task.notificationTime || '09:00',
           notificationType: task.notificationType || 'push',
-          notificationValue: task.notificationValue || '',
-          notes: task.notes || ''
-        };
-        console.log('TaskForm: Formatted task data for form:', taskDataForForm);
-        this.taskForm.patchValue(taskDataForForm);
+          notificationValue: task.notificationValue,
+          notes: task.notes
+        });
       } else {
-        console.log('TaskForm: Task not found');
         await this.presentErrorAlert('Task not found.');
         this.navController.navigateBack('/tasks');
       }
     } catch (error) {
-      console.error('TaskForm: Error loading task data:', error);
-      await this.presentErrorAlert('Failed to load task data.');
+      console.error('Error loading task:', error);
+      await this.presentErrorAlert('Failed to load task details.');
       this.navController.navigateBack('/tasks');
     }
   }
 
   async onSubmit() {
-    if (!this.taskForm.valid) {
-      await this.presentErrorAlert('Please fill in all required fields.');
-      return;
-    }
-
-    try {
+    if (this.taskForm.valid && !this.isSubmitting) {
       this.isSubmitting = true;
-      const formData = this.taskForm.value;
-
-      // Create base task data
-      const baseTaskData: CreateTaskDTO = {
-        title: formData.title.trim(),
-        type: formData.type.trim(),
-        customerId: formData.customerId || null,
-        frequency: formData.frequency.trim(),
-        startDate: formData.startDate,  // Already formatted as YYYY-MM-DD
-        notificationType: formData.notificationType.trim(),
-        notificationTime: formData.notificationTime.trim(),
-        notificationValue: formData.notificationValue?.trim() || '',
-        notes: formData.notes?.trim() || '',
-        isArchived: false
-      };
-
-      if (this.isEditMode && this.taskId) {
-        // For update, create a Task object with required fields
-        const taskData: Task = {
-          ...baseTaskData,
-          id: this.taskId,
-          isCompleted: false,  // Default value for required field
-          lastCompletedDate: undefined  // Optional field
-        };
-        await this.taskService.updateTask(taskData);
-        await this.presentSuccessAlert('Task updated successfully');
-      } else {
-        // For create, use the CreateTaskDTO directly
-        console.log('TaskForm: Creating task:', baseTaskData);
-        await this.taskService.createTask(baseTaskData);
-        await this.presentSuccessAlert('Task created successfully');
+      try {
+        const formData = this.taskForm.value;
+        if (this.isEditMode && this.taskId) {
+          await this.taskService.updateTask({
+            id: this.taskId,
+            ...formData
+          });
+          await this.presentSuccessAlert('Task updated successfully.');
+        } else {
+          await this.taskService.createTask(formData);
+          await this.presentSuccessAlert('Task created successfully.');
+        }
+        this.navController.navigateBack('/tasks');
+      } catch (error) {
+        console.error('Error saving task:', error);
+        await this.presentErrorAlert('Failed to save task. Please try again.');
+      } finally {
+        this.isSubmitting = false;
       }
-
-      this.navController.back();
-    } catch (error) {
-      console.error('Error saving task:', error);
-      await this.presentErrorAlert('Failed to save task. Please try again.');
-    } finally {
-      this.isSubmitting = false;
     }
   }
 
   async presentErrorAlert(message: string) {
     const alert = await this.alertController.create({
       header: 'Error',
-      message,
+      message: message,
       buttons: ['OK']
     });
     await alert.present();
@@ -294,7 +266,7 @@ export class TaskFormComponent implements OnInit {
   async presentSuccessAlert(message: string) {
     const alert = await this.alertController.create({
       header: 'Success',
-      message,
+      message: message,
       buttons: ['OK']
     });
     await alert.present();
@@ -364,7 +336,6 @@ export class TaskFormComponent implements OnInit {
     await alert.present();
   }
 
-  // New methods for improved form functionality
   setQuickTime(time: string) {
     this.taskForm.patchValue({ notificationTime: time });
   }
@@ -373,38 +344,26 @@ export class TaskFormComponent implements OnInit {
     return this.taskForm.get('notificationTime')?.value === time;
   }
 
-  formatTime(time: string): string {
-    if (!time) return '';
-    try {
-      const [hours, minutes] = time.split(':');
-      const date = new Date();
-      date.setHours(parseInt(hours, 10));
-      date.setMinutes(parseInt(minutes, 10));
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (error) {
-      console.error('Error formatting time:', error);
-      return time;
-    }
+  formatTime(timeString: string): string {
+    if (!timeString) return 'Not set';
+    const [hours, minutes] = timeString.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours), parseInt(minutes));
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
   }
 
   async showProfileSelection() {
-    const inputs: AlertInput[] = [
-      {
-        type: 'radio',
-        label: 'None',
-        value: null,
-        checked: true
-      },
-      ...this.customers.map(customer => ({
-        type: 'radio' as const,
-        label: customer.name,
-        value: customer.id
-      }))
-    ];
-
     const alert = await this.alertController.create({
       header: 'Select Profile',
-      message: 'Choose a profile for this task',
+      inputs: this.customers.map(customer => ({
+        type: 'radio',
+        label: customer.name,
+        value: customer.id
+      })),
       buttons: [
         {
           text: 'Cancel',
@@ -418,8 +377,7 @@ export class TaskFormComponent implements OnInit {
             }
           }
         }
-      ],
-      inputs
+      ]
     });
     await alert.present();
   }
@@ -427,28 +385,27 @@ export class TaskFormComponent implements OnInit {
   async openDatePicker() {
     const alert = await this.alertController.create({
       header: 'Select Start Date',
+      inputs: [
+        {
+          name: 'startDate',
+          type: 'date',
+          value: this.taskForm.get('startDate')?.value,
+          min: this.minDate.split('T')[0],
+          max: this.maxDate.split('T')[0]
+        }
+      ],
       buttons: [
         {
           text: 'Cancel',
           role: 'cancel'
         },
         {
-          text: 'OK',
-          handler: (dateValue) => {
-            if (dateValue && dateValue[0]) {
-              // Extract the actual date string from the object
-              const dateString = dateValue[0];
-              this.taskForm.patchValue({ startDate: dateString });
+          text: 'Select',
+          handler: (data) => {
+            if (data.startDate) {
+              this.taskForm.patchValue({ startDate: data.startDate });
             }
           }
-        }
-      ],
-      inputs: [
-        {
-          type: 'date',
-          value: this.taskForm.get('startDate')?.value || new Date().toISOString().split('T')[0],
-          min: this.minDate.split('T')[0],
-          max: this.maxDate.split('T')[0]
         }
       ]
     });
@@ -456,22 +413,37 @@ export class TaskFormComponent implements OnInit {
   }
 
   formatDate(dateString: string): string {
-    if (!dateString) return 'Today';
+    if (!dateString) return 'Not set';
     const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
 
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
-    } else {
-      return date.toLocaleDateString(undefined, { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
-      });
+  // Add notification type handling
+  async onNotificationTypeChange(event: any) {
+    const value = event.detail.value;
+    if (value === 'manage') {
+      // Reset the segment to the previous value
+      this.taskForm.get('notificationType')?.setValue(this.taskForm.get('notificationType')?.value);
+      // Navigate to notification types management
+      await this.manageNotificationTypes();
+      return;
     }
+    
+    // Handle normal notification type change
+    const type = this.getNotificationTypeDetails(value);
+    if (type?.requiresValue) {
+      this.taskForm.get('notificationValue')?.setValidators([
+        Validators.required,
+        Validators.pattern(type.validationPattern || '')
+      ]);
+    } else {
+      this.taskForm.get('notificationValue')?.clearValidators();
+    }
+    this.taskForm.get('notificationValue')?.updateValueAndValidity();
   }
 }

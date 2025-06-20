@@ -1,8 +1,8 @@
 import { Component } from '@angular/core';
 import { DatabaseService } from './services/database.service';
-import { Platform, IonicModule, AlertController } from '@ionic/angular';
+import { Platform, IonicModule, AlertController, NavController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { RouterLink, RouterOutlet, Router } from '@angular/router'; // Add Router import
 import { NotificationService } from './services/notification.service';
 import { addIcons } from 'ionicons';
 import { 
@@ -74,10 +74,10 @@ import { SampleDataService } from './services/sample-data.service';
 })
 export class AppComponent {
   public appPages = [
-    { title: 'Customers', url: '/customer-list', icon: 'people-outline' },
-    { title: 'Tasks', url: '/task-list', icon: 'checkbox-outline' },
-    { title: 'Task Types', url: '/task-management/task-types', icon: 'settings-outline' },
-    { title: 'Notification Methods', url: '/notification-types', icon: 'notifications-outline' }
+    { title: 'Customers', url: '/customers', icon: 'people-outline' },
+    { title: 'Tasks', url: '/tasks', icon: 'checkbox-outline' },
+    { title: 'Task Types', url: '/settings/task-types', icon: 'settings-outline' },
+    { title: 'Notification Methods', url: '/settings/notification-types', icon: 'notifications-outline' }
   ];
 
   constructor(
@@ -85,7 +85,9 @@ export class AppComponent {
     private databaseService: DatabaseService,
     private notificationService: NotificationService,
     private alertController: AlertController,
-    private sampleDataService: SampleDataService
+    private sampleDataService: SampleDataService,
+    public router: Router,
+    private navController: NavController
   ) {
     this.initializeApp();
     // Register Ionic icons
@@ -162,6 +164,39 @@ export class AppComponent {
       console.log('App initialization complete');
     } catch (error) {
       console.error('Error during app initialization:', error);
+    }
+  }
+
+  // Update navigation helper method to ensure proper component destruction
+  async navigateTo(path: string) {
+    try {
+      // Force destroy any existing views
+      await this.navController.navigateRoot(path, {
+        animated: true,
+        animationDirection: 'forward'
+      });
+    } catch (error) {
+      console.error('Navigation error:', error);
+    }
+  }
+
+  // Update router outlet event handlers to ensure proper cleanup
+  onRouterOutletActivate(event: any) {
+    console.log('Router outlet activated with component:', event.constructor.name);
+    // Ensure the view is at the root level
+    if (this.router.url === event.router?.url) {
+      this.navController.navigateRoot(this.router.url, {
+        animated: false,
+        replaceUrl: true
+      });
+    }
+  }
+
+  onRouterOutletDeactivate(event: any) {
+    console.log('Router outlet deactivated from component:', event.constructor.name);
+    // Ensure cleanup of any resources
+    if (event.ngOnDestroy) {
+      event.ngOnDestroy();
     }
   }
 

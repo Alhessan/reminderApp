@@ -1,16 +1,36 @@
 .task-item {
-  --padding-start: 0;
-  --inner-padding-end: 0;
-  margin-bottom: 8px;
-  border-radius: 8px;
+  --padding-start: 8px;
+  --inner-padding-end: 8px;
   --background: var(--ion-color-light);
+  --border-radius: 8px;
+  margin: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 
   &.overdue {
     --background: var(--ion-color-danger-tint);
+    border-left: 4px solid var(--ion-color-danger);
     
     ion-label {
       h2 {
-        color: var(--ion-color-danger);
+        color: var(--ion-color-danger-contrast);
+      }
+      
+      .task-info ion-text {
+        color: var(--ion-color-danger-contrast) !important;
+        font-weight: 500;
+      }
+    }
+    
+    .progress-container {
+      .progress-info span {
+        color: var(--ion-color-danger-contrast);
+      }
+    }
+    
+    .task-meta {
+      ion-note {
+        color: var(--ion-color-danger-shade);
       }
     }
   }
@@ -18,41 +38,36 @@
   .status-button {
     margin: 0;
     height: 100%;
-    --padding-start: 16px;
-    --padding-end: 16px;
+    --padding-start: 12px;
+    --padding-end: 12px;
   }
 
   ion-label {
     margin: 12px 0;
     
     h2 {
+      font-size: 16px;
       font-weight: 600;
-      margin-bottom: 8px;
+      margin: 0 0 8px 0;
       color: var(--ion-color-dark);
     }
 
     .task-info {
-      display: inline-flex;
+      display: flex;
       align-items: center;
       gap: 8px;
       margin-bottom: 8px;
 
-      ion-badge {
-        text-transform: capitalize;
-        font-weight: normal;
-        padding: 4px 8px;
-        border-radius: 4px;
-      }
-
       ion-text {
         font-size: 14px;
+        color: var(--ion-color-medium);
       }
     }
   }
 
   .progress-container {
     margin-top: 8px;
-    padding-right: 16px;
+    padding-right: 12px;
     
     .progress-info {
       display: flex;
@@ -73,10 +88,32 @@
       }
     }
 
+    // Simplified progress bar styling with better color handling
     ion-progress-bar {
-      height: 6px;
-      border-radius: 3px;
-      --buffer-background: var(--ion-color-light-shade);
+      height: 8px !important;
+      border-radius: 4px;
+      --background: rgba(var(--ion-color-medium-rgb), 0.2) !important;
+      
+      // Default primary color
+      &:not([color]) {
+        --progress-background: var(--ion-color-primary) !important;
+      }
+      
+      // When color="primary"
+      &[color="primary"] {
+        --progress-background: var(--ion-color-primary) !important;
+      }
+      
+      // When color="danger" (for overdue tasks)
+      &[color="danger"] {
+        --progress-background: var(--ion-color-danger) !important;
+      }
+      
+      // Ensure visibility
+      display: block !important;
+      width: 100% !important;
+      min-height: 8px !important;
+      opacity: 1 !important;
     }
   }
 
@@ -86,17 +123,28 @@
     align-items: flex-end;
     gap: 4px;
     margin-right: 8px;
+    min-width: 80px;
+
+    ion-badge {
+      text-transform: capitalize;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
 
     .task-type {
       margin: 0;
-      height: 24px;
+      height: 20px;
       font-size: 12px;
       --background: var(--ion-color-light);
+      --color: var(--ion-color-dark);
     }
 
     ion-note {
       font-size: 12px;
-      padding: 0 4px;
+      color: var(--ion-color-medium);
+      text-align: right;
     }
   }
 
@@ -106,25 +154,56 @@
     --padding-start: 8px;
     --padding-end: 8px;
   }
-} 
-
-.task-title {
-  font-size: 1em;
-  display: inline-block;
-  font-weight: 600;
-  color: var(--ion-color-dark);
 }
 
-.progress-container-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+// Ensure proper spacing in lists
+:host {
+  display: block;
+  margin: 8px 16px;
+
+  &:first-child {
+    margin-top: 16px;
+  }
+
+  &:last-child {
+    margin-bottom: 72px;
+  }
 }
 
-.progress-info {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
+// iOS adjustments
+:host-context(.ios) {
+  &:last-child {
+    margin-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
 }
+
+// Additional styling for different states
+.task-item {
+  // Pending state
+  &:not(.overdue) {
+    .task-meta ion-badge[color="medium"] {
+      --background: var(--ion-color-light-shade);
+      --color: var(--ion-color-medium-contrast);
+    }
+  }
+  
+  // In progress state
+  .task-meta ion-badge[color="primary"] {
+    --background: var(--ion-color-primary);
+    --color: var(--ion-color-primary-contrast);
+  }
+  
+  // Completed state
+  .task-meta ion-badge[color="success"] {
+    --background: var(--ion-color-success);
+    --color: var(--ion-color-success-contrast);
+  }
+  
+  // Overdue state badges
+  &.overdue .task-meta ion-badge {
+    --background: var(--ion-color-danger);
+    --color: var(--ion-color-danger-contrast);
+    font-weight: 600;
+  }
+}
+
