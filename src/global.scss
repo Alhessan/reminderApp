@@ -66,7 +66,7 @@ ion-router-outlet {
   --ion-color-danger-contrast: #ffffff;
   --ion-color-danger-contrast-rgb: 255, 255, 255;
   --ion-color-danger-shade: #cf3c4f;
-  --ion-color-danger-tint: #ed576b;
+  --ion-color-danger-tint: #f7b5be;//#ed576b;
 
   --ion-color-dark: #222428;
   --ion-color-dark-rgb: 34, 36, 40;
@@ -552,6 +552,62 @@ ion-content {
   
   .enhanced-loading {
     --background: rgba(0, 0, 0, 0.9);
+  }
+}
+
+// Enhanced progress bar styles - FIX FOR PROGRESS BAR VISIBILITY
+ion-progress-bar {
+  height: 8px !important;
+  border-radius: 4px !important;
+  --background: rgba(var(--ion-color-medium-rgb), 0.3) !important;
+  --progress-background: var(--ion-color-primary) !important;
+  display: block !important;
+  width: 100% !important;
+  min-height: 8px !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  
+  // Ensure the progress bar is always visible
+  &::part(track) {
+    background: rgba(var(--ion-color-medium-rgb), 0.3) !important;
+    border-radius: 4px !important;
+    height: 8px !important;
+  }
+  
+  &::part(progress) {
+    background: var(--ion-color-primary) !important;
+    border-radius: 4px !important;
+    height: 8px !important;
+    transition: width 0.3s ease !important;
+  }
+  
+  // Color variants
+  &[color="primary"] {
+    --progress-background: var(--ion-color-primary) !important;
+    &::part(progress) {
+      background: var(--ion-color-primary) !important;
+    }
+  }
+  
+  &[color="danger"] {
+    --progress-background: var(--ion-color-danger) !important;
+    &::part(progress) {
+      background: var(--ion-color-danger) !important;
+    }
+  }
+  
+  &[color="success"] {
+    --progress-background: var(--ion-color-success) !important;
+    &::part(progress) {
+      background: var(--ion-color-success) !important;
+    }
+  }
+  
+  &[color="warning"] {
+    --progress-background: var(--ion-color-warning) !important;
+    &::part(progress) {
+      background: var(--ion-color-warning) !important;
+    }
   }
 }
 
