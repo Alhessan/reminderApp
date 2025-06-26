@@ -1,9 +1,7 @@
 // Customer Form Component Styles
 // Enhanced theme-aware styling for both dark and light modes
 
-// Form header styling with dynamic color
-
-// Form group styling
+// Form header now uses global .unified-page-header class
 
 
 // Section header styling
@@ -84,31 +82,8 @@ form {
   }
 }
 
-// Responsive design
+// Responsive design (header responsive styles now in global.scss)
 @media (max-width: 768px) {
-  .form-header {
-    padding: 20px 16px 24px;
-    margin: -16px -16px 20px -16px;
-
-    .customer-avatar-large {
-      width: 64px;
-      height: 64px;
-      margin-bottom: 12px;
-
-      ion-icon {
-        font-size: 2rem;
-      }
-    }
-
-    h2 {
-      font-size: 1.25rem;
-    }
-
-    p {
-      font-size: 0.9rem;
-    }
-  }
-
   ion-item {
     --min-height: 56px;
     --padding-start: 16px;

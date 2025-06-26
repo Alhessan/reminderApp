@@ -111,21 +111,27 @@ export class NotificationTypeService {
 
   async getNotificationSettings(): Promise<Record<string, string>> {
     try {
+      // Get all saved notification values (not just for enabled types)
       const result = await this.databaseService.executeQuery(`
-        SELECT nt.key, nv.value
-        FROM notification_types nt
-        LEFT JOIN notification_values nv ON nt.key = nv.notification_type_key
-        WHERE nt.isEnabled = 1
+        SELECT notification_type_key, value
+        FROM notification_values
       `);
 
+      console.log('Raw notification values from database:', result);
+
       // Map the database keys to form control names
-      return result.values.reduce((acc: Record<string, string>, row: any) => {
-        const controlName = this.controlMapping[row.key];
+      const settings = result.values.reduce((acc: Record<string, string>, row: any) => {
+        const typeKey = row.notification_type_key;
+        const controlName = this.controlMapping[typeKey];
+        console.log(`Mapping ${typeKey} -> ${controlName} with value: ${row.value}`);
         if (controlName && row.value) {
           acc[controlName] = row.value;
         }
         return acc;
       }, {});
+
+      console.log('Final mapped settings:', settings);
+      return settings;
     } catch (error) {
       console.error('Error getting notification settings:', error);
       throw error;

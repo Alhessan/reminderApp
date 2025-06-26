@@ -22,20 +22,16 @@
      
     <form [formGroup]="taskTypeForm" (ngSubmit)="onSubmit()" novalidate>
       <!-- Header Section -->
-      <div class="dialog-header">
-        <div class="preview-container">
-          <div class="preview-item">
-            <div class="preview-icon-container" [style.background-color]="selectedColor + '20'">
-              <ion-icon 
-                [name]="selectedIcon" 
-                [style.color]="selectedColor" 
-                class="preview-icon"
-                [attr.aria-label]="'Selected icon: ' + selectedIcon">
-              </ion-icon>
-            </div>
-          </div>
+      <div class="unified-page-header">
+        <div class="header-icon-container" [style.background-color]="selectedColor + '20'">
+          <ion-icon 
+            [name]="selectedIcon" 
+            [style.color]="selectedColor" 
+            [attr.aria-label]="'Selected icon: ' + selectedIcon">
+          </ion-icon>
         </div>
-        <p class="dialog-subtitle">{{ isEditMode ? t('taskType.edit.subtitle') : t('taskType.add.subtitle') }}</p>
+        <h2>{{ isEditMode ? t('taskType.edit.title') : t('taskType.add.title') }}</h2>
+        <p>{{ isEditMode ? t('taskType.edit.subtitle') : t('taskType.add.subtitle') }}</p>
       </div>
   
       <!-- Form Fields -->

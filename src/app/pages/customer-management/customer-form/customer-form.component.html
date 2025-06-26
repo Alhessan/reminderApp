@@ -14,8 +14,8 @@
 
 <ion-content class="ion-padding">
   <!-- Form Header -->
-  <div class="form-header">
-    <div class="customer-avatar-large" [style.background-color]="(customerForm.get('color')?.value || '#3880ff') + '20'">
+  <div class="unified-page-header">
+    <div class="header-icon-container" [style.background-color]="(customerForm.get('color')?.value || '#3880ff') + '20'">
       <ion-icon [name]="customerForm.get('icon')?.value || 'person-outline'" [style.color]="customerForm.get('color')?.value || '#3880ff'"></ion-icon>
     </div>
     <h2>{{ isEditMode ? 'Update Customer Information' : 'Create New Customer' }}</h2>

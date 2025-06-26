@@ -1,8 +1,10 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-menu-button></ion-menu-button>
-      <ion-back-button defaultHref="/task-list"></ion-back-button>
+      <!-- <ion-menu-button></ion-menu-button> -->
+      <ion-button fill="clear" (click)="goBack()">
+        <ion-icon name="chevron-back-outline" slot="icon-only"></ion-icon>
+      </ion-button>
     </ion-buttons>
     <ion-title>Notification Methods</ion-title>
   </ion-toolbar>
@@ -10,18 +12,17 @@
 
 <ion-content class="ion-padding">
   <!-- Page Header -->
-  <div class="page-header">
-    <div class="notification-icon">
-      <ion-icon name="notifications-outline"></ion-icon>
+  <div class="unified-page-header">
+    <div class="header-icon-container">
+      <ion-icon name="notifications-outline" style="color: var(--ion-color-primary-shade)"></ion-icon>
     </div>
     <h2>Notification Preferences</h2>
-    <p>Choose how you'd like to receive reminders for your routines</p>
+    <p>How you'd like to receive reminders for your routines</p>
   </div>
 
   <!-- Notification Types List -->
   <div class="notification-types-container">
     <div class="section-header">
-      <h3>Available Methods</h3>
       <ion-chip color="primary" outline="true">
         <ion-label>{{ getEnabledCount() }}/3 selected</ion-label>
       </ion-chip>
@@ -36,18 +37,19 @@
           [class.disabled]="getEnabledCount() >= 3 && !isTypeEnabled(type.key)">
           
           <div class="card-header">
-            <div class="icon-container" [style.background-color]="isTypeEnabled(type.key) ? type.color + '20' : 'var(--ion-color-light)'">
-              <ion-icon 
-                [name]="type.icon" 
-                [style.color]="isTypeEnabled(type.key) ? type.color : 'var(--ion-color-medium)'">
-              </ion-icon>
-            </div>
             <ion-toggle 
               [checked]="isTypeEnabled(type.key)"
               (ionChange)="onToggleChange(type)"
               [disabled]="getEnabledCount() >= 3 && !isTypeEnabled(type.key)"
               class="notification-toggle">
             </ion-toggle>
+            <div class="icon-container" [style.background-color]="isTypeEnabled(type.key) ? type.color + '20' : 'var(--ion-color-light)'">
+              <ion-icon 
+                [name]="type.icon" 
+                [style.color]="isTypeEnabled(type.key) ? type.color : 'var(--ion-color-medium)'">
+              </ion-icon>
+            </div>
+           
           </div>
           
           <div class="card-content">
@@ -78,7 +80,7 @@
                 Email Address
                 <ion-text color="danger">*</ion-text>
               </ion-label>
-              <ion-input 
+                              <ion-input 
                 type="email" 
                 formControlName="emailAddress"
                 placeholder="Enter your email address"
@@ -99,7 +101,7 @@
                 Phone Number
                 <ion-text color="danger">*</ion-text>
               </ion-label>
-              <ion-input 
+                              <ion-input 
                 type="tel" 
                 formControlName="phoneNumber"
                 placeholder="Enter your phone number"
@@ -120,7 +122,7 @@
                 WhatsApp Number
                 <ion-text color="danger">*</ion-text>
               </ion-label>
-              <ion-input 
+                              <ion-input 
                 type="tel" 
                 formControlName="whatsappNumber"
                 placeholder="Enter your WhatsApp number"
@@ -141,7 +143,7 @@
                 Telegram Username
                 <ion-text color="danger">*</ion-text>
               </ion-label>
-              <ion-input 
+                              <ion-input 
                 type="text" 
                 formControlName="telegramUsername"
                 placeholder="Enter your Telegram username"
@@ -176,13 +178,17 @@
 
   <!-- Information Card -->
   <ion-card class="info-card">
-    <ion-card-header>
+    <ion-card-header (click)="toggleInfoSection()" class="clickable-header">
       <ion-card-title>
         <ion-icon name="information-circle-outline" color="primary"></ion-icon>
         How It Works
+        <ion-icon 
+          [name]="showInfoSection ? 'chevron-up-outline' : 'chevron-down-outline'" 
+          class="expand-icon">
+        </ion-icon>
       </ion-card-title>
     </ion-card-header>
-    <ion-card-content>
+    <ion-card-content *ngIf="showInfoSection" [@slideInOut]>
       <div class="info-grid">
         <div class="info-item">
           <div class="info-icon">

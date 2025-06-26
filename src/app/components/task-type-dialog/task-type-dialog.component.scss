@@ -1,0 +1,157 @@
+// Task Type Dialog Component Styles
+// Unified header design consistent with notification types
+
+// Dialog header now uses global .unified-page-header class
+
+// Form styling
+.form-group {
+  margin-bottom: 20px;
+
+  ion-item {
+    --border-radius: 12px;
+    --background: var(--ion-color-light);
+    --color: var(--ion-color-dark);
+    --padding-start: 16px;
+    --padding-end: 16px;
+    --min-height: 56px;
+    margin-bottom: 8px;
+    border: 1px solid var(--ion-color-light-shade);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    &.error {
+      --border-color: var(--ion-color-danger);
+      border-color: var(--ion-color-danger);
+    }
+
+    ion-label {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    ion-input, ion-textarea {
+      --color: var(--ion-color-dark);
+      --placeholder-color: var(--ion-color-medium);
+    }
+  }
+
+  .error-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(var(--ion-color-danger-rgb), 0.1);
+    border-radius: 8px;
+    margin-top: 4px;
+
+    ion-icon {
+      color: var(--ion-color-danger);
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+
+    small {
+      color: var(--ion-color-danger);
+      font-size: 0.85rem;
+      line-height: 1.3;
+    }
+  }
+}
+
+// Form section styling
+.form-section {
+  margin-bottom: 24px;
+
+  .section-header {
+    margin-bottom: 16px;
+    padding: 0 4px;
+
+    h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--ion-color-dark);
+      margin: 0 0 4px 0;
+    }
+
+    p {
+      font-size: 0.9rem;
+      color: var(--ion-color-medium);
+      margin: 0;
+      line-height: 1.4;
+    }
+  }
+}
+
+// Footer buttons styling
+.footer-buttons {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+
+  ion-button {
+    flex: 1;
+    height: 48px;
+    font-weight: 600;
+    border-radius: 12px;
+
+    &[fill="clear"] {
+      --color: var(--ion-color-medium);
+    }
+  }
+}
+
+// Dark mode adjustments
+@media (prefers-color-scheme: dark) {
+  .form-group {
+    ion-item {
+      --background: var(--ion-color-dark-tint);
+      --color: var(--ion-color-light);
+      border-color: var(--ion-color-dark-shade);
+
+      ion-input, ion-textarea {
+        --color: var(--ion-color-light);
+      }
+    }
+  }
+
+  .form-section .section-header {
+    h3 {
+      color: var(--ion-color-light);
+    }
+  }
+}
+
+// Animation for dialog entrance
+ion-content {
+  animation: slideInUp 0.4s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+// Responsive design (header responsive styles now in global.scss)
+@media (max-width: 768px) {
+
+  .form-group {
+    ion-item {
+      --min-height: 56px;
+      --padding-start: 16px;
+      --padding-end: 16px;
+    }
+  }
+
+  .footer-buttons {
+    padding: 12px;
+    
+    ion-button {
+      height: 44px;
+    }
+  }
+}

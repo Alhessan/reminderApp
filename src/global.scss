@@ -1,6 +1,221 @@
 // Global Theme Variables and Consistent Styling
 // This file provides consistent theme-aware styling across all components
 
+// ===========================================
+// SHARED PAGE HEADER STYLES
+// ===========================================
+// Unified header design used across forms and dialogs
+.unified-page-header {
+  text-align: center;
+  padding: 24px 12px 28px 12px;
+  margin: 0 -16px 24px -16px;
+  color: var(--ion-color-dark);
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-light-tint) 100%);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  // Icon container styles (flexible for different use cases)
+  .header-icon-container {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--ion-color-primary-shade);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    ion-icon {
+      font-size: 2.2rem;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    }
+
+    &:hover {
+      transform: scale(1.05);
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+
+  // Typography styles
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    letter-spacing: 0.3px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+
+  p {
+    font-size: 0.95rem;
+    opacity: 0.95;
+    margin: 0 auto;
+    line-height: 1.4;
+    max-width: 320px;
+  }
+
+  // Responsive design
+  @media (max-width: 768px) {
+    padding: 20px 12px 24px;
+    margin: -16px -16px 20px -16px;
+
+    .header-icon-container {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 12px;
+
+      ion-icon {
+        font-size: 2rem;
+      }
+    }
+
+    h2 {
+      font-size: 1.35rem;
+    }
+
+    p {
+      font-size: 0.9rem;
+    }
+  }
+}
+
+// Dark mode support for unified header
+@media (prefers-color-scheme: dark) {
+  .unified-page-header {
+    background: linear-gradient(135deg, var(--ion-color-dark) 0%, var(--ion-color-dark-shade) 100%);
+    color: var(--ion-color-light);
+    
+    .header-icon-container {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--ion-color-primary-tint);
+    }
+    
+    h2, p {
+      color: var(--ion-color-light);
+    }
+  }
+}
+
+// ===========================================
+// ALERT NOTIFICATION STYLES
+// ===========================================
+// Toast-like notifications positioned at bottom
+
+.custom-alert {
+  --backdrop-opacity: 0 !important; // Remove overlay completely
+  
+  .alert-wrapper {
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    max-width: 350px;
+    min-width: 300px;
+    position: fixed !important;
+    bottom: 100px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 20000 !important;
+    
+    .alert-head {
+      padding: 14px 18px 8px;
+      text-align: left;
+      
+      .alert-title {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+    }
+    
+    .alert-message {
+      padding: 0 18px 14px;
+      text-align: left;
+      font-size: 14px;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    
+    // Hide the button group completely
+    .alert-button-group {
+      display: none !important;
+    }
+  }
+}
+
+// Color-specific alert styling
+.alert-success {
+  .alert-wrapper {
+    background: #e8f5e8; // Light green background
+    border-left: 5px solid var(--ion-color-success);
+    border: 1px solid rgba(45, 211, 111, 0.3);
+    
+    .alert-head .alert-title {
+      color: #1b5e20; // Dark green text
+    }
+    
+    .alert-message {
+      color: #2e7d32; // Medium dark green for message
+    }
+  }
+}
+
+.alert-warning {
+  .alert-wrapper {
+    background: #fff8e1; // Light yellow background
+    border-left: 5px solid var(--ion-color-warning);
+    border: 1px solid rgba(255, 196, 9, 0.3);
+    
+    .alert-head .alert-title {
+      color: #e65100; // Dark orange text
+    }
+    
+    .alert-message {
+      color: #f57c00; // Medium dark orange for message
+    }
+  }
+}
+
+.alert-danger {
+  .alert-wrapper {
+    background: #ffebee; // Light red background
+    border-left: 5px solid var(--ion-color-danger);
+    border: 1px solid rgba(235, 68, 90, 0.3);
+    
+    .alert-head .alert-title {
+      color: #c62828; // Dark red text
+    }
+    
+    .alert-message {
+      color: #d32f2f; // Medium dark red for message
+    }
+  }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  .custom-alert {
+    .alert-wrapper {
+      background: var(--ion-color-dark-tint);
+      color: var(--ion-color-light);
+    }
+  }
+}
+
 // Global modal styles for compact-modal
 .compact-modal {
   --width: 100% !important;
