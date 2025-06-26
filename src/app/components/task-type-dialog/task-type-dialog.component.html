@@ -1,0 +1,130 @@
+<ion-header>
+    <ion-toolbar>
+      <ion-title id="modal-title">{{ isEditMode ? t('taskType.edit.title') : t('taskType.add.title') }}</ion-title>
+      <ion-buttons slot="end">
+        <ion-button 
+          fill="clear" 
+          (click)="onCancel()"
+          [attr.aria-label]="t('common.cancel')"
+          tabindex="0">
+          <ion-icon name="close" slot="icon-only"></ion-icon>
+        </ion-button>
+      </ion-buttons>
+    </ion-toolbar>
+  </ion-header>
+  
+  <ion-content 
+    class="ion-padding" 
+    (keydown)="onKeyDown($event)"
+    [attr.aria-labelledby]="'modal-title'"
+    role="dialog"
+    aria-modal="true">
+     
+    <form [formGroup]="taskTypeForm" (ngSubmit)="onSubmit()" novalidate>
+      <!-- Header Section -->
+      <div class="dialog-header">
+        <div class="preview-container">
+          <div class="preview-item">
+            <div class="preview-icon-container" [style.background-color]="selectedColor + '20'">
+              <ion-icon 
+                [name]="selectedIcon" 
+                [style.color]="selectedColor" 
+                class="preview-icon"
+                [attr.aria-label]="'Selected icon: ' + selectedIcon">
+              </ion-icon>
+            </div>
+          </div>
+        </div>
+        <p class="dialog-subtitle">{{ isEditMode ? t('taskType.edit.subtitle') : t('taskType.add.subtitle') }}</p>
+      </div>
+  
+      <!-- Form Fields -->
+      <div class="form-group">
+        <!-- Name Field -->
+        <ion-item [class.error]="isFieldInvalid('name')">
+          <ion-label position="stacked">
+            {{ t('taskType.name.label') }}
+            <ion-text color="danger">*</ion-text>
+          </ion-label>
+          <ion-input
+            type="text"
+            formControlName="name"
+            [placeholder]="t('taskType.name.placeholder')"
+            clearInput="true"
+            maxlength="50"
+            [attr.aria-invalid]="isFieldInvalid('name')"
+            [attr.aria-describedby]="isFieldInvalid('name') ? 'name-error' : null"
+            autocomplete="off">
+          </ion-input>
+        </ion-item>
+        <div 
+          *ngIf="getFieldError('name')" 
+          class="error-message"
+          id="name-error"
+          role="alert"
+          aria-live="polite">
+          <ion-icon name="alert-circle-outline" aria-hidden="true"></ion-icon>
+          <small>{{ getFieldError('name') }}</small>
+        </div>
+      </div>
+  
+      <div class="form-group">
+        <!-- Description Field -->
+        <ion-item>
+          <ion-label position="stacked">{{ t('taskType.description.label') }}</ion-label>
+          <ion-textarea
+            formControlName="description"
+            [placeholder]="t('taskType.description.placeholder')"
+            rows="3"
+            maxlength="200"
+            autocomplete="off">
+          </ion-textarea>
+        </ion-item>
+      </div>
+  
+      <!-- Color and Icon Picker -->
+      <div class="form-section">
+        <div class="section-header">
+          <h3>{{ t('taskType.appearance') }}</h3>
+          <p>{{ t('taskType.appearance.subtitle') }}</p>
+        </div>
+        
+        <app-color-icon-picker
+          [selectedIcon]="selectedIcon"
+          [selectedColor]="selectedColor"
+          [context]="'task'"
+          [showTitle]="false"
+          [compact]="false"
+          (iconChange)="onIconChange($event)"
+          (colorChange)="onColorChange($event)"
+          role="group"
+          [attr.aria-label]="t('taskType.appearance')">
+        </app-color-icon-picker>
+      </div>
+    </form>
+  </ion-content>
+  
+  <ion-footer>
+    <ion-toolbar>
+      <div class="footer-buttons">
+        <ion-button 
+          fill="clear" 
+          color="medium" 
+          expand="block" 
+          size="large"
+          (click)="onCancel()"
+          tabindex="0">
+          {{ t('common.cancel') }}
+        </ion-button>
+        <ion-button 
+          expand="block" 
+          size="large"
+          [disabled]="taskTypeForm.invalid"
+          (click)="onSubmit()"
+          type="submit"
+          tabindex="0">
+          {{ isEditMode ? t('common.save') : t('common.add') }}
+        </ion-button>
+      </div>
+    </ion-toolbar>
+  </ion-footer>

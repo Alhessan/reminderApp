@@ -176,9 +176,22 @@ ion-card-header {
   cursor: pointer;
   transition: all 0.3s ease;
   border-bottom: 1px solid var(--ion-color-light-shade);
+  width: 100%;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  text-align: left;
 
   &:hover {
     background: var(--ion-color-light-tint);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary);
+    outline-offset: -2px;
+    background: var(--ion-color-light-tint);
+    z-index: 1;
   }
 
   .header-content {
@@ -288,6 +301,7 @@ ion-card-header {
   background: var(--ion-item-background);
   border: 2px solid transparent;
   position: relative;
+  width: 100%;
 
   &:hover {
     transform: translateY(-2px);
@@ -300,6 +314,13 @@ ion-card-header {
     border-color: var(--ion-color-primary);
     transform: translateY(-2px);
     box-shadow: 0 4px 16px rgba(var(--ion-color-primary-rgb), 0.3);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary);
+    outline-offset: 2px;
+    transform: translateY(-2px);
+    z-index: 1;
   }
 
   ion-icon {
@@ -396,6 +417,13 @@ ion-card-header {
     border-color: var(--ion-color-dark);
     transform: translateY(-2px) scale(1.1);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var(--ion-color-primary);
+    outline-offset: 2px;
+    transform: translateY(-2px) scale(1.05);
+    z-index: 1;
   }
 
   ion-icon {

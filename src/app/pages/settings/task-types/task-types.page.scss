@@ -1,0 +1,172 @@
+// Task Types Page Styles - Clean and functional styling
+
+.page-header {
+  text-align: center;
+  margin-bottom: 24px;
+  
+  h2 {
+    color: var(--ion-color-primary);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  p {
+    color: var(--ion-color-medium);
+    font-size: 14px;
+    margin: 0;
+  }
+}
+
+// Icon container styling
+.icon-container {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16px;
+  
+  ion-icon {
+    font-size: 24px;
+  }
+}
+
+// List styling
+ion-list {
+  background: transparent;
+  
+  ion-item {
+    --background: var(--ion-color-light);
+    --border-radius: 12px;
+    --padding-start: 16px;
+    --padding-end: 16px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    
+    ion-label {
+      h2 {
+        font-weight: 600;
+        color: var(--ion-color-dark);
+        margin-bottom: 4px;
+      }
+      
+      p {
+        color: var(--ion-color-medium);
+        font-size: 14px;
+      }
+      
+      ion-chip {
+        margin-top: 8px;
+      }
+    }
+  }
+}
+
+// Slider options styling - ensure visibility
+ion-item-options {
+  border: none;
+  
+  ion-item-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    height: 100%;
+    
+    ion-icon {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+    
+    ion-label {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    &[disabled] {
+      opacity: 0.5;
+    }
+  }
+}
+
+// Empty state styling
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--ion-color-medium);
+  
+  ion-icon {
+    font-size: 4rem;
+    margin-bottom: 16px;
+  }
+  
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--ion-color-dark);
+    margin-bottom: 8px;
+  }
+  
+  p {
+    font-size: 1rem;
+    margin-bottom: 24px;
+    line-height: 1.4;
+  }
+  
+  ion-button {
+    --border-radius: 24px;
+    margin-top: 16px;
+  }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  .empty-state {
+    h3 {
+      color: var(--ion-color-light);
+    }
+  }
+}
+
+// Mobile responsiveness
+@media (max-width: 768px) {
+  .icon-container {
+    width: 40px;
+    height: 40px;
+    margin-right: 12px;
+    
+    ion-icon {
+      font-size: 20px;
+    }
+  }
+  
+  ion-item-option {
+    min-width: 70px !important;
+    
+    ion-icon {
+      font-size: 18px !important;
+    }
+    
+    ion-label {
+      font-size: 11px !important;
+    }
+  }
+  
+  .empty-state {
+    padding: 32px 16px;
+    
+    ion-icon {
+      font-size: 3rem;
+    }
+    
+    h3 {
+      font-size: 1.1rem;
+    }
+    
+    p {
+      font-size: 0.9rem;
+    }
+  }
+} 

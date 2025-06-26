@@ -1,15 +1,17 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { AlertController, NavController, IonicModule, AlertInput } from '@ionic/angular';
+import { AlertController, NavController, IonicModule, AlertInput, ModalController } from '@ionic/angular';
 import { TaskService } from '../../../services/task.service';
 import { CustomerService } from '../../../services/customer.service';
 import { TaskTypeService } from '../../../services/task-type.service';
 import { NotificationTypeService } from '../../../services/notification-type.service';
+import { TranslationService } from '../../../services/translation.service';
 import { Task } from '../../../models/task.model';
 import { NotificationType } from '../../../models/notification-type.model';
 import { Customer } from '../../../models/customer.model';
 import { DatabaseService } from '../../../services/database.service';
+import { TaskTypeDialogComponent } from '../../../components/task-type-dialog/task-type-dialog.component';
 import { CommonModule } from '@angular/common';
 import { map } from 'rxjs/operators';
 import { addIcons } from 'ionicons';
@@ -29,7 +31,9 @@ import {
   eyeOutline,
   settingsOutline,
   moonOutline,
-  sunny
+  sunny,
+  close,
+  chevronDownOutline
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 
@@ -74,7 +78,9 @@ export class TaskFormComponent implements OnInit, OnDestroy {
     private navController: NavController,
     private alertController: AlertController,
     private databaseService: DatabaseService,
-    private router: Router
+    private router: Router,
+    private modalController: ModalController,
+    private translationService: TranslationService
   ) {
     console.log('TaskFormComponent constructor called');
     // Register Ionic icons
@@ -94,7 +100,9 @@ export class TaskFormComponent implements OnInit, OnDestroy {
       'eye-outline': eyeOutline,
       'settings-outline': settingsOutline,
       'moon-outline': moonOutline,
-      'sunny': sunny
+      'sunny': sunny,
+      'close': close,
+      'chevron-down-outline': chevronDownOutline
     });
 
     this.taskForm = this.fb.group({
@@ -138,6 +146,11 @@ export class TaskFormComponent implements OnInit, OnDestroy {
 
   getNotificationTypeDetails(typeKey: string): NotificationType | undefined {
     return this.notificationTypes.find(t => t.key === typeKey);
+  }
+
+  // Translation helper method
+  t(key: string, params?: { [key: string]: string }): string {
+    return this.translationService.t(key, params);
   }
 
   async manageNotificationTypes() {
@@ -219,12 +232,12 @@ export class TaskFormComponent implements OnInit, OnDestroy {
           notes: task.notes
         });
       } else {
-        await this.presentErrorAlert('Task not found.');
+        await this.presentErrorAlert(this.t('validation.task.notFound') || 'Task not found.');
         this.navController.navigateBack('/tasks');
       }
     } catch (error) {
       console.error('Error loading task:', error);
-      await this.presentErrorAlert('Failed to load task details.');
+      await this.presentErrorAlert(this.t('validation.task.loadError') || 'Failed to load task details.');
       this.navController.navigateBack('/tasks');
     }
   }
@@ -239,15 +252,15 @@ export class TaskFormComponent implements OnInit, OnDestroy {
             id: this.taskId,
             ...formData
           });
-          await this.presentSuccessAlert('Task updated successfully.');
+          await this.presentSuccessAlert(this.t('validation.task.updated'));
         } else {
           await this.taskService.createTask(formData);
-          await this.presentSuccessAlert('Task created successfully.');
+          await this.presentSuccessAlert(this.t('validation.task.created'));
         }
         this.navController.navigateBack('/tasks');
       } catch (error) {
         console.error('Error saving task:', error);
-        await this.presentErrorAlert('Failed to save task. Please try again.');
+        await this.presentErrorAlert(this.t('validation.task.saveError'));
       } finally {
         this.isSubmitting = false;
       }
@@ -273,69 +286,41 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   }
 
   async addNewTaskType() {
-    const alert = await this.alertController.create({
-      header: 'Add Task Type',
-      inputs: [
-        {
-          name: 'name',
-          type: 'text',
-          placeholder: 'Name',
-          label: 'Name'
-        },
-        {
-          name: 'description',
-          type: 'text',
-          placeholder: 'Description',
-          label: 'Description'
-        },
-        {
-          name: 'icon',
-          type: 'text',
-          placeholder: 'Icon name (e.g., create-outline)',
-          label: 'Icon'
-        },
-        {
-          name: 'color',
-          type: 'text',
-          placeholder: 'Color (e.g., #FF0000)',
-          label: 'Color'
+    try {
+      const modal = await this.modalController.create({
+        component: TaskTypeDialogComponent,
+        cssClass: 'enhanced-modal',
+        animated: true,
+        showBackdrop: true,
+        backdropDismiss: false
+      });
+  
+      await modal.present();
+      
+      const { data: result, role } = await modal.onWillDismiss();
+      
+      if (role === 'confirm' && result) {
+        try {
+          await this.taskTypeService.addTaskType(result);
+          this.taskForm.patchValue({ type: result.name });
+          
+          await this.presentSuccessAlert(
+            this.translationService.t('validation.taskType.create.success')
+          );
+        } catch (error) {
+          console.error('Error creating task type:', error);
+          await this.presentErrorAlert(
+            this.translationService.t('validation.taskType.create.error')
+          );
         }
-      ],
-      buttons: [
-        {
-          text: 'Cancel',
-          role: 'cancel'
-        },
-        {
-          text: 'Add',
-          handler: async (data) => {
-            if (!data.name) {
-              this.presentErrorAlert('Name is required for task type.');
-              return false;
-            }
-            try {
-              await this.taskTypeService.addTaskType({
-                name: data.name,
-                description: data.description || '',
-                isDefault: 0,
-                icon: data.icon || 'create-outline',
-                color: data.color || '#3880ff'
-              });
-              // Set the new type as the selected type
-              this.taskForm.patchValue({ type: data.name });
-              return true;
-            } catch (error) {
-              console.error('Error creating task type:', error);
-              this.presentErrorAlert('Failed to create task type. Please try again.');
-              return false;
-            }
-          }
-        }
-      ]
-    });
-    await alert.present();
+      }
+    } catch (error) {
+      console.error('Error opening task type dialog:', error);
+      await this.presentErrorAlert(
+        this.translationService.t('validation.taskType.create.error')
+      );
+    }
   }
-
   setQuickTime(time: string) {
     this.taskForm.patchValue({ notificationTime: time });
   }

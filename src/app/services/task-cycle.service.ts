@@ -116,27 +116,54 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     const nonArchivedTasks = tasksResult.values || [];
     console.log('Non-archived tasks:', nonArchivedTasks);
 
-    // Get cycles in a separate query
+    // Get cycles in a separate query - prioritize active cycles
     const cyclesResult = await this.db.executeQuery(`
       SELECT * FROM task_cycles 
-      ORDER BY cycleStartDate DESC, 
-      CASE 
-        WHEN status = 'completed' THEN 2
-        WHEN status = 'skipped' THEN 1
-        ELSE 0
-      END ASC
+      ORDER BY 
+        CASE 
+          WHEN status = 'pending' THEN 0
+          WHEN status = 'in_progress' THEN 1
+          WHEN status = 'skipped' THEN 2
+          WHEN status = 'completed' THEN 3
+          ELSE 4
+        END ASC,
+        cycleStartDate DESC
     `);
     console.log('Cycles query result:', cyclesResult);
     const cycles = cyclesResult.values || [];
 
-    // Create a map of latest cycles
+    // Create a map of latest ACTIVE cycles (prefer pending/in_progress over completed)
     const latestCycles = new Map<number, any>();
     cycles.forEach((cycle: { taskId: number; id: number; cycleStartDate: string; cycleEndDate: string; status: string; progress: number; completedAt?: string }) => {
-      if (!latestCycles.has(cycle.taskId)) {
+      const existing = latestCycles.get(cycle.taskId);
+      
+      if (!existing) {
+        // No cycle yet, use this one
         latestCycles.set(cycle.taskId, {
           ...cycle,
           status: cycle.status as TaskCycleStatus
         });
+      } else {
+        // Prefer active cycles (pending/in_progress) over completed ones
+        const isActiveStatus = cycle.status === 'pending' || cycle.status === 'in_progress';
+        const existingIsActive = existing.status === 'pending' || existing.status === 'in_progress';
+        
+        if (isActiveStatus && !existingIsActive) {
+          // This cycle is active and existing is completed - use this one
+          latestCycles.set(cycle.taskId, {
+            ...cycle,
+            status: cycle.status as TaskCycleStatus
+          });
+        } else if (isActiveStatus === existingIsActive) {
+          // Both are same type (both active or both completed), use the newer one
+          if (new Date(cycle.cycleStartDate) > new Date(existing.cycleStartDate)) {
+            latestCycles.set(cycle.taskId, {
+              ...cycle,
+              status: cycle.status as TaskCycleStatus
+            });
+          }
+        }
+        // If existing is active and this is completed, keep existing
       }
     });
 

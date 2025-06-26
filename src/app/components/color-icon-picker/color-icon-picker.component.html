@@ -24,7 +24,12 @@
 
       <!-- Icon Selection -->
       <div class="picker-section">
-        <div class="picker-header" (click)="toggleIconPicker()">
+        <button 
+          class="picker-header" 
+          (click)="toggleIconPicker()"
+          [attr.aria-expanded]="showIconPicker"
+          aria-controls="icon-grid-container"
+          type="button">
           <div class="header-content">
             <ion-icon [name]="selectedIcon" [style.color]="selectedColor" class="selected-icon"></ion-icon>
             <div class="header-text">
@@ -33,26 +38,35 @@
             </div>
           </div>
           <ion-icon name="chevron-down-outline" class="toggle-icon" [class.rotated]="showIconPicker"></ion-icon>
-        </div>
+        </button>
         
-        <div class="icon-grid-container" *ngIf="showIconPicker">
+        <div 
+          id="icon-grid-container"
+          class="icon-grid-container" 
+          *ngIf="showIconPicker">
           <div class="icon-grid">
-            <div 
+            <button 
               *ngFor="let icon of availableIcons; trackBy: trackByIcon" 
               class="icon-item" 
               [class.selected]="icon === selectedIcon"
               (click)="selectIcon(icon)"
-              [attr.aria-label]="icon.replace('-outline', '').replace('-', ' ')">
+              [attr.aria-label]="icon.replace('-outline', '').replace('-', ' ')"
+              type="button">
               <ion-icon [name]="icon" [style.color]="selectedColor"></ion-icon>
               <div class="icon-name">{{ icon.replace('-outline', '').replace('-', ' ') | titlecase }}</div>
-            </div>
+            </button>
           </div>
         </div>
       </div>
       
       <!-- Color Selection -->
       <div class="picker-section">
-        <div class="picker-header" (click)="toggleColorPicker()">
+        <button 
+          class="picker-header" 
+          (click)="toggleColorPicker()"
+          [attr.aria-expanded]="showColorPicker"
+          aria-controls="color-grid-container"
+          type="button">
           <div class="header-content">
             <div class="color-preview" [style.background-color]="selectedColor"></div>
             <div class="header-text">
@@ -61,22 +75,26 @@
             </div>
           </div>
           <ion-icon name="chevron-down-outline" class="toggle-icon" [class.rotated]="showColorPicker"></ion-icon>
-        </div>
+        </button>
         
-        <div class="color-grid-container" *ngIf="showColorPicker">
+        <div 
+          id="color-grid-container"
+          class="color-grid-container" 
+          *ngIf="showColorPicker">
           <div *ngFor="let category of colorCategories" class="color-category">
             <h5 class="category-title">{{ getCategoryDisplayName(category) }}</h5>
             <div class="color-grid">
-              <div 
+              <button 
                 *ngFor="let color of getColorsByCategory(category); trackBy: trackByColor" 
                 class="color-item" 
                 [style.background-color]="color.value"
                 [class.selected]="color.value === selectedColor"
                 (click)="selectColor(color.value)"
-                [attr.aria-label]="color.name">
+                [attr.aria-label]="color.name"
+                type="button">
                 <ion-icon name="checkmark" *ngIf="color.value === selectedColor"></ion-icon>
                 <div class="color-tooltip">{{ color.name }}</div>
-              </div>
+              </button>
             </div>
           </div>
         </div>

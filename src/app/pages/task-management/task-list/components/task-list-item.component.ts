@@ -3,6 +3,11 @@ import { IonicModule } from '@ionic/angular';
 import { CommonModule, DatePipe } from '@angular/common';
 import { TaskListItem } from '../../../../models/task-cycle.model';
 import { Router, RouterModule } from '@angular/router';
+import { addIcons } from 'ionicons';
+import { 
+  timeOutline, playOutline, checkmarkCircleOutline, playForwardOutline, 
+  helpOutline, addCircleOutline, ellipsisVertical 
+} from 'ionicons/icons';
 
 @Component({
   selector: 'app-task-list-item',
@@ -19,13 +24,21 @@ export class TaskListItemComponent {
 
   get progressValue(): number {
     const progress = this.taskItem?.currentCycle?.progress || 0;
-    console.log('Raw progress:', progress); // Debug log
-    const calculated = Math.max(0, Math.min(100, progress)) / 100; // Clamp between 0-1
-    console.log('Calculated progress value:', calculated); // Debug log
-    return calculated;
+    return Math.max(0, Math.min(100, progress)) / 100; // Clamp between 0-1
   }
 
-  constructor(private router: Router) {}
+  constructor(private router: Router) {
+    // Register required icons
+    addIcons({
+      'time-outline': timeOutline,
+      'play-outline': playOutline,
+      'checkmark-circle-outline': checkmarkCircleOutline,
+      'play-forward-outline': playForwardOutline,
+      'help-outline': helpOutline,
+      'add-circle-outline': addCircleOutline,
+      'ellipsis-vertical': ellipsisVertical
+    });
+  }
 
   getStatusColor(status: string): string {
     switch (status) {
@@ -42,7 +55,7 @@ export class TaskListItemComponent {
       case 'pending': return 'time-outline';
       case 'in_progress': return 'play-outline';
       case 'completed': return 'checkmark-circle-outline';
-      case 'skipped': return 'forward-outline';
+      case 'skipped': return 'play-forward-outline';
       default: return 'help-outline';
     }
   }

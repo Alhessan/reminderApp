@@ -60,7 +60,7 @@
     <!-- Customer List -->
     <ion-list *ngIf="!isLoading && customers && customers.length > 0">
       <ion-item-sliding *ngFor="let customer of customers; trackBy: trackByCustomerId">
-        <ion-item (click)="navigateToCustomerDetail(customer.id!)" [button]="true">
+        <ion-item (click)="navigateToEditCustomer(customer.id!)" [button]="true">
           <div slot="start" class="customer-avatar" [style.background-color]="(customer.color || '#3880ff') + '20'">
             <ion-icon [name]="customer.icon || 'person-outline'" [style.color]="customer.color || '#3880ff'"></ion-icon>
           </div>

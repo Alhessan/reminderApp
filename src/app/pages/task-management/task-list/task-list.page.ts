@@ -12,6 +12,8 @@ import { TaskListItemComponent } from './components/task-list-item.component';
 import { TaskCycleService } from '../../../services/task-cycle.service';
 import { TaskCycle, TaskCycleStatus, TaskListItem } from '../../../models/task-cycle.model';
 import { BehaviorSubject, Subscription } from 'rxjs';
+import { ProgressSliderComponent } from '../../../components/progress-slider/progress-slider.component';
+import { ModalController } from '@ionic/angular';
 
 @Component({
   selector: 'app-task-list',
@@ -24,7 +26,8 @@ import { BehaviorSubject, Subscription } from 'rxjs';
     FormsModule,
     DatePipe,
     TaskListItemComponent,
-    RouterModule
+    RouterModule,
+    ProgressSliderComponent
   ]
 })
 export class TaskListPage implements OnInit {
@@ -49,7 +52,8 @@ export class TaskListPage implements OnInit {
     private databaseService: DatabaseService,
     private actionSheetCtrl: ActionSheetController,
     private taskCycleService: TaskCycleService,
-    private toastController: ToastController
+    private toastController: ToastController,
+    private modalController: ModalController
   ) { }
 
   async ngOnInit() {
@@ -142,9 +146,6 @@ export class TaskListPage implements OnInit {
   }
 
   async presentSortOptions() {
-    // Add inert attribute to main content
-    document.querySelector('ion-content')?.setAttribute('inert', '');
-    
     const actionSheet = await this.actionSheetCtrl.create({
       header: 'Sort Tasks By',
       cssClass: 'accessible-action-sheet',
@@ -191,10 +192,6 @@ export class TaskListPage implements OnInit {
     });
 
     await actionSheet.present();
-
-    // Remove inert attribute when action sheet is dismissed
-    await actionSheet.onDidDismiss();
-    document.querySelector('ion-content')?.removeAttribute('inert');
   }
 
   setSort(sortBy: string, sortOrder: string) {
@@ -383,9 +380,6 @@ async navigateToArchive() {
   }
 
   async openStatusActionSheet(taskItem: TaskListItem) {
-    // Add inert attribute to main content
-    document.querySelector('ion-content')?.setAttribute('inert', '');
-    
     const buttons = [];
     const currentStatus = taskItem.currentCycle.status;
 
@@ -438,10 +432,6 @@ async navigateToArchive() {
     });
 
     await actionSheet.present();
-
-    // Remove inert attribute when action sheet is dismissed
-    await actionSheet.onDidDismiss();
-    document.querySelector('ion-content')?.removeAttribute('inert');
   }
 
   async updateTaskStatus(taskItem: TaskListItem, status: TaskCycleStatus) {
@@ -469,55 +459,67 @@ async navigateToArchive() {
   }
 
   async updateProgress(taskItem: TaskListItem) {
-    const alert = await this.alertController.create({
-      header: 'Update Progress',
-      inputs: [
-        {
-          name: 'progress',
-          type: 'number',
-          min: 0,
-          max: 100,
-          placeholder: 'Enter progress (0-100)'
-        }
-      ],
-      buttons: [
-        {
-          text: 'Cancel',
-          role: 'cancel'
-        },
-        {
-          text: 'Update',
-          handler: async (data) => {
-            const progress = Number(data.progress);
-            if (progress >= 0 && progress <= 100) {
-              try {
-                let cycleId: number;
-
-                if (!taskItem.currentCycle?.id) {
-                  // Create a new cycle if none exists
-                  cycleId = await this.taskCycleService.createNextCycle(taskItem.task);
-                } else {
-                  cycleId = taskItem.currentCycle.id;
-                }
-
-                await this.taskCycleService.updateTaskCycleStatus(cycleId, 'in_progress', progress);
-                await this.loadTasks();
-              } catch (error) {
-                console.error('Error updating task progress:', error);
-                this.presentErrorAlert('Failed to update task progress. Please try again.');
-              }
-            }
-          }
-        }
-      ]
+    const modal = await this.modalController.create({
+      component: ProgressSliderComponent,
+      componentProps: {
+        taskItem: taskItem
+      },
+      backdropDismiss: true,
+      showBackdrop: true,
+      mode: 'md',
+      animated: true,
+      cssClass: 'compact-modal'
     });
-    await alert.present();
-  }
-
-  async openTaskMenu(taskItem: TaskListItem) {
-    // Add inert attribute to main content
-    document.querySelector('ion-content')?.setAttribute('inert', '');
+  
+    await modal.present();
     
+    const { data: result, role } = await modal.onWillDismiss();
+    
+    if (role === 'confirm' && result) {
+      try {
+        let cycleId: number;
+        
+        if (!taskItem.currentCycle?.id) {
+          // Create a new cycle if none exists
+          cycleId = await this.taskCycleService.createNextCycle(taskItem.task);
+        } else {
+          cycleId = taskItem.currentCycle.id;
+        }
+        
+        if (result.action === 'complete') {
+          // Mark task as completed (createNextCycle is called automatically in updateTaskCycleStatus)
+          await this.taskCycleService.updateTaskCycleStatus(cycleId, 'completed', 100);
+          
+          // Show success toast
+          const toast = await this.toastController.create({
+            message: `Task "${taskItem.task.title}" completed successfully! Next cycle created.`,
+            duration: 3000,
+            color: 'success',
+            position: 'bottom'
+          });
+          await toast.present();
+        } else if (result.action === 'update_progress') {
+          // Update progress only
+          await this.taskCycleService.updateTaskCycleStatus(cycleId, 'in_progress', result.progress);
+          
+          // Show progress update toast
+          const toast = await this.toastController.create({
+            message: `Progress updated to ${result.progress}%`,
+            duration: 2000,
+            color: 'primary',
+            position: 'bottom'
+          });
+          await toast.present();
+        }
+        
+        await this.loadTasks();
+      } catch (error) {
+        console.error('Error updating task progress:', error);
+        this.presentErrorAlert('Failed to update task progress. Please try again.');
+      }
+    }
+  }
+  async openTaskMenu(taskItem: TaskListItem) {
     const buttons: ActionSheetButton[] = [
       {
         text: 'View Details',
@@ -562,10 +564,6 @@ async navigateToArchive() {
     });
 
     await actionSheet.present();
-
-    // Remove inert attribute when action sheet is dismissed
-    await actionSheet.onDidDismiss();
-    document.querySelector('ion-content')?.removeAttribute('inert');
   }
 
   async archiveTask(taskItem: TaskListItem) {
@@ -622,5 +620,7 @@ async navigateToArchive() {
     });
     await alert.present();
   }
+
+  // Test method removed - invalid component type
 }
 

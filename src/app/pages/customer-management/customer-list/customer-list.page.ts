@@ -113,28 +113,7 @@ export class CustomerListPage implements OnInit {
     }
   }
 
-  async navigateToCustomerDetail(customerId: number, slidingItem?: IonItemSliding) {
-    try {
-      if (slidingItem) {
-        await slidingItem.close();
-      }
-      
-      // Remove focus from any active element before navigation
-      const activeElement = document.activeElement as HTMLElement;
-      if (activeElement) {
-        activeElement.blur();
-      }
-      
-      // Use navigateRoot to ensure proper navigation
-      await this.navController.navigateRoot(`/customers/detail/${customerId}`, {
-        animated: true,
-        animationDirection: 'forward'
-      });
-    } catch (error) {
-      console.error('Navigation error:', error);
-      this.presentErrorToast('Failed to navigate to customer details.');
-    }
-  }
+
 
   async presentDeleteConfirm(customerId: number, customerName: string, slidingItem?: IonItemSliding) {
     if (slidingItem) {

@@ -1,7 +1,7 @@
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/customer-list"></ion-back-button>
+      <ion-back-button defaultHref="/customers"></ion-back-button>
     </ion-buttons>
     <ion-title>{{ isEditMode ? 'Edit Customer' : 'Add Customer' }}</ion-title>
     <ion-buttons slot="end" *ngIf="isEditMode">
@@ -93,29 +93,46 @@
       </app-color-icon-picker>
     </div>
 
+    <ion-button 
+    type="submit" 
+    expand="block" 
+    [disabled]="customerForm.invalid || isSubmitting"
+    [class.loading]="isSubmitting">
+    <ion-spinner *ngIf="isSubmitting" name="crescent"></ion-spinner>
+    <span *ngIf="!isSubmitting">
+      <ion-icon slot="start" [name]="isEditMode ? 'save-outline' : 'add-outline'"></ion-icon>
+      {{ isEditMode ? 'Update' : 'Save' }}
+    </span>
+  </ion-button>
     <!-- Form Actions -->
+     
     <div class="form-actions">
-      <ion-button 
-        type="submit" 
-        expand="block" 
-        [disabled]="customerForm.invalid || isSubmitting"
-        [class.loading]="isSubmitting">
-        <ion-spinner *ngIf="isSubmitting" name="crescent"></ion-spinner>
-        <span *ngIf="!isSubmitting">
-          <ion-icon slot="start" [name]="isEditMode ? 'save-outline' : 'add-outline'"></ion-icon>
-          {{ isEditMode ? 'Update Customer' : 'Save Customer' }}
-        </span>
-      </ion-button>
+      <!-- <ion-toolbar>
+        <div class="footer-buttons">
 
-      <ion-button 
-        fill="clear" 
-        expand="block" 
-        (click)="onCancel()"
-        [disabled]="isSubmitting"
-        class="cancel-button">
-        <ion-icon slot="start" name="close-outline"></ion-icon>
-        Cancel
-      </ion-button>
+          <ion-button 
+            fill="clear" 
+            expand="block" 
+            (click)="onCancel()"
+            [disabled]="isSubmitting"
+            class="cancel-button">
+            <ion-icon slot="start" name="close-outline"></ion-icon>
+            Cancel
+          </ion-button>
+
+          <ion-button 
+          type="submit" 
+          expand="block" 
+          [disabled]="customerForm.invalid || isSubmitting"
+          [class.loading]="isSubmitting">
+          <ion-spinner *ngIf="isSubmitting" name="crescent"></ion-spinner>
+          <span *ngIf="!isSubmitting">
+            <ion-icon slot="start" [name]="isEditMode ? 'save-outline' : 'add-outline'"></ion-icon>
+            {{ isEditMode ? 'Update' : 'Save' }}
+          </span>
+        </ion-button>
+        </div>
+      </ion-toolbar> -->
     </div>
   </form>
 
@@ -126,4 +143,3 @@
   </div>
 
 </ion-content>
-

@@ -2,6 +2,30 @@ import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonicModule } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
+import { addIcons } from 'ionicons';
+import { 
+  chevronDownOutline, 
+  checkmark, 
+  colorPaletteOutline,
+  // Task icons
+  createOutline, fitnessOutline, walkOutline, bicycleOutline,
+  bookOutline, cafeOutline, restaurantOutline, waterOutline,
+  bedOutline, alarmOutline, calendarOutline, cashOutline,
+  heartOutline, medkitOutline, callOutline, mailOutline,
+  businessOutline, homeOutline, schoolOutline, briefcaseOutline,
+  barbellOutline, basketballOutline, musicalNotesOutline, brushOutline,
+  // Customer icons
+  personOutline, peopleOutline, storefrontOutline, medicalOutline,
+  libraryOutline, carOutline, airplaneOutline, starOutline,
+  diamondOutline, trophyOutline, shieldOutline, leafOutline,
+  flowerOutline, sunnyOutline, moonOutline, planetOutline,
+  rocketOutline, giftOutline,
+  // General icons
+  bookmarkOutline, flagOutline, locationOutline, timeOutline,
+  chatbubbleOutline, notificationsOutline, settingsOutline, cogOutline,
+  buildOutline, hammerOutline, colorPaletteOutline as colorPalette,
+  imageOutline, cameraOutline
+} from 'ionicons/icons';
 
 @Component({
   selector: 'app-color-icon-picker',
@@ -77,7 +101,71 @@ export class ColorIconPickerComponent implements OnInit {
     { value: '#ffe0b2', name: 'Light Orange', category: 'pastel' }
   ];
 
-  constructor() { }
+  constructor() { 
+    // Register all icons used by this component
+    addIcons({
+      'chevron-down-outline': chevronDownOutline,
+      'checkmark': checkmark,
+      'color-palette-outline': colorPaletteOutline,
+      // Task icons
+      'create-outline': createOutline,
+      'fitness-outline': fitnessOutline,
+      'walk-outline': walkOutline,
+      'bicycle-outline': bicycleOutline,
+      'book-outline': bookOutline,
+      'cafe-outline': cafeOutline,
+      'restaurant-outline': restaurantOutline,
+      'water-outline': waterOutline,
+      'bed-outline': bedOutline,
+      'alarm-outline': alarmOutline,
+      'calendar-outline': calendarOutline,
+      'cash-outline': cashOutline,
+      'heart-outline': heartOutline,
+      'medkit-outline': medkitOutline,
+      'call-outline': callOutline,
+      'mail-outline': mailOutline,
+      'business-outline': businessOutline,
+      'home-outline': homeOutline,
+      'school-outline': schoolOutline,
+      'briefcase-outline': briefcaseOutline,
+      'barbell-outline': barbellOutline,
+      'basketball-outline': basketballOutline,
+      'musical-notes-outline': musicalNotesOutline,
+      'brush-outline': brushOutline,
+      // Customer icons
+      'person-outline': personOutline,
+      'people-outline': peopleOutline,
+      'storefront-outline': storefrontOutline,
+      'medical-outline': medicalOutline,
+      'library-outline': libraryOutline,
+      'car-outline': carOutline,
+      'airplane-outline': airplaneOutline,
+      'star-outline': starOutline,
+      'diamond-outline': diamondOutline,
+      'trophy-outline': trophyOutline,
+      'shield-outline': shieldOutline,
+      'leaf-outline': leafOutline,
+      'flower-outline': flowerOutline,
+      'sunny-outline': sunnyOutline,
+      'moon-outline': moonOutline,
+      'planet-outline': planetOutline,
+      'rocket-outline': rocketOutline,
+      'gift-outline': giftOutline,
+      // General icons
+      'bookmark-outline': bookmarkOutline,
+      'flag-outline': flagOutline,
+      'location-outline': locationOutline,
+      'time-outline': timeOutline,
+      'chatbubble-outline': chatbubbleOutline,
+      'notifications-outline': notificationsOutline,
+      'settings-outline': settingsOutline,
+      'cog-outline': cogOutline,
+      'build-outline': buildOutline,
+      'hammer-outline': hammerOutline,
+      'image-outline': imageOutline,
+      'camera-outline': cameraOutline
+    });
+  }
 
   ngOnInit() {
     // Set default icon based on context if none provided

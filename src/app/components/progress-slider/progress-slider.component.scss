@@ -1,0 +1,427 @@
+// Add these styles to your existing CSS file
+
+// Global modal styling - needs to be outside component scope
+:global(.compact-modal) {
+    --width: 100% !important;
+    --height: 50vh !important;
+    --max-width: none !important;
+    --max-height: none !important;
+    --border-radius: 16px;
+    --box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+
+  
+    .modal-wrapper {
+      border-radius: var(--border-radius);
+      overflow: hidden;
+    }
+  }
+  
+  // Modal title section (since you're removing the header)
+  .modal-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--ion-color-light);
+  
+    h2 {
+      margin: 0;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--ion-color-dark);
+    }
+  
+    .close-button {
+      --padding-start: 8px;
+      --padding-end: 8px;
+      margin: 0;
+    }
+  }
+  
+  // Update your existing compact-content to remove top padding since we have modal-title now
+  .compact-content {
+    --padding-start: 20px;
+    --padding-end: 20px;
+    --padding-top: 0; // Changed from 16px to 0
+    --padding-bottom: 16px;
+    width: 100% !important;
+  }
+  
+  // Dark mode support for the new modal-title
+  @media (prefers-color-scheme: dark) {
+    .compact-modal {
+      --box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+    
+    .modal-title {
+      border-bottom-color: var(--ion-color-dark);
+      
+      h2 {
+        color: var(--ion-color-light);
+      }
+    }
+  }
+
+// Progress Slider Dialog Modal Styles
+:host {
+  --backdrop-opacity: 0.4;
+  --dialog-background: var(--ion-background-color, #ffffff);
+  --dialog-border-radius: 16px;
+  --dialog-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  --dialog-max-width: 400px;
+  --dialog-max-height: 80vh;
+}
+
+// Modal backdrop overlay
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, var(--backdrop-opacity));
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(3px);
+}
+
+// Dialog container
+.dialog-container {
+  background: var(--dialog-background);
+  border-radius: var(--dialog-border-radius);
+  box-shadow: var(--dialog-shadow);
+  width: 100%;
+  height: 50vh;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  transform: scale(1);
+  transition: transform 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+  
+  &.dialog-enter {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  
+  &.dialog-enter-active {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+// Compact content styling
+.compact-content {
+  --padding-start: 24px;
+  --padding-end: 24px;
+  --padding-top: 20px;
+  --padding-bottom: 20px;
+  --background: var(--dialog-background);
+  border-radius: var(--dialog-border-radius) var(--dialog-border-radius) 0 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+// Progress display section
+.progress-display {
+  margin-bottom: 24px;
+  
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    
+    .progress-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+  }
+  
+  ion-progress-bar {
+    --height: 8px;
+    --border-radius: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+}
+
+// Slider section
+.slider-section {
+  margin: 24px 0;
+  padding: 0 16px;
+  
+  // Remove complex styling, let inline styles handle it
+  ion-range {
+    width: 100%;
+    min-height: 60px;
+    padding: 20px 0;
+  }
+}
+
+// Quick buttons with proper color handling
+.quick-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  margin: 20px 0;
+  
+  ion-button {
+    --border-radius: 20px;
+    flex: 1;
+    margin: 0;
+    
+    // Fix for outline buttons - make them visible and functional
+    &[fill="outline"] {
+      --border-width: 2px;
+      
+      // Default medium/unselected state - subtle but visible
+      &[color="medium"] {
+        --border-color: var(--ion-color-light-shade) !important;
+        --color: var(--ion-color-medium) !important;
+        --background: var(--ion-color-light-tint) !important;
+      }
+      
+      // Selected states - clear visual distinction
+      &[color="primary"] {
+        --border-color: var(--ion-color-primary) !important;
+        --color: var(--ion-color-primary) !important;
+        --background: rgba(var(--ion-color-primary-rgb), 0.12) !important;
+        font-weight: 600;
+      }
+      
+      &[color="warning"] {
+        --border-color: var(--ion-color-warning) !important;
+        --color: var(--ion-color-warning-shade) !important;
+        --background: rgba(var(--ion-color-warning-rgb), 0.12) !important;
+        font-weight: 600;
+      }
+      
+      &[color="success"] {
+        --border-color: var(--ion-color-success) !important;
+        --color: var(--ion-color-success-shade) !important;
+        --background: rgba(var(--ion-color-success-rgb), 0.12) !important;
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+// Dark mode improvements
+@media (prefers-color-scheme: dark) {
+  .quick-buttons {
+    ion-button[fill="outline"] {
+      &[color="medium"] {
+        --border-color: var(--ion-color-step-200) !important;
+        --color: var(--ion-color-step-400) !important;
+        --background: var(--ion-color-step-50) !important;
+      }
+    }
+  }
+}
+
+// Status messages
+.status-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--ion-color-light);
+  border-radius: 8px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  
+  &.overdue {
+    background: var(--ion-color-danger-tint);
+    color: var(--ion-color-danger-shade);
+  }
+  
+  ion-icon {
+    font-size: 1.1rem;
+  }
+}
+
+// Compact footer
+.compact-footer {
+  border-top: 1px solid var(--ion-color-light);
+  
+  ion-toolbar {
+    --background: var(--dialog-background);
+    --border-color: transparent;
+    --padding-start: 16px;
+    --padding-end: 16px;
+  }
+}
+
+.footer-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  padding: 8px 0;
+  
+  ion-button {
+    --border-radius: 8px;
+    margin: 0;
+    
+    &[fill="clear"] {
+      --color: var(--ion-color-medium);
+    }
+    
+    &[color="success"] {
+      --background: var(--ion-color-success);
+      --color: white;
+    }
+    
+    &[color="primary"] {
+      --background: var(--ion-color-primary);
+      --color: white;
+    }
+  }
+}
+
+// Dark mode support
+@media (prefers-color-scheme: dark) {
+  :host {
+    --dialog-background: var(--ion-color-step-50, #1e1e1e);
+    --dialog-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    --backdrop-opacity: 0.5;
+  }
+  
+  .status-message {
+    background: var(--ion-color-step-100);
+    
+    &.overdue {
+      background: var(--ion-color-danger-tint);
+    }
+  }
+  
+  .compact-footer {
+    border-top-color: var(--ion-color-step-150);
+  }
+}
+
+// Responsive design - Focus on modal sizing and layout
+@media (max-width: 480px) {
+  .compact-modal {
+    --width: 95vw;
+    --height: 50vh;
+  }
+  
+  .modal-backdrop {
+    padding: 10px;
+  }
+  
+  .compact-content {
+    --padding-start: 16px;
+    --padding-end: 16px;
+    --padding-top: 16px;
+    --padding-bottom: 12px;
+  }
+  
+  // Keep quick buttons in same line but make them smaller
+  .quick-buttons {
+    gap: 4px;
+    margin: 16px 0;
+    
+    ion-button {
+      font-size: 0.75rem;
+      --border-radius: 16px;
+      min-height: 32px;
+      flex: 1;
+    }
+  }
+  
+  // Make sure slider is visible and functional
+  .slider-section {
+    margin: 16px 0;
+    min-height: 70px;
+    padding: 0 12px;
+  }
+  
+  // Adjust footer for mobile
+  .footer-actions {
+    gap: 6px;
+    padding: 6px 0;
+    
+    ion-button {
+      font-size: 0.8rem;
+      --border-radius: 6px;
+    }
+  }
+}
+
+// Extra small screens (very narrow phones)
+@media (max-width: 360px) {
+  .compact-modal {
+    --width: 98vw;
+    --height: 50vh;
+  }
+  
+  .compact-content {
+    --padding-start: 12px;
+    --padding-end: 12px;
+  }
+  
+  .quick-buttons {
+    gap: 2px;
+    
+    ion-button {
+      font-size: 0.7rem;
+      min-height: 30px;
+    }
+  }
+}
+
+// Medium screens (tablets in portrait)
+@media (min-width: 481px) and (max-width: 768px) {
+  .compact-modal {
+    --width: 80vw;
+    --height: 50vh;
+  }
+  
+  .quick-buttons {
+    gap: 10px;
+    
+    ion-button {
+      font-size: 0.9rem;
+    }
+  }
+}
+
+// Large screens (desktop)
+@media (min-width: 769px) {
+  .compact-modal {
+    --width: 400px;
+    --height: 50vh;
+  }
+}
+
+// Animation classes for modal presentation
+.modal-enter {
+  .dialog-container {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+.modal-enter-active {
+  .dialog-container {
+    transform: scale(1);
+    opacity: 1;
+    transition: all 0.2s ease-out;
+  }
+}
+
+.modal-leave-active {
+  .dialog-container {
+    transform: scale(0.95);
+    opacity: 0;
+    transition: all 0.15s ease-in;
+  }
+}

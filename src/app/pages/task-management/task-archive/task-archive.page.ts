@@ -92,6 +92,16 @@ export class TaskArchivePage implements OnInit {
   }
 
   async unarchiveTask(taskItem: TaskListItem) {
+    // Direct unarchive for swipe action (no confirmation needed since it's a swipe gesture)
+    try {
+      await this.taskCycleService.unarchiveTask(taskItem.task.id!);
+      await this.loadArchivedTasks();
+    } catch (error) {
+      console.error('Error unarchiving task:', error);
+    }
+  }
+
+  async openTaskOptions(taskItem: TaskListItem) {
     const alert = await this.alertController.create({
       header: 'Unarchive Task',
       message: 'Are you sure you want to unarchive this task?',
@@ -110,23 +120,6 @@ export class TaskArchivePage implements OnInit {
               console.error('Error unarchiving task:', error);
             }
           }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  async openTaskOptions(taskItem: TaskListItem) {
-    const alert = await this.alertController.create({
-      header: 'Task Options',
-      buttons: [
-        {
-          text: 'Unarchive',
-          handler: () => this.unarchiveTask(taskItem)
-        },
-        {
-          text: 'Cancel',
-          role: 'cancel'
         }
       ]
     });
