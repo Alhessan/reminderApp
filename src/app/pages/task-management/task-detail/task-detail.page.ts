@@ -6,13 +6,15 @@ import { TaskService } from "../../../services/task.service";
 import { DatabaseService } from "../../../services/database.service";
 import { CommonModule, DatePipe } from "@angular/common"; // Added CommonModule, DatePipe
 import { FormsModule } from "@angular/forms"; // Added FormsModule
+import { TaskHistoryComponent } from "./components/task-history.component";
+import { TaskStatisticsComponent } from "./components/task-statistics.component";
 
 @Component({
   selector: "app-task-detail",
   templateUrl: "./task-detail.page.html",
   styleUrls: ["./task-detail.page.scss"],
   standalone: true, // Mark as standalone
-  imports: [IonicModule, CommonModule, FormsModule, DatePipe, RouterModule] // Import necessary modules
+  imports: [IonicModule, CommonModule, FormsModule, DatePipe, RouterModule, TaskHistoryComponent, TaskStatisticsComponent] // Import necessary modules
 })
 export class TaskDetailPage implements OnInit {
   task: Task | null = null;

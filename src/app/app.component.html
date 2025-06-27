@@ -19,6 +19,10 @@
 
         <ion-list>
           <ion-list-header>Debug</ion-list-header>
+          <ion-item button (click)="navigateTo('/db-inspector')">
+            <ion-icon name="build-outline" slot="start"></ion-icon>
+            <ion-label>Database Inspector</ion-label>
+          </ion-item>
           <ion-item button (click)="reinitializeDatabase()">
             <ion-icon name="refresh-outline" slot="start"></ion-icon>
             <ion-label>Reset Database</ion-label>

@@ -13,66 +13,113 @@
 </ion-header>
 
 <ion-content class="ion-padding">
-  <div *ngIf="isLoading" class="ion-text-center ion-padding-top">
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
     <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading task details...</p>
   </div>
 
-  <div *ngIf="!isLoading && !task" class="ion-text-center ion-padding">
-    <p>Routine not found or failed to load.</p>
-    <ion-button fill="clear" (click)="goBack()">
+  <!-- Error State -->
+  <div *ngIf="!isLoading && !task" class="error-state">
+    <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
+    <h3>Task Not Found</h3>
+    <p>The routine you're looking for could not be found or failed to load.</p>
+    <ion-button fill="outline" (click)="goBack()">
       <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
       Back to List
     </ion-button>
   </div>
 
-  <ion-card *ngIf="!isLoading && task">
-    <ion-card-header>
-      <ion-card-title>{{ task.title }}</ion-card-title>
-      <ion-card-subtitle>
-        Status: {{ task.isCompleted ? ("Completed on " + (task.lastCompletedDate | date:"medium")) : "Pending" }}
-      </ion-card-subtitle>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-list lines="none">
-        <ion-item>
-          <ion-label><strong>Type:</strong> {{ task.type }}</ion-label>
-        </ion-item>
-        <ion-item *ngIf="task.customer?.name">
-          <ion-label><strong>Customer:</strong> {{ task.customer?.name }}</ion-label>
-        </ion-item>
-        <ion-item *ngIf="!task.customer?.name && task.customerId">
-          <ion-label><strong>Customer ID:</strong> {{ task.customerId }} (Name not found)</ion-label>
-        </ion-item>
-        <ion-item>
-          <ion-label><strong>Frequency:</strong> {{ task.frequency }}</ion-label>
-        </ion-item>
-        <ion-item>
-          <ion-label><strong>Start Date:</strong> {{ task.startDate | date:"fullDate" }}</ion-label>
-        </ion-item>
-        <ion-item>
-          <ion-label><strong>Notification:</strong> {{ task.notificationType }}</ion-label>
-        </ion-item>
-        <ion-item *ngIf="task.notes">
-          <ion-label class="ion-text-wrap"><strong>Notes:</strong> {{ task.notes }}</ion-label>
-        </ion-item>
-      </ion-list>
-    </ion-card-content>
-  </ion-card>
+  <!-- Task Details -->
+  <div *ngIf="!isLoading && task" class="task-details">
+    <!-- Page Header -->
+    <div class="unified-page-header">
+      <div class="header-icon-container">
+        <ion-icon name="checkbox-outline" style="color: var(--ion-color-primary-shade)"></ion-icon>
+      </div>
+      <h2>{{ task.title }}</h2>
+      <p>{{ task.isCompleted ? 'Completed Task' : 'Active Task' }}</p>
+    </div>
 
-  <ion-list-header *ngIf="!isLoading && taskHistory.length > 0">
-    <ion-label>Task History</ion-label>
-  </ion-list-header>
-  <ion-list *ngIf="!isLoading && taskHistory.length > 0">
-    <ion-item *ngFor="let entry of taskHistory">
-      <ion-label>
-        <h2>{{ entry.action }}</h2>
-        <p>{{ entry.timestamp | date:"medium" }}</p>
-        <p *ngIf="entry.details">{{ entry.details }}</p>
-      </ion-label>
-    </ion-item>
-  </ion-list>
-  <div *ngIf="!isLoading && task && taskHistory.length === 0" class="ion-text-center ion-padding">
-    <p>No history available for this task.</p>
+    <!-- Status Card -->
+    <ion-card class="status-card">
+      <ion-card-content>
+        <div class="status-indicator">
+          <ion-icon 
+            [name]="task.isCompleted ? 'checkmark-circle' : 'time-outline'" 
+            [color]="task.isCompleted ? 'success' : 'warning'">
+          </ion-icon>
+          <div class="status-text">
+            <h3>{{ task.isCompleted ? 'Completed' : 'Pending' }}</h3>
+            <p *ngIf="task.isCompleted && task.lastCompletedDate">
+              {{ task.lastCompletedDate | date:'medium' }}
+            </p>
+            <p *ngIf="!task.isCompleted">
+              Awaiting completion
+            </p>
+          </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Task Information Card -->
+    <ion-card class="info-card">
+      <ion-card-header>
+        <ion-card-title>
+          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
+          Task Information
+        </ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="label">Type:</span>
+            <span class="value">{{ task.type }}</span>
+          </div>
+          
+          <div class="info-row" *ngIf="task.customer?.name">
+            <span class="label">Customer:</span>
+            <span class="value">{{ task.customer?.name }}</span>
+          </div>
+          
+          <div class="info-row" *ngIf="!task.customer?.name && task.customerId">
+            <span class="label">Customer ID:</span>
+            <span class="value">{{ task.customerId }} (Name not found)</span>
+          </div>
+          
+          <div class="info-row">
+            <span class="label">Frequency:</span>
+            <span class="value">{{ task.frequency }}</span>
+          </div>
+          
+          <div class="info-row">
+            <span class="label">Start Date:</span>
+            <span class="value">{{ task.startDate | date:'fullDate' }}</span>
+          </div>
+          
+          <div class="info-row">
+            <span class="label">Notification:</span>
+            <span class="value">{{ task.notificationType }}</span>
+          </div>
+        </div>
+        
+        <div class="notes-section" *ngIf="task.notes">
+          <div class="notes-header">
+            <ion-icon name="document-text-outline" color="medium"></ion-icon>
+            <span>Notes</span>
+          </div>
+          <div class="notes-content">
+            {{ task.notes }}
+          </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Task Statistics Component -->
+    <app-task-statistics [task]="task"></app-task-statistics>
+
+    <!-- Task History Component -->
+    <!-- <app-task-history [taskHistory]="taskHistory"></app-task-history> -->
   </div>
 
 </ion-content>

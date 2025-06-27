@@ -401,6 +401,20 @@ async navigateToArchive() {
       });
     }
 
+    // Add Complete option for overdue pending tasks
+    if (currentStatus === 'pending' && taskItem.isOverdue) {
+      // Check if Complete button is not already added
+      const hasCompleteButton = buttons.some(button => button.data === 'completed');
+      if (!hasCompleteButton) {
+        buttons.push({
+          text: 'Complete',
+          icon: 'checkmark-outline',
+          data: 'completed',
+          handler: () => this.updateTaskStatus(taskItem, 'completed')
+        });
+      }
+    }
+
     if (currentStatus === 'pending' || currentStatus === 'in_progress') {
       buttons.push({
         text: 'Skip',
@@ -592,35 +606,6 @@ async navigateToArchive() {
     await alert.present();
   }
 
-  async reinitializeDatabase() {
-    const alert = await this.alertController.create({
-      header: 'Reset Database',
-      message: 'This will delete all existing data and create new sample data. Are you sure?',
-      buttons: [
-        {
-          text: 'Cancel',
-          role: 'cancel'
-        },
-        {
-          text: 'Reset',
-          handler: async () => {
-            try {
-              this.isLoading = true;
-              await this.databaseService.reinitializeDatabase();
-              await this.loadTasks();
-            } catch (error) {
-              console.error('Error reinitializing database:', error);
-              this.presentErrorAlert('Failed to reset database. Please try again.');
-            } finally {
-              this.isLoading = false;
-            }
-          }
-        }
-      ]
-    });
-    await alert.present();
-  }
-
-  // Test method removed - invalid component type
+  // Database operations moved to main menu for better UX
 }
 

@@ -56,9 +56,19 @@ import {
   checkmarkOutline,
   playForwardOutline,
   add,
-  funnelOutline
+  funnelOutline,
+  chevronUp,
+  chevronDown,
+  analyticsOutline,
+  flameOutline,
+  trophyOutline,
+  starOutline,
+  trendingUpOutline,
+  barChartOutline,
+  reloadOutline
 } from 'ionicons/icons';
 import { SampleDataService } from './services/sample-data.service';
+import { TaskCycleService } from './services/task-cycle.service';
 
 @Component({
   selector: 'app-root',
@@ -87,7 +97,8 @@ export class AppComponent {
     private alertController: AlertController,
     private sampleDataService: SampleDataService,
     public router: Router,
-    private navController: NavController
+    private navController: NavController,
+    private taskCycleService: TaskCycleService
   ) {
     this.initializeApp();
     // Register Ionic icons
@@ -142,7 +153,16 @@ export class AppComponent {
       'checkmark-outline': checkmarkOutline,
       'forward-outline': playForwardOutline,
       'add': add,
-      'funnel-outline': funnelOutline
+      'funnel-outline': funnelOutline,
+      'chevron-up': chevronUp,
+      'chevron-down': chevronDown,
+      'analytics-outline': analyticsOutline,
+      'flame-outline': flameOutline,
+      'trophy-outline': trophyOutline,
+      'star-outline': starOutline,
+      'trending-up-outline': trendingUpOutline,
+      'bar-chart-outline': barChartOutline,
+      'reload-outline': reloadOutline
     });
   }
 
@@ -202,8 +222,8 @@ export class AppComponent {
 
   async reinitializeDatabase() {
     const alert = await this.alertController.create({
-      header: 'Confirm Reset',
-      message: 'This will reset the database to its initial state. All your data will be lost. Are you sure?',
+      header: 'Reset Database',
+      message: 'This will reset the database to its initial state. All your current data will be lost. Are you sure?',
       buttons: [
         {
           text: 'Cancel',
@@ -215,16 +235,18 @@ export class AppComponent {
           handler: async () => {
             try {
               await this.databaseService.reinitializeDatabase();
+              
               const successAlert = await this.alertController.create({
                 header: 'Success',
-                message: 'Database has been reinitialized successfully.',
+                message: 'Database has been reset successfully.',
                 buttons: ['OK']
               });
               await successAlert.present();
             } catch (error) {
+              console.error('Error resetting database:', error);
               const errorAlert = await this.alertController.create({
                 header: 'Error',
-                message: 'Failed to reinitialize database. Please try again.',
+                message: 'Failed to reset database. Please try again.',
                 buttons: ['OK']
               });
               await errorAlert.present();
@@ -240,7 +262,7 @@ export class AppComponent {
   async generateSampleData() {
     const alert = await this.alertController.create({
       header: 'Generate Sample Data',
-      message: 'This will create sample tasks with different states. Continue?',
+      message: 'This will reset the database and create fresh sample data. All your current data will be lost. Continue?',
       buttons: [
         {
           text: 'Cancel',
@@ -248,19 +270,25 @@ export class AppComponent {
         },
         {
           text: 'Generate',
+          role: 'destructive',
           handler: async () => {
             try {
+              // First reinitialize the database (clean slate)
+              await this.databaseService.reinitializeDatabase();
+              // Then generate sample data
               await this.sampleDataService.generateSampleTasks();
+              
               const successAlert = await this.alertController.create({
                 header: 'Success',
-                message: 'Sample tasks have been generated successfully.',
+                message: 'Database has been reset and sample data generated successfully.',
                 buttons: ['OK']
               });
               await successAlert.present();
             } catch (error) {
+              console.error('Error generating sample data:', error);
               const errorAlert = await this.alertController.create({
                 header: 'Error',
-                message: 'Failed to generate sample tasks. Please try again.',
+                message: 'Failed to generate sample data. Please try again.',
                 buttons: ['OK']
               });
               await errorAlert.present();
@@ -271,5 +299,36 @@ export class AppComponent {
     });
 
     await alert.present();
+  }
+
+  async refreshTaskList() {
+    try {
+      // Check if we're currently on the task list page
+      if (this.router.url.includes('/tasks')) {
+        await this.taskCycleService.loadTaskList();
+        
+        // Show a brief success message
+        const successAlert = await this.alertController.create({
+          header: 'Refreshed',
+          message: 'Task list has been refreshed successfully.',
+          buttons: ['OK']
+        });
+        await successAlert.present();
+      } else {
+        // Navigate to task list and refresh
+        await this.navigateTo('/tasks');
+        setTimeout(async () => {
+          await this.taskCycleService.loadTaskList();
+        }, 500); // Small delay to ensure navigation is complete
+      }
+    } catch (error) {
+      console.error('Error refreshing task list:', error);
+      const errorAlert = await this.alertController.create({
+        header: 'Error',
+        message: 'Failed to refresh task list. Please try again.',
+        buttons: ['OK']
+      });
+      await errorAlert.present();
+    }
   }
 }
