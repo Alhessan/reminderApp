@@ -22,6 +22,11 @@ allprojects {
         google()
         mavenCentral()
     }
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs += [
+            '--release', '17'
+        ]
+    }
 }
 
 task clean(type: Delete) {
