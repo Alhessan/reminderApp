@@ -3,9 +3,13 @@ import { AppComponent } from './app/app.component';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app/app.routes';
 import { provideIonicAngular, IonicRouteStrategy } from '@ionic/angular/standalone';
+import { defineCustomElements } from '@ionic/core/loader';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
 import { RouteReuseStrategy } from '@angular/router';
+
+// Ensure Ionic Web Components are defined in all runtimes (incl. WebView)
+defineCustomElements(window);
 
 bootstrapApplication(AppComponent, {
   providers: [
@@ -23,4 +27,8 @@ bootstrapApplication(AppComponent, {
     provideAnimations(),
     provideHttpClient()
   ]
+}).then(() => {
+  // Log in case WebView is not hydrating components
+  const ionContentDefined = !!customElements.get('ion-content');
+  console.log('[Bootstrap] ion-content defined:', ionContentDefined);
 }).catch(err => console.error(err));

@@ -1,4 +1,4 @@
-<ion-header [translucent]="true" class="full-width">
+<ion-header [translucent]="false" class="full-width">
   <ion-toolbar class="full-width">
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
@@ -46,12 +46,7 @@
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true" class="full-width mobile-full-width">
-  <ion-header collapse="condense" class="full-width">
-    <ion-toolbar class="full-width">
-      <ion-title size="large">{{ customerNameFilter ? ("Routines for " + customerNameFilter) : "Upcoming Routines" }}</ion-title>
-    </ion-toolbar>
-  </ion-header>
+<ion-content [fullscreen]="false" class="full-width mobile-full-width">
 
   <div class="content-container full-width mobile-full-width mobile-padding-md">
     <div *ngIf="isLoading" class="ion-text-center ion-padding-top">

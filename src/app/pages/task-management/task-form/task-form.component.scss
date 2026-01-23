@@ -6,19 +6,9 @@
   height: 100%;
 }
 
-// Header styling
+// Hide the page header bar (title/back button)
 ion-header {
-  background: var(--ion-background-color);
-  
-  ion-toolbar {
-    --background: var(--ion-toolbar-background);
-    --color: var(--ion-text-color);
-    
-    ion-title {
-      font-size: 1.2rem;
-      font-weight: 500;
-    }
-  }
+  display: none;
 }
 
 // Content styling

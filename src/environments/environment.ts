@@ -4,7 +4,9 @@
 
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:3000/api' // Update this with your actual API URL
+  apiUrl: 'http://localhost:3000/api', // Update this with your actual API URL
+  enableLogging: true, // Enable detailed logging in development
+  enableConsoleLogs: true // Enable console logs in development
 };
 
 /*

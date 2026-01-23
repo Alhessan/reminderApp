@@ -6,9 +6,10 @@ import { FormsModule } from '@angular/forms';
 import { TaskCycleService } from '../../services/task-cycle.service';
 import { TaskListItem, TaskCycleStatus } from '../../models/task-cycle.model';
 import { NotificationService } from '../../services/notification.service';
+import { TaskService } from '../../services/task.service';
 import { catchError } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { TaskListItemComponent } from '../../components/task-list-item/task-list-item.component';
+import { TaskListItemComponent } from '../task-management/task-list/components/task-list-item.component';
 import { Router } from '@angular/router';
 
 @Component({
@@ -24,6 +25,7 @@ export class TaskListComponent implements OnInit {
 
   constructor(
     private taskCycleService: TaskCycleService,
+    private taskService: TaskService,
     private actionSheetCtrl: ActionSheetController,
     private alertCtrl: AlertController,
     private notificationService: NotificationService,
@@ -197,7 +199,7 @@ export class TaskListComponent implements OnInit {
         {
           text: 'Delete',
           icon: 'trash-outline',
-          color: 'danger',
+          cssClass: 'danger',
           handler: () => {
             this.deleteTask(taskItem);
           }
@@ -225,7 +227,7 @@ export class TaskListComponent implements OnInit {
             body: `${taskItem.task.title} has been marked as completed.`,
             notificationType: taskItem.task.notificationType,
             taskId: taskItem.task.id,
-            customerId: taskItem.task.customerId
+            customerId: taskItem.task.customerId ?? undefined
           });
         } catch (error) {
           console.error('Error sending notification:', error);
@@ -251,6 +253,87 @@ export class TaskListComponent implements OnInit {
       });
       await toast.present();
     }
+  }
+
+  async archiveTask(taskItem: TaskListItem) {
+    const alert = await this.alertCtrl.create({
+      header: 'Archive Task',
+      message: 'Are you sure you want to archive this task?',
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel'
+        },
+        {
+          text: 'Archive',
+          handler: async () => {
+            try {
+              await this.taskCycleService.archiveTask(taskItem.task.id!);
+              await this.loadTasks();
+              const toast = await this.toastCtrl.create({
+                message: 'Task archived successfully',
+                duration: 2000,
+                color: 'success',
+                position: 'bottom'
+              });
+              await toast.present();
+            } catch (error) {
+              console.error('Error archiving task:', error);
+              const toast = await this.toastCtrl.create({
+                message: 'Failed to archive task. Please try again.',
+                duration: 3000,
+                color: 'danger',
+                position: 'bottom'
+              });
+              await toast.present();
+            }
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
+  async deleteTask(taskItem: TaskListItem) {
+    const alert = await this.alertCtrl.create({
+      header: 'Delete Task',
+      message: `Are you sure you want to delete this task?<br><br>This action cannot be undone and will delete:<br>• The task and all its settings<br>• All cycles and progress history<br>• All associated notifications`,
+      cssClass: 'delete-alert',
+      buttons: [
+        {
+          text: 'Cancel',
+          role: 'cancel',
+          cssClass: 'secondary'
+        },
+        {
+          text: 'Delete',
+          cssClass: 'danger',
+          handler: async () => {
+            try {
+              await this.taskService.deleteTask(taskItem.task.id!);
+              await this.loadTasks();
+              const toast = await this.toastCtrl.create({
+                message: 'Task deleted successfully',
+                duration: 2000,
+                color: 'success',
+                position: 'bottom'
+              });
+              await toast.present();
+            } catch (error) {
+              console.error('Error deleting task:', error);
+              const toast = await this.toastCtrl.create({
+                message: 'Failed to delete task. Please try again.',
+                duration: 3000,
+                color: 'danger',
+                position: 'bottom'
+              });
+              await toast.present();
+            }
+          }
+        }
+      ]
+    });
+    await alert.present();
   }
 
   formatDate(date: string): string {

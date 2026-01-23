@@ -4,6 +4,7 @@ import { Platform, IonicModule, AlertController, NavController } from '@ionic/an
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet, Router } from '@angular/router'; // Add Router import
 import { NotificationService } from './services/notification.service';
+import { environment } from '../environments/environment';
 import { addIcons } from 'ionicons';
 import { 
   peopleOutline, 
@@ -100,8 +101,7 @@ export class AppComponent {
     private navController: NavController,
     private taskCycleService: TaskCycleService
   ) {
-    this.initializeApp();
-    // Register Ionic icons
+    // Register Ionic icons first (synchronous operation)
     addIcons({
       'people-outline': peopleOutline,
       'checkbox-outline': checkboxOutline,
@@ -164,27 +164,150 @@ export class AppComponent {
       'bar-chart-outline': barChartOutline,
       'reload-outline': reloadOutline
     });
+    
+    // Initialize app (will wait for platform ready inside initializeApp)
+    this.initializeApp();
+    
+    // Handle app lifecycle events
+    this.setupAppLifecycle();
   }
 
+  /**
+   * Initialize app - Best Practice: Wait for platform to be ready
+   * This ensures all native plugins are available before use
+   */
   async initializeApp() {
-    console.log('Initializing app...');
-    try {
-      // Request notification permissions on app start
-      const hasPermission = await this.notificationService.hasNotificationPermissions();
-      console.log('Current notification permission status:', hasPermission ? 'granted' : 'denied');
-      
-      if (!hasPermission) {
-        console.log('Requesting notification permissions...');
-        const permissionGranted = await this.notificationService.requestNotificationPermissions();
-        console.log('Notification permission request result:', permissionGranted ? 'granted' : 'denied');
-      }
-
-      // Register notification listeners
-      await this.notificationService.registerNotificationListeners();
-      console.log('App initialization complete');
-    } catch (error) {
-      console.error('Error during app initialization:', error);
+    // For web/browser, proceed without waiting for platform ready
+    if (!this.platform.is('cordova') && !this.platform.is('capacitor')) {
+      await this.performInitialization();
+      return;
     }
+
+    // Wait for platform to be fully ready (for native platforms)
+    await this.platform.ready();
+    await this.performInitialization();
+  }
+
+  /**
+   * Perform actual initialization tasks
+   * Optimized to not block UI thread - uses requestIdleCallback or setTimeout
+   */
+  private async performInitialization(): Promise<void> {
+    const shouldLog = environment.enableLogging && environment.enableConsoleLogs;
+    
+    if (shouldLog) {
+      console.log('[App] Starting initialization...');
+    }
+
+    // Defer heavy initialization to allow UI to render first
+    // Use requestIdleCallback if available (better for performance), otherwise setTimeout
+    const deferInit = (callback: () => void) => {
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(callback, { timeout: 2000 });
+      } else {
+        setTimeout(callback, 500); // Longer delay to ensure UI renders
+      }
+    };
+
+    return new Promise<void>((resolve, reject) => {
+      deferInit(async () => {
+        try {
+          if (shouldLog) {
+            console.log('[App] Performing background initialization...');
+          }
+
+          // Initialize database (non-blocking, idempotent)
+          await this.databaseService.initializeDatabase();
+          
+          if (shouldLog) {
+            console.log('[App] Database initialized');
+          }
+
+          // Request notification permissions (non-blocking)
+          const hasPermission = await this.notificationService.hasNotificationPermissions();
+          
+          if (shouldLog) {
+            console.log('[App] Notification permission status:', hasPermission ? 'granted' : 'denied');
+          }
+          
+          if (!hasPermission) {
+            if (shouldLog) {
+              console.log('[App] Requesting notification permissions...');
+            }
+            // Don't await this - let it happen in background
+            this.notificationService.requestNotificationPermissions().then(granted => {
+              if (shouldLog) {
+                console.log('[App] Permission request result:', granted ? 'granted' : 'denied');
+              }
+            }).catch(err => {
+              console.error('[App] Error requesting permissions:', err);
+            });
+          }
+
+          // Register notification listeners (non-blocking)
+          await this.notificationService.registerNotificationListeners();
+          
+          if (shouldLog) {
+            console.log('[App] Initialization complete');
+          }
+          
+          resolve();
+        } catch (error) {
+          // Always log errors, even in production
+          console.error('[App] Error during initialization:', error);
+          
+          // Show user-friendly error message (non-blocking)
+          this.alertController.create({
+            header: 'Initialization Error',
+            message: 'The app encountered an error during startup. Some features may not work correctly.',
+            buttons: ['OK']
+          }).then(alert => alert.present()).catch(alertError => {
+            console.error('[App] Failed to show error alert:', alertError);
+          });
+          
+          reject(error);
+        }
+      });
+    });
+  }
+
+  /**
+   * Setup app lifecycle event handlers (Ionic best practice)
+   */
+  private setupAppLifecycle(): void {
+    const shouldLog = environment.enableLogging && environment.enableConsoleLogs;
+    
+    // Handle app pause (when user switches to another app)
+    this.platform.pause.subscribe(() => {
+      if (shouldLog) {
+        console.log('[App] App paused');
+      }
+      // You can save state, pause timers, etc. here
+      // Example: Save current form data, pause background tasks
+    });
+
+    // Handle app resume (when user returns to the app)
+    this.platform.resume.subscribe(() => {
+      if (shouldLog) {
+        console.log('[App] App resumed');
+      }
+      // You can refresh data, restart timers, etc. here
+      // Example: Refresh task list, check for new notifications
+    });
+
+    // Handle back button (Android) - Ionic best practice
+    this.platform.backButton.subscribeWithPriority(10, () => {
+      // Handle back button if needed
+      // You can add custom back button logic here
+      // Example: Close modals, navigate back, or exit app
+      const currentUrl = this.router.url;
+      if (currentUrl === '/' || currentUrl === '/home') {
+        // If at root, you might want to show exit confirmation
+        // For now, let default behavior handle it
+        return;
+      }
+      // Otherwise, let Ionic handle navigation
+    });
   }
 
   // Update navigation helper method to ensure proper component destruction

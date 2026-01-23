@@ -1,9 +1,12 @@
 import { Component, OnInit } from '@angular/core';
-import { AlertController, IonicModule, ModalController } from '@ionic/angular';
+import { AlertController, IonicModule, ModalController, ToastController, Platform } from '@ionic/angular';
 import { TaskType, TaskTypeService } from '../../../services/task-type.service';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ColorIconPickerComponent } from '../../../components/color-icon-picker/color-icon-picker.component';
+import { Clipboard } from '@capacitor/clipboard';
+import { Capacitor } from '@capacitor/core';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-task-types',
@@ -28,7 +31,9 @@ export class TaskTypesPage implements OnInit {
   constructor(
     private taskTypeService: TaskTypeService,
     private alertCtrl: AlertController,
-    private modalCtrl: ModalController
+    private modalCtrl: ModalController,
+    private toastCtrl: ToastController,
+    private platform: Platform
   ) { }
 
   ngOnInit() { }
@@ -116,6 +121,79 @@ export class TaskTypesPage implements OnInit {
       cssClass: 'custom-alert'
     });
     await confirmAlert.present();
+  }
+
+  /**
+   * Copy icon name to clipboard - Best Practice: Use Capacitor Clipboard API
+   * This properly handles clipboard access on mobile devices and prevents
+   * "clipboard access denied" errors by ensuring app is in focus
+   */
+  async copyIconName(iconName: string): Promise<void> {
+    try {
+      // Ensure app is in focus before accessing clipboard (prevents access denied errors)
+      if (this.platform.is('capacitor') && !document.hasFocus()) {
+        // Wait a bit for app to gain focus after user interaction
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+
+      // Use Capacitor Clipboard API for native clipboard access
+      if (Capacitor.isNativePlatform()) {
+        await Clipboard.write({
+          string: iconName
+        });
+      } else {
+        // Fallback for web/browser using Web Clipboard API
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          // Ensure we have focus before accessing clipboard
+          if (!document.hasFocus()) {
+            window.focus();
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+          await navigator.clipboard.writeText(iconName);
+        } else {
+          // Fallback for older browsers
+          const textArea = document.createElement('textarea');
+          textArea.value = iconName;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-9999px';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.focus();
+          textArea.select();
+          try {
+            document.execCommand('copy');
+          } finally {
+            document.body.removeChild(textArea);
+          }
+        }
+      }
+
+      // Show success feedback
+      const toast = await this.toastCtrl.create({
+        message: `Icon name "${iconName}" copied to clipboard`,
+        duration: 2000,
+        position: 'bottom',
+        color: 'success',
+        cssClass: 'copy-toast'
+      });
+      await toast.present();
+
+      if (environment.enableLogging) {
+        console.log(`[TaskTypes] Copied icon name: ${iconName}`);
+      }
+    } catch (error) {
+      // Handle clipboard errors gracefully
+      console.error('[TaskTypes] Error copying to clipboard:', error);
+      
+      // Show error feedback
+      const toast = await this.toastCtrl.create({
+        message: 'Failed to copy icon name. Please try again.',
+        duration: 2000,
+        position: 'bottom',
+        color: 'warning'
+      });
+      await toast.present();
+    }
   }
 }
 

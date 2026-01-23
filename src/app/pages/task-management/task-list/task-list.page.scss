@@ -8,6 +8,11 @@
 
 ion-header {
   width: 100% !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+ion-header::after {
+  background-image: none;
 }
 
 ion-toolbar {
@@ -17,6 +22,7 @@ ion-toolbar {
 ion-content {
   --padding-start: 0;
   --padding-end: 0;
+  --padding-top: 16px;
 }
 
 .content-container {
@@ -120,8 +126,11 @@ ion-segment {
 
 // Enhanced toolbar styling
 ion-toolbar {
-  --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --background: transparent;
   --color: white;
+  padding-top: calc(var(--app-safe-area-top) * 2);
+  min-height: calc(56px + (var(--app-safe-area-top) * 2));
+  --border-color: transparent;
   
   ion-title {
     font-weight: 600;
@@ -239,11 +248,3 @@ ion-fab {
   }
 }
 
-
-@media (max-width: 768px) {
-  .content-container {
-    padding-left: 1px !important;
-    padding-right: 8px !important;
-    padding-top: 60px !important;
-  }
-}

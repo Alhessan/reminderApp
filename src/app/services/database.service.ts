@@ -134,6 +134,10 @@ export class DatabaseService {
   // Observable to notify components when database changes
   private dbReady = new BehaviorSubject<boolean>(false);
   public dbReady$ = this.dbReady.asObservable();
+  
+  // Guard to prevent multiple initializations
+  private initializationPromise: Promise<void> | null = null;
+  private isInitialized = false;
 
   private currentVersion = 5; // Increment this when adding new migrations
 
@@ -204,25 +208,44 @@ export class DatabaseService {
     this.isNative = Capacitor.isNativePlatform();
     console.log(`Running on ${this.isNative ? 'native' : 'web'} platform`);
     
-    // Initialize database immediately in constructor
-    this.initializeDatabase().then(() => {
-      console.log('Database initialized in constructor');
-      this.dbReady.next(true);
-    }).catch(err => {
-      console.error('Error initializing database in constructor:', err);
-      this.dbReady.next(false);
-    });
+    // DO NOT initialize database in constructor - it blocks the UI thread
+    // Initialize lazily when first needed via initializeDatabase()
   }
 
   async initializeDatabase(): Promise<void> {
-      if (this.isNative) {
-        // Native platform - use SQLite
-        await this.initializeNativeDatabase();
-      } else {
-        // Web platform - use in-memory store with localStorage persistence
-        await this.initializeWebDatabase();
-      }
-      console.log(`Database ${this.dbName} initialized.`);
+    // If already initialized, return immediately
+    if (this.isInitialized) {
+      return;
+    }
+    
+    // If initialization is in progress, return the existing promise
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+    
+    // Start initialization
+    this.initializationPromise = this.performInitialization();
+    
+    try {
+      await this.initializationPromise;
+      this.isInitialized = true;
+      this.dbReady.next(true);
+    } catch (error) {
+      this.initializationPromise = null; // Reset on error so it can be retried
+      this.dbReady.next(false);
+      throw error;
+    }
+  }
+  
+  private async performInitialization(): Promise<void> {
+    if (this.isNative) {
+      // Native platform - use SQLite
+      await this.initializeNativeDatabase();
+    } else {
+      // Web platform - use in-memory store with localStorage persistence
+      await this.initializeWebDatabase();
+    }
+    console.log(`Database ${this.dbName} initialized.`);
   }
 
   private async initializeNativeDatabase(): Promise<void> {
@@ -602,8 +625,9 @@ export class DatabaseService {
       }));
 
       for (const type of notificationTypes) {
+        // Use INSERT OR IGNORE to prevent UNIQUE constraint errors if types already exist
         await this.executeQuery(
-          `INSERT INTO notification_types (
+          `INSERT OR IGNORE INTO notification_types (
             key, name, description, icon, color, isEnabled, requiresValue,
             valueLabel, validationPattern, validationError, order_num
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -649,8 +673,9 @@ export class DatabaseService {
       ];
 
       for (const type of defaultTaskTypes) {
+        // Use INSERT OR IGNORE to prevent UNIQUE constraint errors if types already exist
         await this.executeQuery(
-          `INSERT INTO task_types (name, description, isDefault, icon, color)
+          `INSERT OR IGNORE INTO task_types (name, description, isDefault, icon, color)
            VALUES (?, ?, ?, ?, ?)`,
           [type.name, type.description, type.isDefault, type.icon, type.color]
         );

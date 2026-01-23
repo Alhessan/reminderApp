@@ -3,7 +3,8 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>RoutineLoop</title>
+  <title></title>
+  <meta name="application-name" content="" />
 
   <base href="/" />
 
@@ -11,9 +12,449 @@
   <meta name="viewport" content="viewport-fit=cover, width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <meta name="msapplication-tap-highlight" content="no" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src *; font-src 'self' data:;">
+  <!-- CSP removed for Capacitor - native apps don't need strict CSP -->
 
   <link rel="icon" type="image/png" href="assets/icon/favicon.png" />
+
+  <script>
+    // Ensure no document title is shown in WebView
+    (function() {
+      try {
+        document.title = '';
+        setInterval(function() { document.title = ''; }, 1000);
+      } catch (e) {}
+    })();
+  </script>
+
+  <!-- Critical CSS to prevent unstyled content -->
+  <style>
+    /* Basic styles to ensure content is visible while CSS loads */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f4f5f8 !important;
+    }
+    /* Test style to verify CSS is loading - if you see red text, CSS works */
+    app-root {
+      display: block;
+      min-height: 100vh;
+      background-color: #f4f5f8;
+    }
+    /* CRITICAL: Force Ionic components to display correctly - WebView may not apply external CSS */
+    ion-app {
+      display: block !important;
+      position: relative !important;
+      width: 100% !important;
+      height: 100% !important;
+      contain: layout style paint !important;
+    }
+    ion-content {
+      display: block !important;
+      position: relative !important;
+      flex: 1 1 0% !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+    ion-header {
+      display: block !important;
+      position: relative !important;
+      order: -1 !important;
+      width: 100% !important;
+      z-index: 1000 !important;
+    }
+    ion-toolbar {
+      display: block !important;
+      position: relative !important;
+      width: 100% !important;
+    }
+    ion-title {
+      display: block !important;
+      position: relative !important;
+    }
+    ion-button {
+      display: inline-block !important;
+    }
+    ion-list {
+      display: block !important;
+    }
+    ion-item {
+      display: block !important;
+    }
+  </style>
+  
+  <!-- Force CSS loading for Capacitor WebView - prevents infinite loops -->
+  <script>
+    (function() {
+      console.log('[CSS Loader] Starting CSS loader');
+      var processedLinks = new Set(); // Track processed links to prevent duplicates
+      var injectedStyles = new Set(); // Track injected styles to prevent duplicates
+      
+      function injectCSSFromFetch(cssUrl) {
+        // Skip if already injected
+        if (injectedStyles.has(cssUrl)) {
+          console.log('[CSS Loader] CSS already injected for:', cssUrl);
+          return;
+        }
+        
+        console.log('[CSS Loader] Fetching CSS directly:', cssUrl);
+        fetch(cssUrl)
+          .then(function(response) {
+            if (!response.ok) {
+              throw new Error('Failed to fetch CSS: ' + response.status);
+            }
+            return response.text();
+          })
+          .then(function(cssText) {
+            console.log('[CSS Loader] CSS fetched successfully, length:', cssText.length);
+            
+            // Remove any existing injected style for this URL
+            var existingStyle = document.querySelector('style[data-injected-from="' + cssUrl + '"]');
+            if (existingStyle) {
+              existingStyle.remove();
+            }
+            
+            // Inject as inline style tag at the END of head to ensure it overrides
+            var style = document.createElement('style');
+            style.textContent = cssText;
+            style.setAttribute('data-injected-from', cssUrl);
+            style.setAttribute('type', 'text/css');
+            document.head.appendChild(style);
+            injectedStyles.add(cssUrl);
+            console.log('[CSS Loader] CSS injected successfully');
+            
+            // CRITICAL: Force style application to custom elements
+            function forceCustomElementRecalc(tag) {
+              // Force reflow on all elements
+              if (document.body) {
+                document.body.style.display = 'none';
+                void document.body.offsetHeight;
+                document.body.style.display = '';
+              }
+
+              // Force all custom elements to recalculate styles
+              var allCustomElements = document.querySelectorAll('ion-app, ion-content, ion-header, ion-toolbar, ion-button, ion-list, ion-item, ion-menu, ion-menu-button');
+              for (var i = 0; i < allCustomElements.length; i++) {
+                var el = allCustomElements[i];
+                void el.offsetWidth;
+                void el.offsetHeight;
+                el.style.transform = 'translateZ(0)';
+                void el.offsetHeight;
+                el.style.transform = '';
+              }
+
+              console.log('[CSS Loader] Forced style recalculation on', allCustomElements.length, 'custom elements', tag ? '(' + tag + ')' : '');
+            }
+
+            // Try once quickly, then after Ionic custom elements are defined
+            setTimeout(function() {
+              forceCustomElementRecalc('early');
+            }, 100);
+
+            if (window.customElements && typeof window.customElements.whenDefined === 'function') {
+              Promise.all([
+                customElements.whenDefined('ion-app'),
+                customElements.whenDefined('ion-content')
+              ]).then(function() {
+                forceCustomElementRecalc('whenDefined');
+              }).catch(function() {
+                forceCustomElementRecalc('whenDefined-fallback');
+              });
+            } else {
+              setTimeout(function() {
+                forceCustomElementRecalc('delayed');
+              }, 1500);
+            }
+          })
+          .catch(function(error) {
+            console.error('[CSS Loader] Failed to fetch and inject CSS:', error);
+          });
+      }
+      
+      function checkAndFixCSS() {
+        var links = document.querySelectorAll('link[rel="stylesheet"]');
+        console.log('[CSS Loader] Checking', links.length, 'stylesheet links');
+        
+        links.forEach(function(link) {
+          var href = link.href;
+          if (!href) return;
+          
+          // Skip if already processed
+          if (processedLinks.has(href)) {
+            return;
+          }
+          
+          processedLinks.add(href);
+          console.log('[CSS Loader] Processing link:', href);
+          
+          // Fix print media
+          if (link.media === 'print') {
+            link.media = 'all';
+            console.log('[CSS Loader] Fixed print media for:', href);
+          }
+          
+          // Check if CSS loaded after a short delay
+          setTimeout(function() {
+            try {
+              var sheet = link.sheet;
+              if (sheet && sheet.cssRules && sheet.cssRules.length > 0) {
+                console.log('[CSS Loader] CSS loaded successfully for:', href, 'rules:', sheet.cssRules.length);
+                
+                // Verify CSS rules are accessible (WebView might load but not apply)
+                try {
+                  var sampleRule = sheet.cssRules[0];
+                  console.log('[CSS Loader] First CSS rule accessible:', sampleRule ? 'Yes' : 'No');
+                  if (sampleRule && sampleRule.selectorText) {
+                    console.log('[CSS Loader] Sample selector:', sampleRule.selectorText.substring(0, 50));
+                  }
+                } catch (e) {
+                  console.warn('[CSS Loader] Cannot access CSS rules (cross-origin?):', e);
+                }
+                
+                // Even if CSS "loaded", WebView might not apply it - inject directly as backup
+                console.log('[CSS Loader] Injecting CSS directly as backup to ensure application');
+                injectCSSFromFetch(href);
+                
+                // Force style recalculation multiple times
+                function forceStyleRecalc() {
+                  if (document.body) {
+                    // Multiple techniques to force style recalculation
+                    document.body.style.display = 'none';
+                    var height = document.body.offsetHeight; // Force reflow
+                    document.body.style.display = '';
+                    
+                    // Force repaint
+                    document.body.style.visibility = 'hidden';
+                    document.body.style.visibility = 'visible';
+                    
+                    // Trigger layout recalculation
+                    void document.body.offsetWidth;
+                    void document.body.offsetHeight;
+                    
+                    // Force all elements to recalculate
+                    var allElements = document.querySelectorAll('*');
+                    for (var i = 0; i < allElements.length; i++) {
+                      void allElements[i].offsetHeight;
+                    }
+                    
+                    console.log('[CSS Loader] Forced style recalculation');
+                  }
+                }
+                
+                // Force recalculation immediately and after delays
+                forceStyleRecalc();
+                setTimeout(forceStyleRecalc, 100);
+                setTimeout(forceStyleRecalc, 500);
+                setTimeout(forceStyleRecalc, 1000);
+                
+                // Verify styles are actually applied and force repaint after Angular loads
+                function waitForAngularAndRepaint() {
+                  // Wait for Angular to bootstrap (check for app-root content)
+                  var appRoot = document.querySelector('app-root');
+                  var ionApp = document.querySelector('ion-app');
+                  
+                  if (appRoot && appRoot.children.length > 0 && ionApp) {
+                    console.log('[CSS Loader] Angular initialized, forcing complete repaint');
+                    
+                    // CRITICAL: Force ion-app to display: block (WebView may not apply external CSS)
+                    if (ionApp) {
+                      ionApp.style.setProperty('display', 'block', 'important');
+                      ionApp.style.setProperty('position', 'relative', 'important');
+                      ionApp.style.setProperty('width', '100%', 'important');
+                      ionApp.style.setProperty('height', '100%', 'important');
+                      console.log('[CSS Loader] Forced ion-app to display: block');
+                    }
+                    
+                    // Force all Ionic components to have correct display
+                    var ionElements = document.querySelectorAll('ion-content, ion-header, ion-toolbar, ion-title, ion-button, ion-list, ion-item');
+                    for (var j = 0; j < ionElements.length; j++) {
+                      var ionEl = ionElements[j];
+                      if (ionEl.tagName === 'ION-APP') {
+                        ionEl.style.setProperty('display', 'block', 'important');
+                      } else if (ionEl.tagName === 'ION-CONTENT') {
+                        ionEl.style.setProperty('display', 'block', 'important');
+                      } else if (ionEl.tagName === 'ION-HEADER') {
+                        ionEl.style.setProperty('display', 'block', 'important');
+                      } else if (ionEl.tagName === 'ION-TOOLBAR') {
+                        ionEl.style.setProperty('display', 'block', 'important');
+                      } else if (ionEl.tagName === 'ION-BUTTON') {
+                        ionEl.style.setProperty('display', 'inline-block', 'important');
+                      } else {
+                        ionEl.style.setProperty('display', 'block', 'important');
+                      }
+                    }
+                    console.log('[CSS Loader] Forced display properties on', ionElements.length, 'Ionic elements');
+                    
+                    // Force complete repaint using multiple techniques
+                    function forceCompleteRepaint() {
+                      // Method 1: Toggle display
+                      document.body.style.display = 'none';
+                      void document.body.offsetHeight;
+                      document.body.style.display = '';
+                      
+                      // Method 2: Force layout recalculation on all elements
+                      var allElements = document.querySelectorAll('*');
+                      for (var i = 0; i < allElements.length; i++) {
+                        var el = allElements[i];
+                        void el.offsetWidth;
+                        void el.offsetHeight;
+                        // Force style recalculation
+                        el.style.transform = 'translateZ(0)';
+                        void el.offsetHeight;
+                        el.style.transform = '';
+                      }
+                      
+                      // Method 3: Force GPU acceleration
+                      if (ionApp) {
+                        ionApp.style.willChange = 'transform';
+                        ionApp.style.transform = 'translateZ(0)';
+                        void ionApp.offsetHeight;
+                        ionApp.style.transform = '';
+                        ionApp.style.willChange = '';
+                      }
+                      
+                      // Method 4: Trigger resize event to force repaint
+                      window.dispatchEvent(new Event('resize'));
+                      
+                      console.log('[CSS Loader] Complete repaint forced');
+                    }
+                    
+                    // Force repaint multiple times
+                    forceCompleteRepaint();
+                    setTimeout(forceCompleteRepaint, 100);
+                    setTimeout(forceCompleteRepaint, 500);
+                    setTimeout(forceCompleteRepaint, 1000);
+                    setTimeout(forceCompleteRepaint, 2000);
+                    
+                      // Verify final state and check for issues
+                      setTimeout(function() {
+                        var testElement = document.querySelector('body');
+                        if (testElement) {
+                          var computedStyle = window.getComputedStyle(testElement);
+                          var bgColor = computedStyle.backgroundColor;
+                          console.log('[CSS Loader] Final body computed background-color:', bgColor);
+                          console.log('[CSS Loader] Body inline style:', testElement.getAttribute('style'));
+                          
+                          if (ionApp) {
+                            var ionAppStyle = window.getComputedStyle(ionApp);
+                            console.log('[CSS Loader] Final ion-app computed display:', ionAppStyle.display, 'width:', ionAppStyle.width, 'height:', ionAppStyle.height);
+                            console.log('[CSS Loader] ion-app inline style:', ionApp.getAttribute('style'));
+                            console.log('[CSS Loader] ion-app classes:', ionApp.className);
+                            
+                            // Check if Ionic CSS classes are present
+                            var ionContent = document.querySelector('ion-content');
+                            if (ionContent) {
+                              var ionContentStyle = window.getComputedStyle(ionContent);
+                              console.log('[CSS Loader] ion-content computed background:', ionContentStyle.backgroundColor);
+                            }
+                          }
+                          
+                          // Check total number of stylesheets
+                          console.log('[CSS Loader] Total stylesheets in document:', document.styleSheets.length);
+                          for (var i = 0; i < document.styleSheets.length; i++) {
+                            try {
+                              var sheet = document.styleSheets[i];
+                              console.log('[CSS Loader] Stylesheet', i, ':', sheet.href || 'inline', 'rules:', sheet.cssRules ? sheet.cssRules.length : 'N/A');
+                            } catch (e) {
+                              console.log('[CSS Loader] Stylesheet', i, ': (cross-origin or error)');
+                            }
+                          }
+                        }
+                      }, 2500);
+
+                      setTimeout(function retryIonicStyles(attempt) {
+                        var ionApp = document.querySelector('ion-app');
+                        if (!ionApp && attempt < 20) {
+                          return setTimeout(function() { retryIonicStyles(attempt + 1); }, 300);
+                        }
+
+                        var nodes = document.querySelectorAll('ion-app, ion-content, ion-header, ion-toolbar, ion-button, ion-list, ion-item, ion-menu, ion-menu-button');
+                        for (var i = 0; i < nodes.length; i++) {
+                          var el = nodes[i];
+                          void el.offsetWidth;
+                          void el.offsetHeight;
+                          el.style.transform = 'translateZ(0)';
+                          void el.offsetHeight;
+                          el.style.transform = '';
+                        }
+                        console.log('[CSS Loader] Re-applied styles after Ionic boot. Elements:', nodes.length);
+                      }, 1500, 0);
+                  } else {
+                    // Angular not ready yet, try again
+                    console.log('[CSS Loader] Waiting for Angular to initialize...');
+                    setTimeout(waitForAngularAndRepaint, 500);
+                  }
+                }
+                
+                // Start waiting for Angular after CSS loads
+                setTimeout(waitForAngularAndRepaint, 2000);
+              } else {
+                console.warn('[CSS Loader] CSS NOT loaded for:', href, '- attempting direct injection');
+                // CSS didn't load, inject directly
+                injectCSSFromFetch(href);
+              }
+            } catch (e) {
+              // Cross-origin or other error - try direct injection
+              console.warn('[CSS Loader] Error checking sheet for:', href, '- attempting direct injection');
+              injectCSSFromFetch(href);
+            }
+          }, 500); // Wait 500ms for CSS to load
+        });
+      }
+      
+      // Wait for stylesheet links to be added by Angular build
+      function waitForStylesheets() {
+        var maxAttempts = 20;
+        var attempt = 0;
+        
+        var checkInterval = setInterval(function() {
+          attempt++;
+          var links = document.querySelectorAll('link[rel="stylesheet"]');
+          
+          if (links.length > 0 || attempt >= maxAttempts) {
+            clearInterval(checkInterval);
+            if (links.length > 0) {
+              console.log('[CSS Loader] Stylesheet links found, checking...');
+              checkAndFixCSS();
+            } else {
+              console.warn('[CSS Loader] No stylesheet links found after', maxAttempts, 'attempts');
+            }
+          }
+        }, 100);
+      }
+      
+      // Start checking
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', waitForStylesheets);
+      } else {
+        waitForStylesheets();
+      }
+      
+      // Also watch for new links being added
+      if (window.MutationObserver) {
+        var observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            mutation.addedNodes.forEach(function(node) {
+              if (node.nodeType === 1 && node.tagName === 'LINK' && node.rel === 'stylesheet') {
+                console.log('[CSS Loader] New stylesheet link detected:', node.href);
+                // Reset processed set to check new links
+                processedLinks.delete(node.href);
+                setTimeout(checkAndFixCSS, 100);
+              }
+            });
+          });
+        });
+        
+        if (document.head) {
+          observer.observe(document.head, { childList: true, subtree: true });
+        }
+      }
+    })();
+  </script>
 
   <!-- add to homescreen for ios -->
   <meta name="mobile-web-app-capable" content="yes" />
