@@ -31,7 +31,7 @@
     </ion-buttons>
   </ion-toolbar>
 
-  <ion-toolbar class="full-width">
+  <ion-toolbar class="full-width  tabs-toolbar">
     <ion-segment [(ngModel)]="filterSegment" (ionChange)="segmentChanged($event)" value="all" class="full-width">
       <ion-segment-button value="all">
         <ion-label>All</ion-label>
@@ -57,7 +57,7 @@
       <ion-icon name="calendar-outline" color="medium"></ion-icon>
       <h3>No Routines Found</h3>
       <p *ngIf="!customerNameFilter">Add your first routine to get started.</p>
-      <p *ngIf="customerNameFilter">No routines found for this customer.</p>
+      <p *ngIf="customerNameFilter">No routines found for this contact.</p>
       <ion-button *ngIf="!customerNameFilter" (click)="navigateAddTask()" expand="block" fill="clear">
         Add Routine
       </ion-button>

@@ -8,7 +8,7 @@
 </ion-header>
 
 <ion-content class="ion-padding ">
-  <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+  <form id="task-form" [formGroup]="taskForm" (ngSubmit)="onSubmit()">
     <!-- Basic Task Information -->
     <ion-card>
       <ion-card-header>
@@ -66,7 +66,7 @@
               <ion-label position="stacked">Assigned to</ion-label>
               <ion-select 
                 formControlName="customerId"
-                [attr.aria-label]="'Assign to customer'">
+                [attr.aria-label]="'Assign to contact'">
                 <ion-select-option [value]="null">No one</ion-select-option>
                 <ion-select-option *ngFor="let customer of customers" [value]="customer.id">
                   {{ customer.name }}
@@ -254,11 +254,22 @@
       </ion-card-content>
     </ion-card>
 
-    <ion-button type="submit" expand="block" [disabled]="taskForm.invalid || isSubmitting" class="ion-margin submit-button">
-      <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
-      {{ isEditMode ? 'Update Routine' : 'Start Tracking' }}
-    </ion-button>
   </form>
+
+  <div slot="fixed" class="task-form-footer">
+    <ion-toolbar>
+      <ion-button
+        type="submit"
+        form="task-form"
+        expand="block"
+        [disabled]="taskForm.invalid || isSubmitting"
+        class="submit-button"
+      >
+        <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
+        {{ isEditMode ? 'Update Routine' : 'Start Tracking' }}
+      </ion-button>
+    </ion-toolbar>
+  </div>
 </ion-content>
 
 <style>
@@ -351,7 +362,7 @@ ion-segment-button ion-label small {
 }
 
 .submit-button {
-  margin-bottom: 24px !important;
+  margin-bottom: 0 !important;
 }
 
 ion-card {

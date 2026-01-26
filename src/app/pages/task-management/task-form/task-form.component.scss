@@ -4,6 +4,7 @@
 :host {
   display: block;
   height: 100%;
+  --task-form-footer-height: 92px;
 }
 
 // Hide the page header bar (title/back button)
@@ -17,7 +18,8 @@ ion-content {
   --padding-start: 16px;
   --padding-end: 16px;
   --padding-top: 16px;
-  --padding-bottom: 16px;
+  // Extra space so content doesn't hide behind fixed footer
+  --padding-bottom: calc(16px + var(--task-form-footer-height) + var(--app-safe-area-bottom));
 }
 
 // Form section styling
@@ -139,7 +141,7 @@ ion-chip {
     --padding-start: 12px;
     --padding-end: 12px;
     --padding-top: 12px;
-    --padding-bottom: 12px;
+    --padding-bottom: calc(12px + var(--task-form-footer-height) + var(--app-safe-area-bottom));
   }
   
   .form-section {
@@ -370,8 +372,23 @@ ion-chip {
   }
 }
 
+.task-form-footer {
+  width: 100%;
+}
+
+.task-form-footer ion-toolbar {
+  --background: var(--ion-color-light) !important;
+  --color: var(--ion-color-dark) !important;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --padding-top: 8px !important;
+  --padding-bottom: calc(8px + var(--app-safe-area-bottom)) !important;
+  min-height: 56px;
+}
+
 .submit-button {
-  margin: 24px 16px;
   --border-radius: 8px;
   font-weight: 600;
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
 }

@@ -85,7 +85,7 @@ import { TaskCycleService } from './services/task-cycle.service';
 })
 export class AppComponent {
   public appPages = [
-    { title: 'Customers', url: '/customers', icon: 'people-outline' },
+    { title: 'Contacts', url: '/customers', icon: 'people-outline' },
     { title: 'Tasks', url: '/tasks', icon: 'checkbox-outline' },
     { title: 'Task Types', url: '/settings/task-types', icon: 'settings-outline' },
     { title: 'Notification Methods', url: '/settings/notification-types', icon: 'notifications-outline' }

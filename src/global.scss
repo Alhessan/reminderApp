@@ -113,22 +113,13 @@
 // Prevent overlap with system status bar
 // ===========================================
 
-// Ensure safe-area variable exists in all runtimes
+// Ensure safe-area variables exist in all runtimes
 :root {
   --app-safe-area-top: var(--ion-safe-area-top, env(safe-area-inset-top, 0px));
+  --app-safe-area-bottom: var(--ion-safe-area-bottom, env(safe-area-inset-bottom, 0px));
 }
 
 // Apply safe padding to headers/toolbars
-
-// Apply safe padding to page content (even when headers are hidden)
-ion-content {
-  --padding-top: var(--app-spacing-md, 16px);
-}
-
-// Global top padding for headers (matches inspector tweak)
-ion-header {
-  padding-top: 25px;
-}
 
 // Remove Ionic header/toolbar hairline and shadows globally
 ion-header::after,
@@ -413,10 +404,14 @@ ion-progress-bar {
 ion-toolbar {
   --padding-start: 16px;
   --padding-end: 16px;
-  --padding-top: 12px;
-  --padding-bottom: 12px;
+  --padding-top: calc(30px + var(--app-safe-area-top));
   --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   --color: white !important;
+}
+
+.tabs-toolbar {
+  --padding-top:2px!important;
+  --padding-bottom:2px!important;
 }
 
 ion-toolbar ion-button {

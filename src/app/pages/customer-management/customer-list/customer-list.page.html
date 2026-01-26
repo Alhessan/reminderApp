@@ -3,7 +3,7 @@
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
-    <ion-title>Customers</ion-title>
+    <ion-title>Contacts</ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="navigateToAddCustomer()">
         <ion-icon slot="icon-only" name="add-circle-outline"></ion-icon>
@@ -17,30 +17,30 @@
     <!-- Loading State -->
     <div *ngIf="isLoading" class="ion-text-center ion-padding-top">
       <ion-spinner name="crescent"></ion-spinner>
-      <p class="ion-margin-top">Loading customers...</p>
+      <p class="ion-margin-top">Loading contacts...</p>
     </div>
 
     <!-- Empty State -->
     <div *ngIf="!isLoading && (!customers || customers.length === 0)" class="empty-state">
       <ion-icon name="people-outline"></ion-icon>
-      <h3>No Customers Yet</h3>
-      <p>Start building your customer base by adding your first customer.</p>
+      <h3>No Contacts Yet</h3>
+      <p>Start building your contacts list by adding your first contact.</p>
       <ion-button (click)="navigateToAddCustomer()" fill="solid" shape="round">
         <ion-icon slot="start" name="add-outline"></ion-icon>
-        Add First Customer
+        Add First Contact
       </ion-button>
     </div>
 
-    <!-- Customer Overview -->
+    <!-- Contact Overview -->
     <ion-card *ngIf="!isLoading && customers && customers.length > 0" class="customer-overview">
       <h2>
         <ion-icon name="analytics-outline" color="primary"></ion-icon>
-        Customer Overview
+        Contact Overview
       </h2>
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">{{ customers.length }}</div>
-          <div class="stat-label">Total Customers</div>
+          <div class="stat-label">Total Contacts</div>
         </div>
         <div class="stat-card">
           <div class="stat-value">{{ getCustomersWithEmail() }}</div>
