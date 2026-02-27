@@ -69,3 +69,8 @@ testem.log
 .DS_Store
 Thumbs.db
 reminderApp - share.zip
+
+
+#igonore speckit files
+.specify
+.opencode
