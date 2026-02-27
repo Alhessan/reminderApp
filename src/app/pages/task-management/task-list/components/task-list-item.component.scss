@@ -48,12 +48,17 @@
 
   ion-label {
     margin: 12px 0;
-    
+    min-width: 0;
+    flex: 1 1 auto;
+
     h2 {
       font-size: 16px;
       font-weight: 600;
       margin: 0 0 8px 0;
       color: var(--ion-color-dark);
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      line-height: 1.35;
     }
 
     .task-info {
@@ -61,10 +66,12 @@
       align-items: center;
       gap: 8px;
       margin-bottom: 8px;
+      min-width: 0;
 
       ion-text {
         font-size: 14px;
         color: var(--ion-color-medium);
+        flex-shrink: 0;
       }
     }
   }
@@ -127,7 +134,9 @@
     align-items: flex-end;
     gap: 4px;
     margin-right: 8px;
-    min-width: 80px;
+    min-width: 0;
+    flex-shrink: 0;
+    max-width: 45%;
 
     ion-badge {
       text-transform: capitalize;
@@ -135,18 +144,29 @@
       padding: 4px 8px;
       border-radius: 4px;
       font-weight: 500;
-      width: 100%;
+      max-width: 100%;
       justify-content: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .task-type {
       margin: 0;
-      height: 20px;
+      min-height: 20px;
       font-size: 12px;
       --background: var(--ion-color-light);
       --color: var(--ion-color-dark);
-      width: 100%;
+      max-width: 100%;
       justify-content: center;
+
+      ion-label {
+        white-space: normal;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        text-align: center;
+        line-height: 1.25;
+      }
     }
 
     ion-note {

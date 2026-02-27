@@ -71,6 +71,17 @@ function normalizeIsArchived(value: string | number): 0 | 1 {
   }
 }
 
+/** Margin as percentage of routine interval (fallback). Prefer allowed delay in hours for consistency. */
+const MARGIN_PERCENT = 0.05;
+/** Allowed delay after due time before marking as MISSED (hours). e.g. daily: due+5h = end of allowed window. */
+const ALLOWED_DELAY_HOURS: Record<string, number> = {
+  daily: 5,
+  weekly: 24,
+  monthly: 48,
+  yearly: 168,
+  once: 24
+};
+
 @Injectable({
   providedIn: 'root'
 })
@@ -80,9 +91,119 @@ export class TaskCycleService {
 
   constructor(private db: DatabaseService, private taskService: TaskService) {}
 
+  /** Margin in ms: X% of the routine interval (daily, weekly, etc.) – used when no ALLOWED_DELAY_HOURS. */
+  private getMarginMs(frequency: string): number {
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    let intervalMs: number;
+    switch (frequency) {
+      case 'daily': intervalMs = oneDayMs; break;
+      case 'weekly': intervalMs = 7 * oneDayMs; break;
+      case 'monthly': intervalMs = 30 * oneDayMs; break;
+      case 'yearly': intervalMs = 365 * oneDayMs; break;
+      default: intervalMs = oneDayMs;
+    }
+    return Math.round(intervalMs * MARGIN_PERCENT);
+  }
+
+  /**
+   * First cycle start date so that due (start + notificationTime) is not in the past.
+   * Used when creating the initial cycle for a new task and when displaying a task with no cycles.
+   */
+  getFirstCycleStartDate(task: Task): string {
+    const start = new Date(task.startDate);
+    if (isNaN(start.getTime())) return new Date().toISOString();
+    const [h, m] = (task.notificationTime || '00:00').split(':').map(Number);
+    const setDue = (d: Date) => { d.setHours(h ?? 0, m ?? 0, 0, 0); };
+    const now = new Date();
+    let due = new Date(start);
+    setDue(due);
+    if (due.getTime() >= now.getTime()) return start.toISOString();
+    const maxIter = 1000;
+    let iter = 0;
+    while (due.getTime() < now.getTime() && iter++ < maxIter) {
+      switch (task.frequency) {
+        case 'daily':
+          start.setDate(start.getDate() + 1);
+          break;
+        case 'weekly':
+          start.setDate(start.getDate() + 7);
+          break;
+        case 'monthly':
+          start.setMonth(start.getMonth() + 1);
+          break;
+        case 'yearly':
+          start.setFullYear(start.getFullYear() + 1);
+          break;
+        default:
+          start.setDate(start.getDate() + 1);
+      }
+      due = new Date(start);
+      setDue(due);
+    }
+    return start.toISOString();
+  }
+
+  /**
+   * Due datetime for a cycle: cycle start date + task notification time (HH:mm).
+   * Returns ISO string so list can show the real due time, not a fixed midnight.
+   */
+  getDueDatetime(cycleStartDate: string, notificationTime: string): string {
+    const d = new Date(cycleStartDate);
+    if (isNaN(d.getTime())) return cycleStartDate;
+    const parts = (notificationTime || '00:00').split(':').map(Number);
+    const h = parts[0] ?? 0;
+    const m = parts[1] ?? 0;
+    d.setHours(h, m, 0, 0);
+    return d.toISOString();
+  }
+
+  /**
+   * End of allowed delay (deadline) after which cycle is marked MISSED. Due + N hours (e.g. daily: 5h).
+   */
+  private getMissedDeadlineMs(cycleStartDate: string, notificationTime: string, frequency: string): number {
+    const dueIso = this.getDueDatetime(cycleStartDate, notificationTime);
+    const dueMs = new Date(dueIso).getTime();
+    const hours = ALLOWED_DELAY_HOURS[frequency] ?? ALLOWED_DELAY_HOURS['once'];
+    return dueMs + hours * 60 * 60 * 1000;
+  }
+
+  /**
+   * Close cycles that are past due + allowed delay (mark as skipped = MISSED) and create the next cycle.
+   */
+  private async closeMissedCycles(): Promise<void> {
+    const cyclesResult = await this.db.executeQuery(`
+      SELECT * FROM task_cycles WHERE status IN ('pending', 'in_progress')
+    `);
+    const cycles = (cyclesResult.values || []) as Array<{ id: number; taskId: number; cycleStartDate: string; cycleEndDate: string; status: string }>;
+    const now = Date.now();
+
+    for (const cycle of cycles) {
+      const task = await this.getTask(cycle.taskId);
+      if (!task) continue;
+      const deadlineMs = this.getMissedDeadlineMs(cycle.cycleStartDate, task.notificationTime, task.frequency);
+      if (now <= deadlineMs) continue;
+
+      await this.db.executeQuery(
+        'UPDATE task_cycles SET status = ? WHERE id = ?',
+        ['skipped', cycle.id]
+      );
+      const cycleObj: TaskCycle = {
+        id: cycle.id,
+        taskId: cycle.taskId,
+        cycleStartDate: cycle.cycleStartDate,
+        cycleEndDate: cycle.cycleEndDate,
+        status: 'skipped',
+        progress: 0
+      };
+      await this.createNextCycle(task, cycleObj);
+    }
+  }
+
   // Full workaround: bypass CTE regex by pre-fetching in JS (avoid complex SQL for web)
 async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all'): Promise<void> {
   try {
+    await this.closeMissedCycles();
+
     // Debug query to check raw tasks data
     const debugResult = await this.db.executeQuery('SELECT * FROM tasks');
     console.log('Debug - All tasks in database:', debugResult.values);
@@ -193,22 +314,26 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
         status: latestCycle.status,
         progress: latestCycle.progress || 0,
         completedAt: latestCycle.completedAt
-      } : {
-        taskId: task.id!,
-        cycleStartDate: task.startDate,
-        cycleEndDate: this.calculateCycleEnd(task.startDate, task.frequency),
-        status: 'pending' as TaskCycleStatus,
-        progress: 0
-      };
+      } : (() => {
+        const firstStart = this.getFirstCycleStartDate(task);
+        return {
+          taskId: task.id!,
+          cycleStartDate: firstStart,
+          cycleEndDate: this.calculateCycleEnd(firstStart, task.frequency),
+          status: 'pending' as TaskCycleStatus,
+          progress: 0
+        };
+      })();
 
-      const isOverdue = new Date(cycleData.cycleEndDate) < new Date() && cycleData.status !== 'completed';
+      const nextDueDate = this.getDueDatetime(cycleData.cycleStartDate, task.notificationTime);
+      const isOverdue = new Date(nextDueDate) < new Date() && cycleData.status !== 'completed' && cycleData.status !== 'skipped';
       
       return {
         task,
         currentCycle: cycleData,
         taskStatus: this.getTaskStatus(cycleData),
         isOverdue,
-        nextDueDate: cycleData.cycleEndDate,
+        nextDueDate,
         daysSinceLastCompletion: cycleData.completedAt ? 
           Math.floor((new Date().getTime() - new Date(cycleData.completedAt).getTime()) / (1000 * 60 * 60 * 24)) : 
           undefined,
@@ -222,16 +347,18 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
       const completed: TaskCycleStatus = 'completed';
       const inProgress: TaskCycleStatus = 'in_progress';
       const pending: TaskCycleStatus = 'pending';
+      const skipped: TaskCycleStatus = 'skipped';
 
       switch (view) {
         case 'overdue':
-          return c.cycleEndDate < now && c.status !== completed;
+          return c.cycleEndDate < now && c.status !== completed && c.status !== skipped;
         case 'in_progress':
           return c.status === inProgress;
         case 'upcoming':
           return c.status === pending;
         default:
-          return true;
+          // 'all': do not show missed (skipped) tasks in the main list
+          return c.status !== skipped;
       }
     })
     .sort((a: TaskListItem, b: TaskListItem) => {
@@ -321,11 +448,11 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
       await this.db.executeQuery(query, params);
       console.log('Status updated successfully');
 
-      // If completing a cycle, create next cycle
-      if (status === 'completed') {
+      // If completing or manually skipping a cycle, create next cycle (so task stays in list with new occurrence)
+      if (status === 'completed' || status === 'skipped') {
         const task = await this.getTask(cycle.taskId);
         if (task) {
-          await this.createNextCycle(task, cycle);
+          await this.createNextCycle(task, { ...cycle, status });
         }
       }
 
@@ -357,9 +484,13 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
         return latestCycle.id!;
       }
 
-      const startDate = previousCycle ? 
-        this.calculateNextCycleStart(previousCycle.cycleEndDate, task.frequency) :
-        new Date().toISOString();
+      // For skipped: use cycle start so next cycle has a later due date (not the same as skipped one)
+      const skipped: TaskCycleStatus = 'skipped';
+      const startDate = previousCycle
+        ? (previousCycle.status === skipped
+            ? this.calculateNextCycleStart(previousCycle.cycleStartDate, task.frequency)
+            : this.calculateNextCycleStart(previousCycle.cycleEndDate, task.frequency))
+        : this.getFirstCycleStartDate(task);
 
       const endDate = this.calculateCycleEnd(startDate, task.frequency);
       console.log('New cycle dates:', { startDate, endDate });
@@ -867,6 +998,16 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
 
     // For skipped status, we don't show in main view
     return 'Pending';
+  }
+
+  /** Public for use in task detail: whether the cycle can be started early */
+  canStartCycle(cycle: TaskCycle): boolean {
+    return this.canStartEarly(cycle);
+  }
+
+  /** Public for use in task detail: whether the cycle can be marked complete */
+  canCompleteCycle(cycle: TaskCycle): boolean {
+    return this.canComplete(cycle);
   }
 
   private canStartEarly(cycle: TaskCycle): boolean {

@@ -1,6 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { AlertController, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule, ActionSheetButton, ToastController } from '@ionic/angular'; // Added IonicModule, ToastController
+import { AlertController, IonContent, IonItemSliding, NavController, SegmentChangeEventDetail, ActionSheetController, IonicModule, ActionSheetButton, ToastController, Platform } from '@ionic/angular';
 import { Task } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
 import { DatabaseService } from '../../../services/database.service';
@@ -41,6 +41,7 @@ export class TaskListPage implements OnInit {
   customerIdFilter?: number;
   customerNameFilter?: string;
   private taskListSubscription?: Subscription;
+  @ViewChild(IonContent) content?: IonContent;
 
   constructor(
     private taskService: TaskService,
@@ -53,8 +54,14 @@ export class TaskListPage implements OnInit {
     private actionSheetCtrl: ActionSheetController,
     private taskCycleService: TaskCycleService,
     private toastController: ToastController,
-    private modalController: ModalController
+    private modalController: ModalController,
+    public platform: Platform
   ) { }
+
+  /** Shorter title on narrow screens to avoid "Upco..." truncation */
+  get headerTitle(): string {
+    return this.platform.width() < 768 ? 'Routines' : 'Upcoming Routines';
+  }
 
   async ngOnInit() {
     await this.databaseService.initializeDatabase();
@@ -105,6 +112,14 @@ export class TaskListPage implements OnInit {
       }
       await this.loadTasks();
     });
+  }
+
+  ionViewDidEnter() {
+    // Restore scroll when returning from task detail (Ionic can lose scroll after nav back)
+    if (this.content) {
+      this.content.scrollToTop(0).catch(() => {});
+      setTimeout(() => this.content?.scrollToTop(0).catch(() => {}), 100);
+    }
   }
 
   async loadCustomers() {

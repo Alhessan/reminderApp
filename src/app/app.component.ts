@@ -70,6 +70,7 @@ import {
 } from 'ionicons/icons';
 import { SampleDataService } from './services/sample-data.service';
 import { TaskCycleService } from './services/task-cycle.service';
+import { TaskService } from './services/task.service';
 
 @Component({
   selector: 'app-root',
@@ -99,7 +100,8 @@ export class AppComponent {
     private sampleDataService: SampleDataService,
     public router: Router,
     private navController: NavController,
-    private taskCycleService: TaskCycleService
+    private taskCycleService: TaskCycleService,
+    private taskService: TaskService
   ) {
     // Register Ionic icons first (synchronous operation)
     addIcons({
@@ -223,29 +225,30 @@ export class AppComponent {
             console.log('[App] Database initialized');
           }
 
-          // Request notification permissions (non-blocking)
+          // Request notification permissions first so reschedule can run with permission on device
           const hasPermission = await this.notificationService.hasNotificationPermissions();
-          
           if (shouldLog) {
             console.log('[App] Notification permission status:', hasPermission ? 'granted' : 'denied');
           }
-          
           if (!hasPermission) {
-            if (shouldLog) {
-              console.log('[App] Requesting notification permissions...');
-            }
-            // Don't await this - let it happen in background
-            this.notificationService.requestNotificationPermissions().then(granted => {
-              if (shouldLog) {
-                console.log('[App] Permission request result:', granted ? 'granted' : 'denied');
-              }
-            }).catch(err => {
+            if (shouldLog) console.log('[App] Requesting notification permissions...');
+            await this.notificationService.requestNotificationPermissions().catch(err => {
               console.error('[App] Error requesting permissions:', err);
             });
+            if (shouldLog) {
+              const nowGranted = await this.notificationService.hasNotificationPermissions();
+              console.log('[App] After request:', nowGranted ? 'granted' : 'denied');
+            }
           }
 
-          // Register notification listeners (non-blocking)
+          // Register listeners and create Android channel before any scheduling
           await this.notificationService.registerNotificationListeners();
+
+          // Reschedule all push notifications (e.g. after app restart)
+          await this.taskService.rescheduleAllPendingNotifications().catch(err =>
+            console.warn('[App] Reschedule notifications:', err)
+          );
+          if (shouldLog) console.log('[App] Pending notifications rescheduled');
           
           if (shouldLog) {
             console.log('[App] Initialization complete');

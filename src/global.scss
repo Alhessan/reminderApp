@@ -399,19 +399,23 @@ ion-progress-bar {
 }
 
 // ===========================================
-// TOOLBAR STYLING
+// TOOLBAR STYLING (safe area only – no extra top space)
 // ===========================================
 ion-toolbar {
   --padding-start: 16px;
   --padding-end: 16px;
-  --padding-top: calc(30px + var(--app-safe-area-top));
+  --padding-top: var(--app-safe-area-top, 0px);
+  --min-height: 56px;
+  min-height: calc(56px + var(--app-safe-area-top, 0px));
   --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   --color: white !important;
 }
 
 .tabs-toolbar {
-  --padding-top:2px!important;
-  --padding-bottom:2px!important;
+  --padding-top: 4px !important;
+  --padding-bottom: 4px !important;
+  --min-height: 44px;
+  min-height: 44px;
 }
 
 ion-toolbar ion-button {

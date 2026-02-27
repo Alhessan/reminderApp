@@ -1,8 +1,9 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { AlertController, NavController, IonicModule, AlertInput, ModalController } from '@ionic/angular';
+import { AlertController, NavController, IonicModule, AlertInput, ModalController, ToastController } from '@ionic/angular';
 import { TaskService } from '../../../services/task.service';
+import { NotificationService } from '../../../services/notification.service';
 import { CustomerService } from '../../../services/customer.service';
 import { TaskTypeService } from '../../../services/task-type.service';
 import { NotificationTypeService } from '../../../services/notification-type.service';
@@ -64,6 +65,8 @@ export class TaskFormComponent implements OnInit, OnDestroy {
 
   minDate = new Date().toISOString();
   maxDate = new Date(new Date().setFullYear(new Date().getFullYear() + 5)).toISOString();
+  /** 1-31 for monthly day selector */
+  monthDays = Array.from({ length: 31 }, (_, i) => i + 1);
 
   private notificationTypes: NotificationType[] = [];
   private notificationTypesSubscription?: Subscription;
@@ -80,7 +83,9 @@ export class TaskFormComponent implements OnInit, OnDestroy {
     private databaseService: DatabaseService,
     private router: Router,
     private modalController: ModalController,
-    private translationService: TranslationService
+    private translationService: TranslationService,
+    private notificationService: NotificationService,
+    private toastController: ToastController
   ) {
     console.log('TaskFormComponent constructor called');
     // Register Ionic icons
@@ -253,9 +258,33 @@ export class TaskFormComponent implements OnInit, OnDestroy {
             ...formData
           });
           await this.presentSuccessAlert(this.t('validation.task.updated'));
+          if (formData.notificationType === 'push') {
+            const hasPermission = await this.notificationService.hasNotificationPermissions();
+            if (!hasPermission) {
+              const toast = await this.toastController.create({
+                message: 'Notifications are disabled. Enable them in device settings to get reminders.',
+                duration: 4000,
+                color: 'warning',
+                position: 'bottom'
+              });
+              await toast.present();
+            }
+          }
         } else {
           await this.taskService.createTask(formData);
           await this.presentSuccessAlert(this.t('validation.task.created'));
+        }
+        if (formData.notificationType === 'push') {
+          const hasPermission = await this.notificationService.hasNotificationPermissions();
+          if (!hasPermission) {
+            const toast = await this.toastController.create({
+              message: 'Notifications are disabled. Enable them in device settings to get reminders.',
+              duration: 4000,
+              color: 'warning',
+              position: 'bottom'
+            });
+            await toast.present();
+          }
         }
         this.navController.navigateBack('/tasks');
       } catch (error) {
@@ -406,6 +435,55 @@ export class TaskFormComponent implements OnInit, OnDestroy {
       month: 'long',
       day: 'numeric'
     });
+  }
+
+  formatDateYearly(dateString: string): string {
+    if (!dateString) return 'Not set';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+  }
+
+  getReminderDayOfWeek(): string {
+    const v = this.taskForm.get('startDate')?.value;
+    if (!v) return '1';
+    const d = new Date(v);
+    return String(d.getDay());
+  }
+
+  onReminderDayOfWeekChange(event: any): void {
+    const day = Number(event.detail?.value ?? 1);
+    const next = this.getNextWeekday(day);
+    this.taskForm.patchValue({ startDate: next.toISOString().split('T')[0] });
+  }
+
+  private getNextWeekday(dayOfWeek: number): Date {
+    const now = new Date();
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    const current = d.getDay();
+    let diff = dayOfWeek - current;
+    if (diff <= 0) diff += 7;
+    d.setDate(d.getDate() + diff);
+    return d;
+  }
+
+  getReminderDayOfMonth(): number {
+    const v = this.taskForm.get('startDate')?.value;
+    if (!v) return 1;
+    return new Date(v).getDate() || 1;
+  }
+
+  onReminderDayOfMonthChange(event: any): void {
+    const day = Math.min(31, Math.max(1, Number(event.detail?.value ?? 1)));
+    const next = this.getNextDayOfMonth(day);
+    this.taskForm.patchValue({ startDate: next.toISOString().split('T')[0] });
+  }
+
+  private getNextDayOfMonth(day: number): Date {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth(), day);
+    if (d <= now) d.setMonth(d.getMonth() + 1);
+    return d;
   }
 
   // Add notification type handling
