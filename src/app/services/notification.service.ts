@@ -8,13 +8,37 @@ import { environment } from '../../environments/environment';
 import { from, Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 
+/** Android notification channel ID for task reminders (must exist or notifications won't show on real devices) */
+const REMINDERS_CHANNEL_ID = 'reminders';
+
 @Injectable({
   providedIn: 'root'
 })
 export class NotificationService {
   private readonly API_URL = environment.apiUrl + '/notifications/send';
+  private channelCreated = false;
 
   constructor(private platform: Platform, private http: HttpClient) { }
+
+  /**
+   * Create the reminders notification channel on Android (required for notifications to show on real devices).
+   * Safe to call multiple times; channel is created once.
+   */
+  private async ensureNotificationChannel(): Promise<void> {
+    if (!this.platform.is('capacitor') || this.channelCreated) return;
+    try {
+      await LocalNotifications.createChannel({
+        id: REMINDERS_CHANNEL_ID,
+        name: 'Reminders',
+        description: 'Task and routine reminders',
+        importance: 4, // IMPORTANCE_HIGH so they show and make sound on real devices
+        vibration: true
+      });
+      this.channelCreated = true;
+    } catch (e) {
+      console.warn('NotificationService: Could not create channel (may be non-Android)', e);
+    }
+  }
 
   async hasNotificationPermissions(): Promise<boolean> {
     if (this.platform.is('capacitor')) {
@@ -89,9 +113,19 @@ export class NotificationService {
     }
   }
 
+  /** Thrown when scheduling on Capacitor and notification permission is not granted */
+  static readonly NOTIFICATION_PERMISSION_DENIED = 'NOTIFICATION_PERMISSION_DENIED';
+
   async scheduleNotification(task: Task, isTestMode: boolean = false): Promise<void> {
     try {
       console.log('NotificationService: Starting notification scheduling for task:', task);
+
+      if (this.platform.is('capacitor')) {
+        const hasPermission = await this.hasNotificationPermissions();
+        if (!hasPermission) {
+          throw new Error(NotificationService.NOTIFICATION_PERMISSION_DENIED);
+        }
+      }
 
       // Check browser notification support and permissions first
       if (!this.platform.is('capacitor')) {
@@ -213,14 +247,19 @@ export class NotificationService {
         return;
       }
 
-      // Handle mobile notifications using Capacitor
+      // Handle mobile notifications using Capacitor (channel + allowWhileIdle for real devices)
+      await this.ensureNotificationChannel();
       console.log('NotificationService: Scheduling Capacitor notification for:', notificationDate.toLocaleString());
       await LocalNotifications.schedule({
         notifications: [{
           id: task.id!,
           title: task.title,
           body: task.notes || 'Task reminder',
-          schedule: { at: notificationDate },
+          channelId: REMINDERS_CHANNEL_ID,
+          schedule: {
+            at: notificationDate,
+            allowWhileIdle: true
+          },
           extra: {
             taskId: task.id,
             customerId: task.customerId
@@ -288,6 +327,8 @@ export class NotificationService {
 
   async registerNotificationListeners() {
     if (!this.platform.is('capacitor')) return;
+
+    await this.ensureNotificationChannel();
 
     LocalNotifications.addListener('localNotificationReceived', (notification) => {
       console.log('Local notification received:', notification);

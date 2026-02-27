@@ -115,13 +115,52 @@
           </ion-segment>
         </div>
 
+        <!-- Weekly: day of week -->
+        <div *ngIf="taskForm.get('frequency')?.value === 'weekly'" class="reminder-day-section">
+          <p class="start-date-label">Remind on which day?</p>
+          <ion-item lines="none">
+            <ion-select
+              [value]="getReminderDayOfWeek()"
+              (ionChange)="onReminderDayOfWeekChange($event)"
+              interface="action-sheet"
+              placeholder="Day of week"
+              [attr.aria-label]="'Day of week'">
+              <ion-select-option value="0">Sunday</ion-select-option>
+              <ion-select-option value="1">Monday</ion-select-option>
+              <ion-select-option value="2">Tuesday</ion-select-option>
+              <ion-select-option value="3">Wednesday</ion-select-option>
+              <ion-select-option value="4">Thursday</ion-select-option>
+              <ion-select-option value="5">Friday</ion-select-option>
+              <ion-select-option value="6">Saturday</ion-select-option>
+            </ion-select>
+          </ion-item>
+        </div>
+        <!-- Monthly: day of month -->
+        <div *ngIf="taskForm.get('frequency')?.value === 'monthly'" class="reminder-day-section">
+          <p class="start-date-label">Remind on which day of the month?</p>
+          <ion-item lines="none">
+            <ion-select
+              [value]="getReminderDayOfMonth()"
+              (ionChange)="onReminderDayOfMonthChange($event)"
+              interface="action-sheet"
+              placeholder="Day (1–31)"
+              [attr.aria-label]="'Day of month'">
+              <ion-select-option *ngFor="let d of monthDays" [value]="d">{{ d }}</ion-select-option>
+            </ion-select>
+          </ion-item>
+        </div>
+        <!-- Start date / reminder date (daily: start; weekly: next X day; monthly: next Xth; yearly: date each year) -->
         <div class="start-date-section">
-          <p class="start-date-label">When should it start?</p>
+          <p class="start-date-label">
+            <ng-container *ngIf="taskForm.get('frequency')?.value === 'yearly'">Remind on which date each year?</ng-container>
+            <ng-container *ngIf="taskForm.get('frequency')?.value !== 'yearly'">When should it start?</ng-container>
+          </p>
           <ion-item lines="none" button detail (click)="openDatePicker()" class="date-button">
             <ion-icon name="calendar-outline" slot="start" color="medium"></ion-icon>
             <ion-label>
-              <h2>Starts</h2>
-              <p>{{ formatDate(taskForm.get('startDate')?.value) }}</p>
+              <h2 *ngIf="taskForm.get('frequency')?.value === 'yearly'">Date (month & day)</h2>
+              <h2 *ngIf="taskForm.get('frequency')?.value !== 'yearly'">Starts</h2>
+              <p>{{ taskForm.get('frequency')?.value === 'yearly' ? formatDateYearly(taskForm.get('startDate')?.value) : formatDate(taskForm.get('startDate')?.value) }}</p>
             </ion-label>
           </ion-item>
         </div>

@@ -89,8 +89,14 @@ export class TaskService {
         'pending',
         0
       ]);
-  
+
       console.log('TaskService: Task created successfully with ID:', taskId);
+      const task = await this.getTaskById(taskId);
+      if (task && task.notificationType === 'push') {
+        this.scheduleTaskNotification(task).catch(err =>
+          console.warn('TaskService: Could not schedule notification for new task', err)
+        );
+      }
       return taskId;
     } catch (error) {
       console.error('Error creating task:', error);
@@ -201,6 +207,50 @@ export class TaskService {
     }
   }
 
+  /**
+   * Returns non-archived tasks that use push notifications, for rescheduling on app launch.
+   */
+  async getTasksWithPushNotifications(): Promise<Task[]> {
+    const result = await this.dbService.executeQuery(
+      'SELECT * FROM tasks WHERE (isArchived = 0 OR isArchived IS NULL) AND notificationType = ?',
+      ['push']
+    );
+    const rows = result.values || [];
+    return rows.map((row: any) => ({
+      id: Number(row.id),
+      title: row.title,
+      type: row.type,
+      customerId: row.customerId != null ? Number(row.customerId) : null,
+      frequency: row.frequency,
+      startDate: row.startDate,
+      notificationTime: row.notificationTime,
+      notificationType: row.notificationType,
+      notificationValue: row.notificationValue,
+      notes: row.notes,
+      isCompleted: Boolean(row.isCompleted),
+      lastCompletedDate: row.lastCompletedDate,
+      isArchived: Boolean(row.isArchived)
+    }));
+  }
+
+  /**
+   * Reschedule all push notifications (e.g. after app launch or device restart). Non-blocking; logs per-task errors.
+   */
+  async rescheduleAllPendingNotifications(): Promise<void> {
+    try {
+      const tasks = await this.getTasksWithPushNotifications();
+      for (const task of tasks) {
+        try {
+          await this.scheduleTaskNotification(task);
+        } catch (err) {
+          console.warn('TaskService: Failed to reschedule notification for task', task.id, err);
+        }
+      }
+    } catch (error) {
+      console.error('TaskService: Error rescheduling notifications:', error);
+    }
+  }
+
   async getAllTasks(): Promise<Task[]> {
     console.log('TaskService: Getting all tasks');
     const query = `
@@ -233,7 +283,9 @@ export class TaskService {
         notificationType: taskData.notificationType,
         notificationValue: taskData.notificationValue,
         notes: taskData.notes,
-        isArchived: taskData.isArchived === 1
+        isArchived: taskData.isArchived === 1,
+        isCompleted: Boolean(taskData.isCompleted),
+        lastCompletedDate: taskData.lastCompletedDate
       }));
       console.log('TaskService: Retrieved tasks:', tasks);
       return tasks;
@@ -246,6 +298,7 @@ export class TaskService {
   async updateTask(taskData: Task): Promise<void> {
     console.log('TaskService: Updating task:', taskData);
     try {
+      // Update only columns that exist on all DB schemas (no isCompleted/lastCompletedDate here)
       await this.dbService.executeQuery(`
         UPDATE tasks 
         SET title = ?,
@@ -257,8 +310,7 @@ export class TaskService {
             notificationTime = ?,
             notificationValue = ?,
             notes = ?,
-            isArchived = ?,
-            isCompleted = ?
+            isArchived = ?
         WHERE id = ?
       `, [
         taskData.title.trim(),
@@ -271,12 +323,31 @@ export class TaskService {
         taskData.notificationValue?.trim() || '',
         taskData.notes?.trim() || '',
         taskData.isArchived ? 1 : 0,
-        taskData.isCompleted ? 1 : 0,
         taskData.id
       ]);
+      // Persist completion fields when the table has those columns (e.g. after migration)
+      await this.updateTaskCompletionOptional(taskData.id, taskData.isCompleted, taskData.lastCompletedDate);
+      const task = await this.getTaskById(taskData.id);
+      if (task && task.notificationType === 'push') {
+        this.scheduleTaskNotification(task).catch(err =>
+          console.warn('TaskService: Could not schedule notification for updated task', err)
+        );
+      }
     } catch (error) {
       console.error('Error updating task:', error);
       throw error;
+    }
+  }
+
+  /** Updates isCompleted/lastCompletedDate if the tasks table has those columns; no-op otherwise. */
+  private async updateTaskCompletionOptional(taskId: number, isCompleted?: boolean, lastCompletedDate?: string | undefined): Promise<void> {
+    try {
+      await this.dbService.executeQuery(
+        `UPDATE tasks SET isCompleted = ?, lastCompletedDate = ? WHERE id = ?`,
+        [isCompleted ? 1 : 0, lastCompletedDate ?? null, taskId]
+      );
+    } catch {
+      // Columns may not exist on older DBs; ignore so main update still succeeds
     }
   }
 
@@ -380,7 +451,9 @@ export class TaskService {
         notificationType: taskData.notificationType,
         notificationValue: taskData.notificationValue,
         notes: taskData.notes,
-        isArchived: taskData.isArchived === 1
+        isArchived: taskData.isArchived === 1,
+        isCompleted: Boolean(taskData.isCompleted),
+        lastCompletedDate: taskData.lastCompletedDate
       }));
       console.log('TaskService: Retrieved customer tasks:', tasks);
       return tasks;

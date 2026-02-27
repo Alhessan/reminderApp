@@ -58,9 +58,114 @@
   }
 }
 
+.task-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 16px 0;
+
+  ion-button {
+    margin: 0;
+  }
+}
+
+// Work bench: single card for all actions + progress
+.work-bench {
+  margin: 12px 0 20px 0;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  ion-card-header {
+    padding-bottom: 8px;
+  }
+  ion-card-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  ion-card-subtitle {
+    font-size: 0.85rem;
+    opacity: 0.85;
+  }
+  ion-card-content {
+    padding-top: 4px;
+  }
+
+  .work-bench-section {
+    margin-bottom: 20px;
+    &:last-child { margin-bottom: 0; }
+  }
+  .section-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ion-color-medium);
+    margin-bottom: 10px;
+  }
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    ion-button { margin: 0; }
+    &.primary {
+      gap: 12px;
+      ion-button { --padding-start: 16px; --padding-end: 16px; }
+    }
+  }
+  .no-actions-hint {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--ion-color-medium);
+  }
+  .secondary .action-row { gap: 8px; }
+
+  // Progress block (when in progress)
+  .progress-block {
+    background: var(--ion-color-light);
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 4px;
+  }
+  .progress-header-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    .progress-value {
+      font-weight: 700;
+      font-size: 1.25rem;
+      color: var(--ion-color-primary);
+      min-width: 3ch;
+    }
+    .progress-value.ready { color: var(--ion-color-success); }
+    ion-progress-bar {
+      flex: 1;
+      height: 10px;
+      border-radius: 5px;
+    }
+  }
+  ion-range { padding: 6px 0 4px 0; --bar-height: 8px; }
+  .quick-progress-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 14px 0;
+    ion-button { margin: 0; }
+  }
+  .progress-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    ion-button { margin: 0; }
+  }
+}
+
 .task-details {
   .status-card {
-    margin: 20px 0;
+    margin: 20px 0 12px 0;
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     // background: linear-gradient(135deg, var(--ion-color-primary-tint) 0%, var(--ion-color-secondary-tint) 100%);
@@ -103,6 +208,60 @@
     margin: 20px 0;
     border-radius: 16px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    &.info-card-compact {
+      ion-card-content {
+        padding: 12px 16px;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 16px;
+        font-size: 13px;
+
+        .info-item {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+
+          .label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--ion-color-medium);
+          }
+
+          .value {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--ion-color-dark);
+            word-break: break-word;
+          }
+        }
+      }
+
+      .notes-section.compact {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--ion-color-light-shade);
+        font-size: 13px;
+
+        .notes-label {
+          font-weight: 600;
+          color: var(--ion-color-medium-shade);
+          margin-right: 6px;
+        }
+
+        .notes-content {
+          background: none;
+          padding: 0;
+          border: none;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+      }
+    }
     
     ion-card-header {
       padding-bottom: 12px;
@@ -157,7 +316,7 @@
       }
     }
     
-    .notes-section {
+    .notes-section:not(.compact) {
       margin-top: 20px;
       padding-top: 20px;
       border-top: 1px solid var(--ion-color-light-shade);

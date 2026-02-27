@@ -5,7 +5,7 @@
     </ion-buttons>
     <ion-title>{{ task?.title || "Routine Detail" }}</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="navigateToEditTask()" *ngIf="task">
+      <ion-button (click)="navigateToEditTask()" *ngIf="task" [disabled]="actionInProgress">
         <ion-icon slot="icon-only" name="create-outline"></ion-icon>
       </ion-button>
     </ion-buttons>
@@ -62,55 +62,120 @@
       </ion-card-content>
     </ion-card>
 
-    <!-- Task Information Card -->
-    <ion-card class="info-card">
+    <!-- Work bench: one place for all actions + progress -->
+    <ion-card class="work-bench">
       <ion-card-header>
-        <ion-card-title>
-          <ion-icon name="information-circle-outline" color="primary"></ion-icon>
-          Task Information
-        </ion-card-title>
+        <ion-card-title>Work bench</ion-card-title>
+        <ion-card-subtitle>Actions and progress</ion-card-subtitle>
       </ion-card-header>
       <ion-card-content>
-        <div class="info-list">
-          <div class="info-row">
-            <span class="label">Type:</span>
-            <span class="value">{{ task.type }}</span>
-          </div>
-          
-          <div class="info-row" *ngIf="task.customer?.name">
-            <span class="label">Contact:</span>
-            <span class="value">{{ task.customer?.name }}</span>
-          </div>
-          
-          <div class="info-row" *ngIf="!task.customer?.name && task.customerId">
-            <span class="label">Contact ID:</span>
-            <span class="value">{{ task.customerId }} (Name not found)</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">Frequency:</span>
-            <span class="value">{{ task.frequency }}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">Start Date:</span>
-            <span class="value">{{ task.startDate | date:'fullDate' }}</span>
-          </div>
-          
-          <div class="info-row">
-            <span class="label">Notification:</span>
-            <span class="value">{{ task.notificationType }}</span>
+        <!-- Primary actions: Start, Mark complete, Skip -->
+        <div class="work-bench-section">
+          <span class="section-label">Actions</span>
+          <div class="action-row primary">
+            <ion-button
+              *ngIf="canStart"
+              fill="solid"
+              color="primary"
+              (click)="startCycle()"
+              [disabled]="actionInProgress">
+              <ion-icon slot="start" name="play-outline"></ion-icon>
+              Start
+            </ion-button>
+            <ion-button
+              *ngIf="canMarkComplete"
+              fill="solid"
+              color="success"
+              (click)="markComplete()"
+              [disabled]="actionInProgress">
+              <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+              Mark complete
+            </ion-button>
+            <ion-button
+              *ngIf="canSkip"
+              fill="outline"
+              color="warning"
+              (click)="skipCycle()"
+              [disabled]="actionInProgress">
+              <ion-icon slot="start" name="play-forward-outline"></ion-icon>
+              Skip
+            </ion-button>
+            <p *ngIf="!canStart && !canMarkComplete && !canSkip" class="no-actions-hint">No actions for this cycle (completed or skipped).</p>
           </div>
         </div>
-        
-        <div class="notes-section" *ngIf="task.notes">
-          <div class="notes-header">
-            <ion-icon name="document-text-outline" color="medium"></ion-icon>
-            <span>Notes</span>
+
+        <!-- Progress (when in progress): slider, quick %, then Update | Mark complete | Skip -->
+        <div class="work-bench-section" *ngIf="currentCycle?.status === 'in_progress'">
+          <span class="section-label">Progress</span>
+          <div class="progress-block">
+            <div class="progress-header-row">
+              <span class="progress-value" [class.ready]="progressValue === 100">{{ progressValue }}%</span>
+              <ion-progress-bar [value]="progressValue / 100" [color]="progressValue === 100 ? 'success' : 'primary'"></ion-progress-bar>
+            </div>
+            <ion-range
+              [(ngModel)]="progressValue"
+              min="0"
+              max="100"
+              step="5"
+              [pin]="true"
+              color="primary">
+              <ion-label slot="start">0</ion-label>
+              <ion-label slot="end">100</ion-label>
+            </ion-range>
+            <div class="quick-progress-buttons">
+              <ion-button fill="outline" size="small" (click)="setProgressQuick(25)" [color]="progressValue === 25 ? 'primary' : 'medium'">25%</ion-button>
+              <ion-button fill="outline" size="small" (click)="setProgressQuick(50)" [color]="progressValue === 50 ? 'warning' : 'medium'">50%</ion-button>
+              <ion-button fill="outline" size="small" (click)="setProgressQuick(75)" [color]="progressValue === 75 ? 'primary' : 'medium'">75%</ion-button>
+              <ion-button fill="outline" size="small" (click)="setProgressQuick(100)" [color]="progressValue === 100 ? 'success' : 'medium'">100%</ion-button>
+            </div>
+            <div class="progress-actions">
+              <ion-button fill="outline" size="small" (click)="updateProgressInline()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="trending-up-outline"></ion-icon>
+                Update
+              </ion-button>
+              <ion-button fill="solid" color="success" size="small" (click)="markComplete()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+                Mark complete
+              </ion-button>
+              <ion-button fill="outline" color="warning" size="small" (click)="skipCycle()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="play-forward-outline"></ion-icon>
+                Skip
+              </ion-button>
+            </div>
           </div>
-          <div class="notes-content">
-            {{ task.notes }}
+        </div>
+
+        <!-- Secondary: Edit, Delete -->
+        <div class="work-bench-section secondary">
+          <span class="section-label">Task</span>
+          <div class="action-row">
+            <ion-button fill="outline" size="small" (click)="navigateToEditTask()" [disabled]="actionInProgress">
+              <ion-icon slot="start" name="create-outline"></ion-icon>
+              Edit
+            </ion-button>
+            <ion-button fill="outline" color="danger" size="small" (click)="deleteTask()" [disabled]="actionInProgress">
+              <ion-icon slot="start" name="trash-outline"></ion-icon>
+              Delete
+            </ion-button>
           </div>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Task Information (compact) -->
+    <ion-card class="info-card info-card-compact">
+      <ion-card-content>
+        <div class="info-grid">
+          <div class="info-item"><span class="label">Type</span><span class="value">{{ task.type }}</span></div>
+          <div class="info-item" *ngIf="task.customer?.name"><span class="label">Contact</span><span class="value">{{ task.customer?.name }}</span></div>
+          <div class="info-item" *ngIf="!task.customer?.name && task.customerId"><span class="label">Contact</span><span class="value">#{{ task.customerId }}</span></div>
+          <div class="info-item"><span class="label">Frequency</span><span class="value">{{ task.frequency }}</span></div>
+          <div class="info-item"><span class="label">Start</span><span class="value">{{ task.startDate | date:'shortDate' }}</span></div>
+          <div class="info-item"><span class="label">Notify</span><span class="value">{{ task.notificationType }}</span></div>
+        </div>
+        <div class="notes-section compact" *ngIf="task.notes">
+          <span class="notes-label">Notes:</span>
+          <span class="notes-content">{{ task.notes }}</span>
         </div>
       </ion-card-content>
     </ion-card>

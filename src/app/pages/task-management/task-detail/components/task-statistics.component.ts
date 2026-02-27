@@ -124,7 +124,7 @@ interface TaskStatistics {
                 </div>
                 <div class="legend-item">
                   <div class="legend-color skipped"></div>
-                  <span>Skipped ({{ statistics.skippedCycles }})</span>
+                  <span>Missed ({{ statistics.skippedCycles }})</span>
                 </div>
                 <div class="legend-item">
                   <div class="legend-color in-progress"></div>

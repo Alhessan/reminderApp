@@ -3,8 +3,13 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'io.ionic.routineloop',
   appName: 'RoutineLoop',
-  webDir: 'www'
-  // No server config = loads from bundled files using default scheme
+  webDir: 'www',
+  plugins: {
+    LocalNotifications: {
+      smallIcon: 'ic_launcher_foreground',
+      iconColor: '#667eea',
+    },
+  },
 };
 
 export default config;

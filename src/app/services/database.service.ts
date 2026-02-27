@@ -456,6 +456,8 @@ export class DatabaseService {
         notificationValue TEXT,
         notes TEXT,
         isArchived INTEGER DEFAULT 0,
+        isCompleted INTEGER DEFAULT 0,
+        lastCompletedDate TEXT,
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
       )`,
@@ -521,6 +523,34 @@ export class DatabaseService {
       await this.consolidatedMigration();
       await this.setVersion(1);
     }
+    if (currentVersion < 2) {
+      await this.migrateAddTaskCompletionColumns();
+      await this.setVersion(2);
+    }
+  }
+
+  /** Add isCompleted and lastCompletedDate to tasks (for DBs created before these columns existed). */
+  private async migrateAddTaskCompletionColumns(): Promise<void> {
+    const isDuplicateColumn = (e: any) =>
+      (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
+    try {
+      await this.executeQuery(
+        'ALTER TABLE tasks ADD COLUMN isCompleted INTEGER DEFAULT 0',
+        []
+      );
+    } catch (e: any) {
+      if (isDuplicateColumn(e)) return;
+      throw e;
+    }
+    try {
+      await this.executeQuery(
+        'ALTER TABLE tasks ADD COLUMN lastCompletedDate TEXT',
+        []
+      );
+    } catch (e: any) {
+      if (isDuplicateColumn(e)) return;
+      throw e;
+    }
   }
 
   private async consolidatedMigration() {
@@ -549,6 +579,8 @@ export class DatabaseService {
         notificationValue TEXT,
         notes TEXT,
         isArchived INTEGER DEFAULT 0,
+        isCompleted INTEGER DEFAULT 0,
+        lastCompletedDate TEXT,
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
       )`,
