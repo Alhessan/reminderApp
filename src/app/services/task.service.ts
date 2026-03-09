@@ -1,9 +1,16 @@
 import { Injectable } from "@angular/core";
 import { DatabaseService } from "./database.service";
 import { Task, TaskHistoryEntry, CreateTaskDTO } from "../models/task.model";
-import { NotificationService } from "./notification.service"; // Import NotificationService
+import { NotificationService } from "./notification.service";
+import { TaskCycleService } from "./task-cycle.service";
 import { Platform } from '@ionic/angular';
 import { BehaviorSubject } from 'rxjs';
+import {
+  getFirstCycleStartDate,
+  calculateDueAt,
+  calculateSoftDeadline,
+  calculateHardDeadline,
+} from '../utils/cycle-timestamps.util';
 
 @Injectable({
   providedIn: "root"
@@ -15,7 +22,8 @@ export class TaskService {
 
   constructor(
     private dbService: DatabaseService,
-    private notificationService: NotificationService, // Inject NotificationService
+    private notificationService: NotificationService,
+    private taskCycleService: TaskCycleService,
     private platform: Platform
   ) {
     this.loadTasks();
@@ -24,111 +32,87 @@ export class TaskService {
   private async loadTasks() {
     try {
       const result = await this.dbService.executeQuery(
-        'SELECT * FROM tasks WHERE isArchived = 0 ORDER BY startDate ASC',
+        "SELECT * FROM tasks WHERE (state IS NULL OR state != 'archived') AND (isArchived = 0 OR isArchived IS NULL) ORDER BY startDate ASC",
         []
       );
-      this.tasks.next(result);
+      const rows = (result.values || []) as any[];
+      const tasks: Task[] = rows.map((row: any) => this.mapRowToTask(row));
+      this.tasks.next(tasks);
     } catch (error) {
       console.error('TaskService: Error loading tasks:', error);
       throw error;
     }
   }
 
-  async createTask(taskData: CreateTaskDTO): Promise<number> {
-    try {
-      // Prepare the values, handling empty strings and null values properly
-      const values = [
-        taskData.title?.trim() || null,
-        taskData.type?.trim() || null,
-        taskData.customerId || null,
-        taskData.frequency?.trim() || null,
-        taskData.startDate || null,
-        taskData.notificationType?.trim() || null,
-        taskData.notificationTime?.trim() || null,
-        taskData.notificationValue?.trim() || null, // Use null instead of empty string
-        taskData.notes?.trim() || null, // Use null instead of empty string
-        taskData.isArchived ? 1 : 0
-      ];
-  
-      console.log('TaskService: Creating task with values:', values);
-  
-      const result = await this.dbService.executeQuery(`
-        INSERT INTO tasks (
-          title,
-          type,
-          customerId,
-          frequency,
-          startDate,
-          notificationType,
-          notificationTime,
-          notificationValue,
-          notes,
-          isArchived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, values);
-  
-      console.log('TaskService: Insert result:', result);
-  
-      const taskId = result.changes?.lastId;
-      if (!taskId) throw new Error('Failed to get inserted task ID');
-  
-      // Create initial task cycle
-      const cycleEndDate = this.calculateCycleEnd(taskData.startDate, taskData.frequency);
-      await this.dbService.executeQuery(`
-        INSERT INTO task_cycles (
-          taskId,
-          cycleStartDate,
-          cycleEndDate,
-          status,
-          progress
-        ) VALUES (?, ?, ?, ?, ?)
-      `, [
-        taskId,
-        taskData.startDate,
-        cycleEndDate,
-        'pending',
-        0
-      ]);
-
-      console.log('TaskService: Task created successfully with ID:', taskId);
-      const task = await this.getTaskById(taskId);
-      if (task && task.notificationType === 'push') {
-        this.scheduleTaskNotification(task).catch(err =>
-          console.warn('TaskService: Could not schedule notification for new task', err)
-        );
-      }
-      return taskId;
-    } catch (error) {
-      console.error('Error creating task:', error);
-      throw error;
-    }
+  private mapRowToTask(row: any): Task {
+    const state = row.state || (row.isArchived ? 'archived' : 'active');
+    return {
+      id: Number(row.id),
+      title: row.title,
+      type: row.type,
+      customerId: row.customerId != null ? Number(row.customerId) : null,
+      frequency: row.frequency,
+      startDate: row.startDate,
+      notificationTime: row.notificationTime,
+      notificationType: row.notificationType,
+      notificationValue: row.notificationValue,
+      notes: row.notes,
+      state,
+    };
   }
 
-  private calculateCycleEnd(startDate: string, frequency: string): string {
-    const start = new Date(startDate);
-    let end = new Date(start);
+  async createTask(taskData: CreateTaskDTO): Promise<number> {
+    const state = taskData.state || 'active';
+    const values = [
+      taskData.title?.trim() || null,
+      taskData.type?.trim() || null,
+      taskData.customerId || null,
+      taskData.frequency?.trim() || null,
+      taskData.startDate || null,
+      taskData.notificationType?.trim() || null,
+      taskData.notificationTime?.trim() || null,
+      taskData.notificationValue?.trim() || null,
+      taskData.notes?.trim() || null,
+      state === 'archived' ? 1 : 0,
+      state,
+    ];
+    const result = await this.dbService.executeQuery(
+      `INSERT INTO tasks (title, type, customerId, frequency, startDate, notificationType, notificationTime, notificationValue, notes, isArchived, state)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      values
+    );
+    const taskId = result.changes?.lastId;
+    if (!taskId) throw new Error('Failed to get inserted task ID');
 
-    switch (frequency) {
-      case 'daily':
-        end.setDate(start.getDate() + 1);
-        break;
-      case 'weekly':
-        end.setDate(start.getDate() + 7);
-        break;
-      case 'monthly':
-        end.setMonth(start.getMonth() + 1);
-        break;
-      case 'yearly':
-        end.setFullYear(start.getFullYear() + 1);
-        break;
-      case 'once':
-        end = start; // For one-time tasks, end date is same as start date
-        break;
-      default:
-        throw new Error(`Invalid frequency: ${frequency}`);
+    const firstStart = getFirstCycleStartDate(taskData.startDate, taskData.notificationTime || '00:00', taskData.frequency);
+    const dueAt = calculateDueAt(firstStart, taskData.notificationTime || '00:00');
+    const softDeadline = calculateSoftDeadline(dueAt, taskData.frequency);
+    const hardDeadline = calculateHardDeadline(dueAt, taskData.frequency);
+    await this.dbService.executeQuery(
+      `INSERT INTO task_cycles (taskId, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution)
+       VALUES (?, ?, ?, ?, ?, 'open')`,
+      [taskId, firstStart, dueAt, softDeadline, hardDeadline]
+    );
+
+    const task = await this.getTaskById(taskId);
+    if (task && task.state === 'active' && task.notificationType === 'push') {
+      this.scheduleTaskNotification(task).catch(err =>
+        console.warn('TaskService: Could not schedule notification for new task', err)
+      );
     }
+    return taskId;
+  }
 
-    return end.toISOString().split('T')[0];
+  async pauseTask(id: number): Promise<void> {
+    await this.dbService.executeQuery("UPDATE tasks SET state = 'paused' WHERE id = ?", [id]);
+    await this.addHistoryEntry(id, 'paused');
+  }
+
+  async resumeTask(id: number): Promise<void> {
+    await this.dbService.executeQuery("UPDATE tasks SET state = 'active' WHERE id = ?", [id]);
+    await this.addHistoryEntry(id, 'resumed');
+    const task = await this.getTaskById(id);
+    if (task) await this.taskCycleService.createNextCycle(task);
   }
 
   async sendTaskNotification(task: Task): Promise<void> {
@@ -152,16 +136,11 @@ export class TaskService {
     }
   }
 
-  async completeTask(task: Task, isCompleted: boolean): Promise<void> {
-    const completedDate = isCompleted ? new Date().toISOString() : undefined;
-    
-    const updatedTask: Task = {
-      ...task,
-      isCompleted,
-      lastCompletedDate: completedDate
-    };
-
-    await this.updateTask(updatedTask);
+  async completeTask(task: Task): Promise<void> {
+    const cycle = await this.taskCycleService.getCurrentCycle(task.id!);
+    if (cycle && cycle.resolution === 'open') {
+      await this.taskCycleService.resolveCycle(cycle.id!, 'done');
+    }
   }
 
   async getTaskById(id: number): Promise<Task | null> {
@@ -183,21 +162,7 @@ export class TaskService {
       console.log('Raw task data:', taskData);
       
       // Ensure we return a properly typed Task object
-      const task: Task = {
-        id: Number(taskData.id),
-        title: taskData.title,
-        type: taskData.type,
-        customerId: taskData.customerId ? Number(taskData.customerId) : null,
-        frequency: taskData.frequency,
-        startDate: taskData.startDate,
-        notificationTime: taskData.notificationTime,
-        notificationType: taskData.notificationType,
-        notificationValue: taskData.notificationValue,
-        notes: taskData.notes,
-        isCompleted: Boolean(taskData.isCompleted),
-        lastCompletedDate: taskData.lastCompletedDate,
-        isArchived: Boolean(taskData.isArchived)
-      };
+      const task = this.mapRowToTask(taskData);
 
       console.log('Returning task:', task);
       return task;
@@ -207,39 +172,25 @@ export class TaskService {
     }
   }
 
-  /**
-   * Returns non-archived tasks that use push notifications, for rescheduling on app launch.
-   */
+  /** Returns active tasks that use push notifications (Phase 9: only state='active'). */
   async getTasksWithPushNotifications(): Promise<Task[]> {
     const result = await this.dbService.executeQuery(
-      'SELECT * FROM tasks WHERE (isArchived = 0 OR isArchived IS NULL) AND notificationType = ?',
+      "SELECT * FROM tasks WHERE (state = 'active' OR (state IS NULL AND (isArchived = 0 OR isArchived IS NULL))) AND notificationType = ?",
       ['push']
     );
-    const rows = result.values || [];
-    return rows.map((row: any) => ({
-      id: Number(row.id),
-      title: row.title,
-      type: row.type,
-      customerId: row.customerId != null ? Number(row.customerId) : null,
-      frequency: row.frequency,
-      startDate: row.startDate,
-      notificationTime: row.notificationTime,
-      notificationType: row.notificationType,
-      notificationValue: row.notificationValue,
-      notes: row.notes,
-      isCompleted: Boolean(row.isCompleted),
-      lastCompletedDate: row.lastCompletedDate,
-      isArchived: Boolean(row.isArchived)
-    }));
+    const tasks = ((result.values || []) as any[]).map((row: any) => this.mapRowToTask(row));
+    return tasks.filter(t => t.state === 'active');
   }
 
   /**
    * Reschedule all push notifications (e.g. after app launch or device restart). Non-blocking; logs per-task errors.
    */
+  /** Reschedule push notifications for active tasks using current cycle dueAt (Phase 9). */
   async rescheduleAllPendingNotifications(): Promise<void> {
     try {
       const tasks = await this.getTasksWithPushNotifications();
       for (const task of tasks) {
+        if (task.state !== 'active') continue;
         try {
           await this.scheduleTaskNotification(task);
         } catch (err) {
@@ -252,67 +203,19 @@ export class TaskService {
   }
 
   async getAllTasks(): Promise<Task[]> {
-    console.log('TaskService: Getting all tasks');
-    const query = `
-      SELECT 
-        t.*,
-        c.name as customerName,
-        tc.id as cycle_id,
-        tc.cycleStartDate,
-        tc.cycleEndDate,
-        tc.status,
-        tc.progress,
-        tc.completedAt
-      FROM tasks t
-      LEFT JOIN customers c ON t.customerId = c.id
-      LEFT JOIN task_cycles tc ON t.id = tc.taskId
-      WHERE t.isArchived = 0
-      ORDER BY tc.cycleStartDate DESC
-    `;
-    try {
-      const result = await this.dbService.executeQuery(query);
-      const tasks = (result.values || []).map((taskData: any) => ({
-        id: taskData.id,
-        title: taskData.title,
-        type: taskData.type,
-        customerId: taskData.customerId,
-        customerName: taskData.customerName || undefined,
-        frequency: taskData.frequency,
-        startDate: taskData.startDate,
-        notificationTime: taskData.notificationTime,
-        notificationType: taskData.notificationType,
-        notificationValue: taskData.notificationValue,
-        notes: taskData.notes,
-        isArchived: taskData.isArchived === 1,
-        isCompleted: Boolean(taskData.isCompleted),
-        lastCompletedDate: taskData.lastCompletedDate
-      }));
-      console.log('TaskService: Retrieved tasks:', tasks);
-      return tasks;
-    } catch (error) {
-      console.error("Error getting all tasks:", error);
-      throw error;
-    }
+    const result = await this.dbService.executeQuery(
+      "SELECT t.*, c.name as customerName FROM tasks t LEFT JOIN customers c ON t.customerId = c.id WHERE (state IS NULL OR state != 'archived') AND (isArchived = 0 OR isArchived IS NULL) ORDER BY startDate ASC",
+      []
+    );
+    return ((result.values || []) as any[]).map((row: any) => this.mapRowToTask(row));
   }
 
   async updateTask(taskData: Task): Promise<void> {
-    console.log('TaskService: Updating task:', taskData);
-    try {
-      // Update only columns that exist on all DB schemas (no isCompleted/lastCompletedDate here)
-      await this.dbService.executeQuery(`
-        UPDATE tasks 
-        SET title = ?,
-            type = ?,
-            customerId = ?,
-            frequency = ?,
-            startDate = ?,
-            notificationType = ?,
-            notificationTime = ?,
-            notificationValue = ?,
-            notes = ?,
-            isArchived = ?
-        WHERE id = ?
-      `, [
+    const state = taskData.state || 'active';
+    const isArchived = state === 'archived' ? 1 : 0;
+    await this.dbService.executeQuery(
+      `UPDATE tasks SET title = ?, type = ?, customerId = ?, frequency = ?, startDate = ?, notificationType = ?, notificationTime = ?, notificationValue = ?, notes = ?, state = ?, isArchived = ? WHERE id = ?`,
+      [
         taskData.title.trim(),
         taskData.type.trim(),
         taskData.customerId || null,
@@ -322,44 +225,32 @@ export class TaskService {
         taskData.notificationTime.trim(),
         taskData.notificationValue?.trim() || '',
         taskData.notes?.trim() || '',
-        taskData.isArchived ? 1 : 0,
-        taskData.id
-      ]);
-      // Persist completion fields when the table has those columns (e.g. after migration)
-      await this.updateTaskCompletionOptional(taskData.id, taskData.isCompleted, taskData.lastCompletedDate);
-      const task = await this.getTaskById(taskData.id);
-      if (task && task.notificationType === 'push') {
-        this.scheduleTaskNotification(task).catch(err =>
-          console.warn('TaskService: Could not schedule notification for updated task', err)
-        );
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-      throw error;
-    }
-  }
-
-  /** Updates isCompleted/lastCompletedDate if the tasks table has those columns; no-op otherwise. */
-  private async updateTaskCompletionOptional(taskId: number, isCompleted?: boolean, lastCompletedDate?: string | undefined): Promise<void> {
-    try {
-      await this.dbService.executeQuery(
-        `UPDATE tasks SET isCompleted = ?, lastCompletedDate = ? WHERE id = ?`,
-        [isCompleted ? 1 : 0, lastCompletedDate ?? null, taskId]
+        state,
+        isArchived,
+        taskData.id,
+      ]
+    );
+    const task = await this.getTaskById(taskData.id);
+    if (task && task.state === 'active' && task.notificationType === 'push') {
+      this.scheduleTaskNotification(task).catch(err =>
+        console.warn('TaskService: Could not schedule notification for updated task', err)
       );
-    } catch {
-      // Columns may not exist on older DBs; ignore so main update still succeeds
     }
   }
 
   private async scheduleTaskNotification(task: Task): Promise<void> {
+    if (task.state === 'paused' || task.state === 'archived') return;
     console.log('TaskService: Starting scheduleTaskNotification for task:', task);
     try {
+      let scheduledAt: Date | undefined;
+      const cycle = await this.taskCycleService.getCurrentCycle(task.id!);
+      if (cycle?.resolution === 'open' && cycle.dueAt) scheduledAt = new Date(cycle.dueAt);
       if (task.notificationType === 'push' && this.platform.is('capacitor')) {
         console.log('TaskService: Scheduling local push notification');
-        await this.notificationService.scheduleNotification(task);
+        await this.notificationService.scheduleNotification(task, false, scheduledAt);
       } else if (task.notificationType === 'push') {
         console.log('TaskService: Scheduling web push notification');
-        await this.notificationService.scheduleNotification(task);
+        await this.notificationService.scheduleNotification(task, false, scheduledAt);
       } else if (task.notificationType !== 'silent') {
         console.log('TaskService: Sending notification through API');
         // Send other types of notifications through the API
@@ -420,47 +311,11 @@ export class TaskService {
   }
 
   async getCustomerTasks(customerId: number): Promise<Task[]> {
-    console.log('TaskService: Getting tasks for customer:', customerId);
-    const query = `
-      SELECT 
-        t.*,
-        c.name as customerName,
-        tc.id as cycle_id,
-        tc.cycleStartDate,
-        tc.cycleEndDate,
-        tc.status,
-        tc.progress,
-        tc.completedAt
-      FROM tasks t
-      LEFT JOIN customers c ON t.customerId = c.id
-      LEFT JOIN task_cycles tc ON t.id = tc.taskId
-      WHERE t.customerId = ? AND t.isArchived = 0
-      ORDER BY tc.cycleStartDate DESC
-    `;
-    try {
-      const result = await this.dbService.executeQuery(query, [customerId]);
-      const tasks = (result.values || []).map((taskData: any) => ({
-        id: taskData.id,
-        title: taskData.title,
-        type: taskData.type,
-        customerId: taskData.customerId,
-        customerName: taskData.customerName || undefined,
-        frequency: taskData.frequency,
-        startDate: taskData.startDate,
-        notificationTime: taskData.notificationTime,
-        notificationType: taskData.notificationType,
-        notificationValue: taskData.notificationValue,
-        notes: taskData.notes,
-        isArchived: taskData.isArchived === 1,
-        isCompleted: Boolean(taskData.isCompleted),
-        lastCompletedDate: taskData.lastCompletedDate
-      }));
-      console.log('TaskService: Retrieved customer tasks:', tasks);
-      return tasks;
-    } catch (error) {
-      console.error("Error getting customer tasks:", error);
-      throw error;
-    }
+    const result = await this.dbService.executeQuery(
+      "SELECT t.*, c.name as customerName FROM tasks t LEFT JOIN customers c ON t.customerId = c.id WHERE t.customerId = ? AND (state IS NULL OR state != 'archived') AND (isArchived = 0 OR isArchived IS NULL)",
+      [customerId]
+    );
+    return ((result.values || []) as any[]).map((row: any) => this.mapRowToTask(row));
   }
 }
 

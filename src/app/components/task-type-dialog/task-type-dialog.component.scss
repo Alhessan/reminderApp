@@ -1,7 +1,31 @@
-// Task Type Dialog Component Styles
-// Unified header design consistent with notification types
+// Dialog preview (replaces unified-page-header in modals)
+.dialog-preview {
+  text-align: center;
+  padding: 20px 12px 16px;
 
-// Dialog header now uses global .unified-page-header class
+  .preview-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    border: 1px solid;
+    transition: all 0.3s ease;
+
+    ion-icon {
+      font-size: 1.8rem;
+    }
+  }
+
+  .preview-subtitle {
+    font-size: 0.9rem;
+    color: var(--ion-color-medium);
+    margin: 0;
+    line-height: 1.4;
+  }
+}
 
 // Form styling
 .form-group {
@@ -10,13 +34,13 @@
   ion-item {
     --border-radius: 12px;
     --background: var(--ion-color-light);
-    --color: var(--ion-color-dark);
+    --color: var(--ion-text-color);
     --padding-start: 16px;
     --padding-end: 16px;
     --min-height: 56px;
     margin-bottom: 8px;
     border: 1px solid var(--ion-color-light-shade);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
 
     &.error {
       --border-color: var(--ion-color-danger);
@@ -29,7 +53,7 @@
     }
 
     ion-input, ion-textarea {
-      --color: var(--ion-color-dark);
+      --color: var(--ion-text-color);
       --placeholder-color: var(--ion-color-medium);
     }
   }
@@ -57,7 +81,7 @@
   }
 }
 
-// Form section styling
+// Form section
 .form-section {
   margin-bottom: 24px;
 
@@ -68,7 +92,7 @@
     h3 {
       font-size: 1.1rem;
       font-weight: 600;
-      color: var(--ion-color-dark);
+      color: var(--ion-text-color);
       margin: 0 0 4px 0;
     }
 
@@ -81,17 +105,17 @@
   }
 }
 
-// Footer buttons styling
+// Footer buttons
 .footer-buttons {
   display: flex;
   gap: 12px;
-  padding: 16px;
+  padding: 12px 16px calc(12px + var(--app-safe-area-bottom, 0px));
 
   ion-button {
     flex: 1;
     height: 48px;
     font-weight: 600;
-    border-radius: 12px;
+    --border-radius: 12px;
 
     &[fill="clear"] {
       --color: var(--ion-color-medium);
@@ -99,36 +123,29 @@
   }
 }
 
-// Dark mode adjustments
+// Dark mode
 @media (prefers-color-scheme: dark) {
   .form-group {
     ion-item {
-      --background: var(--ion-color-dark-tint);
-      --color: var(--ion-color-light);
-      border-color: var(--ion-color-dark-shade);
+      --background: var(--ion-color-step-100, #2a2a2a);
+      border-color: var(--ion-color-step-150, #363636);
 
       ion-input, ion-textarea {
-        --color: var(--ion-color-light);
+        --color: var(--ion-text-color);
       }
     }
   }
-
-  .form-section .section-header {
-    h3 {
-      color: var(--ion-color-light);
-    }
-  }
 }
 
-// Animation for dialog entrance
+// Entrance animation
 ion-content {
-  animation: slideInUp 0.4s ease-out;
+  animation: dialogSlideIn 0.35s ease-out;
 }
 
-@keyframes slideInUp {
+@keyframes dialogSlideIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -136,9 +153,8 @@ ion-content {
   }
 }
 
-// Responsive design (header responsive styles now in global.scss)
+// Responsive
 @media (max-width: 768px) {
-
   .form-group {
     ion-item {
       --min-height: 56px;
@@ -148,8 +164,8 @@ ion-content {
   }
 
   .footer-buttons {
-    padding: 12px;
-    
+    padding: 10px 12px calc(10px + var(--app-safe-area-bottom, 0px));
+
     ion-button {
       height: 44px;
     }

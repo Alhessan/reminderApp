@@ -1,10 +1,15 @@
 import { Injectable } from '@angular/core';
 import { DatabaseService } from './database.service';
-import { TaskCycle, TaskCycleStatus, TaskListItem } from '../models/task-cycle.model';
+import { Cycle, CycleResolution, TaskListItem } from '../models/task-cycle.model';
 import { Task, Frequency } from '../models/task.model';
-import { BehaviorSubject, Observable, map } from 'rxjs';
-import { TaskService } from './task.service';
-
+import { deriveDisplayState, CycleDisplayStatus } from '../models/cycle-display.model';
+import {
+  calculateDueAt,
+  calculateSoftDeadline,
+  calculateHardDeadline,
+  calculateNextCycleStart,
+} from '../utils/cycle-timestamps.util';
+import { BehaviorSubject } from 'rxjs';
 interface DbRow {
   id: number;
   title: string;
@@ -71,17 +76,6 @@ function normalizeIsArchived(value: string | number): 0 | 1 {
   }
 }
 
-/** Margin as percentage of routine interval (fallback). Prefer allowed delay in hours for consistency. */
-const MARGIN_PERCENT = 0.05;
-/** Allowed delay after due time before marking as MISSED (hours). e.g. daily: due+5h = end of allowed window. */
-const ALLOWED_DELAY_HOURS: Record<string, number> = {
-  daily: 5,
-  weekly: 24,
-  monthly: 48,
-  yearly: 168,
-  once: 24
-};
-
 @Injectable({
   providedIn: 'root'
 })
@@ -89,21 +83,7 @@ export class TaskCycleService {
   private taskListSubject = new BehaviorSubject<TaskListItem[]>([]);
   public taskList$ = this.taskListSubject.asObservable();
 
-  constructor(private db: DatabaseService, private taskService: TaskService) {}
-
-  /** Margin in ms: X% of the routine interval (daily, weekly, etc.) – used when no ALLOWED_DELAY_HOURS. */
-  private getMarginMs(frequency: string): number {
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    let intervalMs: number;
-    switch (frequency) {
-      case 'daily': intervalMs = oneDayMs; break;
-      case 'weekly': intervalMs = 7 * oneDayMs; break;
-      case 'monthly': intervalMs = 30 * oneDayMs; break;
-      case 'yearly': intervalMs = 365 * oneDayMs; break;
-      default: intervalMs = oneDayMs;
-    }
-    return Math.round(intervalMs * MARGIN_PERCENT);
-  }
+  constructor(private db: DatabaseService) {}
 
   /**
    * First cycle start date so that due (start + notificationTime) is not in the past.
@@ -147,495 +127,246 @@ export class TaskCycleService {
    * Due datetime for a cycle: cycle start date + task notification time (HH:mm).
    * Returns ISO string so list can show the real due time, not a fixed midnight.
    */
-  getDueDatetime(cycleStartDate: string, notificationTime: string): string {
-    const d = new Date(cycleStartDate);
-    if (isNaN(d.getTime())) return cycleStartDate;
-    const parts = (notificationTime || '00:00').split(':').map(Number);
-    const h = parts[0] ?? 0;
-    const m = parts[1] ?? 0;
-    d.setHours(h, m, 0, 0);
-    return d.toISOString();
-  }
-
   /**
-   * End of allowed delay (deadline) after which cycle is marked MISSED. Due + N hours (e.g. daily: 5h).
+   * Auto-lapse open cycles past hardDeadline (mark as lapsed = missed) and create next cycle.
+   * Skips tasks that are paused. Max 365 iterations to handle multi-day offline.
    */
-  private getMissedDeadlineMs(cycleStartDate: string, notificationTime: string, frequency: string): number {
-    const dueIso = this.getDueDatetime(cycleStartDate, notificationTime);
-    const dueMs = new Date(dueIso).getTime();
-    const hours = ALLOWED_DELAY_HOURS[frequency] ?? ALLOWED_DELAY_HOURS['once'];
-    return dueMs + hours * 60 * 60 * 1000;
-  }
-
-  /**
-   * Close cycles that are past due + allowed delay (mark as skipped = MISSED) and create the next cycle.
-   */
-  private async closeMissedCycles(): Promise<void> {
-    const cyclesResult = await this.db.executeQuery(`
-      SELECT * FROM task_cycles WHERE status IN ('pending', 'in_progress')
-    `);
-    const cycles = (cyclesResult.values || []) as Array<{ id: number; taskId: number; cycleStartDate: string; cycleEndDate: string; status: string }>;
+  private async closeLapsedCycles(): Promise<void> {
     const now = Date.now();
+    let iterations = 0;
+    const maxIterations = 365;
 
-    for (const cycle of cycles) {
-      const task = await this.getTask(cycle.taskId);
-      if (!task) continue;
-      const deadlineMs = this.getMissedDeadlineMs(cycle.cycleStartDate, task.notificationTime, task.frequency);
-      if (now <= deadlineMs) continue;
-
-      await this.db.executeQuery(
-        'UPDATE task_cycles SET status = ? WHERE id = ?',
-        ['skipped', cycle.id]
+    while (iterations++ < maxIterations) {
+      const cyclesResult = await this.db.executeQuery(
+        "SELECT * FROM task_cycles WHERE resolution = 'open'"
       );
-      const cycleObj: TaskCycle = {
-        id: cycle.id,
-        taskId: cycle.taskId,
-        cycleStartDate: cycle.cycleStartDate,
-        cycleEndDate: cycle.cycleEndDate,
-        status: 'skipped',
-        progress: 0
-      };
-      await this.createNextCycle(task, cycleObj);
+      const cycles = (cyclesResult.values || []) as Array<{
+        id: number;
+        taskId: number;
+        cycleStartDate: string;
+        dueAt: string;
+        softDeadline: string;
+        hardDeadline: string;
+        resolution: string;
+      }>;
+      let lapsedAny = false;
+      for (const row of cycles) {
+        const task = await this.getTask(row.taskId);
+        if (!task || task.state !== 'active') continue;
+        const hardMs = new Date(row.hardDeadline).getTime();
+        if (now <= hardMs) continue;
+        await this.db.executeQuery(
+          'UPDATE task_cycles SET resolution = ?, completedAt = NULL WHERE id = ?',
+          ['lapsed', row.id]
+        );
+        const cycleObj: Cycle = {
+          id: row.id,
+          taskId: row.taskId,
+          cycleStartDate: row.cycleStartDate,
+          dueAt: row.dueAt,
+          softDeadline: row.softDeadline,
+          hardDeadline: row.hardDeadline,
+          resolution: 'lapsed',
+        };
+        await this.createNextCycle(task, cycleObj);
+        lapsedAny = true;
+      }
+      if (!lapsedAny) break;
     }
   }
 
-  // Full workaround: bypass CTE regex by pre-fetching in JS (avoid complex SQL for web)
-async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all'): Promise<void> {
-  try {
-    await this.closeMissedCycles();
-
-    // Debug query to check raw tasks data
-    const debugResult = await this.db.executeQuery('SELECT * FROM tasks');
-    console.log('Debug - All tasks in database:', debugResult.values);
-
-    console.log('Loading task list with view:', view);
-    const now = new Date().toISOString();
-
-    // Get non-archived tasks with their latest cycles
-    const tasksResult = await this.db.executeQuery(`
-      SELECT t.*, tc.id as cycle_id, tc.cycleStartDate, tc.cycleEndDate, 
-             tc.status, tc.progress, tc.completedAt
-      FROM tasks t
-      LEFT JOIN (
-        SELECT tc2.*,
-               ROW_NUMBER() OVER (
-                 PARTITION BY tc2.taskId 
-                 ORDER BY 
-                   tc2.cycleStartDate DESC,
-                   CASE tc2.status 
-                     WHEN 'pending' THEN 0
-                     WHEN 'in_progress' THEN 1
-                     WHEN 'skipped' THEN 2
-                     WHEN 'completed' THEN 3
-                   END
-               ) as rn
-        FROM task_cycles tc2
-      ) tc ON t.id = tc.taskId AND tc.rn = 1
-      WHERE t.isArchived = 0 OR t.isArchived IS NULL
-    `);
-    console.log('Tasks query result:', tasksResult);
-    const nonArchivedTasks = tasksResult.values || [];
-    console.log('Non-archived tasks:', nonArchivedTasks);
-
-    // Get cycles in a separate query - prioritize active cycles
-    const cyclesResult = await this.db.executeQuery(`
-      SELECT * FROM task_cycles 
-      ORDER BY 
-        CASE 
-          WHEN status = 'pending' THEN 0
-          WHEN status = 'in_progress' THEN 1
-          WHEN status = 'skipped' THEN 2
-          WHEN status = 'completed' THEN 3
-          ELSE 4
-        END ASC,
-        cycleStartDate DESC
-    `);
-    console.log('Cycles query result:', cyclesResult);
-    const cycles = cyclesResult.values || [];
-
-    // Create a map of latest ACTIVE cycles (prefer pending/in_progress over completed)
-    const latestCycles = new Map<number, any>();
-    cycles.forEach((cycle: { taskId: number; id: number; cycleStartDate: string; cycleEndDate: string; status: string; progress: number; completedAt?: string }) => {
-      const existing = latestCycles.get(cycle.taskId);
-      
-      if (!existing) {
-        // No cycle yet, use this one
-        latestCycles.set(cycle.taskId, {
-          ...cycle,
-          status: cycle.status as TaskCycleStatus
-        });
-      } else {
-        // Prefer active cycles (pending/in_progress) over completed ones
-        const isActiveStatus = cycle.status === 'pending' || cycle.status === 'in_progress';
-        const existingIsActive = existing.status === 'pending' || existing.status === 'in_progress';
-        
-        if (isActiveStatus && !existingIsActive) {
-          // This cycle is active and existing is completed - use this one
-          latestCycles.set(cycle.taskId, {
-            ...cycle,
-            status: cycle.status as TaskCycleStatus
-          });
-        } else if (isActiveStatus === existingIsActive) {
-          // Both are same type (both active or both completed), use the newer one
-          if (new Date(cycle.cycleStartDate) > new Date(existing.cycleStartDate)) {
-            latestCycles.set(cycle.taskId, {
-              ...cycle,
-              status: cycle.status as TaskCycleStatus
-            });
-          }
-        }
-        // If existing is active and this is completed, keep existing
-      }
-    });
-
-    // Assemble task list
-    const taskList: TaskListItem[] = nonArchivedTasks.map((taskData: any) => {
-      console.log('Processing task data:', taskData);
-      const task: Task = {
-        id: taskData.id,
-        title: taskData.title,
-        type: taskData.type,
-        customerId: taskData.customerId,
-        frequency: taskData.frequency,
-        startDate: taskData.startDate,
-        notificationTime: taskData.notificationTime,
-        notificationType: taskData.notificationType,
-        notes: taskData.notes,
-        isArchived: taskData.isArchived === 1,
-        isCompleted: false
-      };
-
-      const latestCycle = latestCycles.get(task.id!);
-      const cycleData: TaskCycle = latestCycle ? {
-        id: latestCycle.id,
-        taskId: task.id!,
-        cycleStartDate: latestCycle.cycleStartDate,
-        cycleEndDate: latestCycle.cycleEndDate,
-        status: latestCycle.status,
-        progress: latestCycle.progress || 0,
-        completedAt: latestCycle.completedAt
-      } : (() => {
-        const firstStart = this.getFirstCycleStartDate(task);
-        return {
-          taskId: task.id!,
-          cycleStartDate: firstStart,
-          cycleEndDate: this.calculateCycleEnd(firstStart, task.frequency),
-          status: 'pending' as TaskCycleStatus,
-          progress: 0
-        };
-      })();
-
-      const nextDueDate = this.getDueDatetime(cycleData.cycleStartDate, task.notificationTime);
-      const isOverdue = new Date(nextDueDate) < new Date() && cycleData.status !== 'completed' && cycleData.status !== 'skipped';
-      
-      return {
-        task,
-        currentCycle: cycleData,
-        taskStatus: this.getTaskStatus(cycleData),
-        isOverdue,
-        nextDueDate,
-        daysSinceLastCompletion: cycleData.completedAt ? 
-          Math.floor((new Date().getTime() - new Date(cycleData.completedAt).getTime()) / (1000 * 60 * 60 * 24)) : 
-          undefined,
-        canStartEarly: this.canStartEarly(cycleData),
-        canComplete: this.canComplete(cycleData)
-      };
-    })
-    .filter((item: TaskListItem) => {
-      const c = item.currentCycle;
-      const now = new Date().toISOString();
-      const completed: TaskCycleStatus = 'completed';
-      const inProgress: TaskCycleStatus = 'in_progress';
-      const pending: TaskCycleStatus = 'pending';
-      const skipped: TaskCycleStatus = 'skipped';
-
-      switch (view) {
-        case 'overdue':
-          return c.cycleEndDate < now && c.status !== completed && c.status !== skipped;
-        case 'in_progress':
-          return c.status === inProgress;
-        case 'upcoming':
-          return c.status === pending;
-        default:
-          // 'all': do not show missed (skipped) tasks in the main list
-          return c.status !== skipped;
-      }
-    })
-    .sort((a: TaskListItem, b: TaskListItem) => {
-      const aEnd = a.currentCycle.cycleEndDate;
-      const bEnd = b.currentCycle.cycleEndDate;
-      const inProgress: TaskCycleStatus = 'in_progress';
-
-      const aPriority = a.isOverdue ? 1 : a.currentCycle.status === inProgress ? 2 : 3;
-      const bPriority = b.isOverdue ? 1 : b.currentCycle.status === inProgress ? 2 : 3;
-
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      return new Date(aEnd).getTime() - new Date(bEnd).getTime();
-    });
-
-    console.log('Processed task list:', taskList);
-    this.taskListSubject.next(taskList);
-  } catch (error) {
-    console.error('Error loading task list:', error);
-    throw error;
-  }
-}
-
-  async updateTaskCycleStatus(cycleId: number, status: TaskCycleStatus, progress?: number): Promise<void> {
+  async loadTaskList(view: 'all' | 'overdue' | 'due' | 'upcoming' = 'all'): Promise<void> {
     try {
-      console.log('Updating cycle status:', { cycleId, status, progress });
+      await this.closeLapsedCycles();
+      const now = new Date();
 
-      // Get current cycle
-      const currentCycle = await this.db.executeQuery(
-        'SELECT * FROM task_cycles WHERE id = ?',
-        [cycleId]
+      const tasksResult = await this.db.executeQuery(
+        `SELECT * FROM tasks WHERE (state IS NULL OR state != 'archived') AND (isArchived = 0 OR isArchived IS NULL) ORDER BY startDate ASC`,
+        []
       );
+      const taskRows = (tasksResult.values || []) as any[];
+      const cyclesResult = await this.db.executeQuery(
+        `SELECT * FROM task_cycles ORDER BY CASE WHEN resolution = 'open' THEN 0 ELSE 1 END, cycleStartDate DESC`,
+        []
+      );
+      const allCycles = (cyclesResult.values || []) as any[];
 
-      if (!currentCycle.values?.length) {
-        throw new Error('Cycle not found');
+      const latestCycleByTask = new Map<number, Cycle>();
+      for (const row of allCycles) {
+        const taskId = row.taskId;
+        if (latestCycleByTask.has(taskId)) continue;
+        latestCycleByTask.set(taskId, this.mapRowToCycle(row));
       }
 
-      const cycle: TaskCycle = {
-        id: currentCycle.values[0].id,
-        taskId: currentCycle.values[0].taskId,
-        cycleStartDate: currentCycle.values[0].cycleStartDate,
-        cycleEndDate: currentCycle.values[0].cycleEndDate,
-        status: currentCycle.values[0].status,
-        progress: currentCycle.values[0].progress || 0,
-        completedAt: currentCycle.values[0].completedAt
-      };
-
-      // Validate status transition
-      const validStatuses: TaskCycleStatus[] = ['pending', 'in_progress', 'completed', 'skipped'];
-      if (!validStatuses.includes(status)) {
-        throw new Error(`Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
-      }
-
-      // Apply business rules
-      if (status === 'completed' && !this.canComplete(cycle)) {
-        throw new Error('Cannot complete cycle before its start date');
-      }
-
-      if (status === 'in_progress' && cycle.status === 'pending' && !this.canStartEarly(cycle)) {
-        throw new Error('Cannot start this cycle early - too far from start date');
-      }
-
-      // Build the SET clause and parameters
-      const setClauses = ['status = ?'];
-      const params: (string | number)[] = [status];
-
-      if (progress !== undefined) {
-        setClauses.push('progress = ?');
-        params.push(progress);
-      }
-
-      if (status === 'completed') {
-        setClauses.push('completedAt = ?');
-        params.push(new Date().toISOString());
-      }
-
-      // Add the cycleId as the last parameter
-      params.push(cycleId);
-
-      const query = `
-        UPDATE task_cycles
-        SET ${setClauses.join(', ')}
-        WHERE id = ?
-      `;
-
-      console.log('Update query:', query, params);
-
-      await this.db.executeQuery(query, params);
-      console.log('Status updated successfully');
-
-      // If completing or manually skipping a cycle, create next cycle (so task stays in list with new occurrence)
-      if (status === 'completed' || status === 'skipped') {
-        const task = await this.getTask(cycle.taskId);
-        if (task) {
-          await this.createNextCycle(task, { ...cycle, status });
+      const taskList: TaskListItem[] = [];
+      for (const row of taskRows) {
+        const task = await this.getTask(row.id);
+        if (!task) continue;
+        let cycle = latestCycleByTask.get(task.id!);
+        if (!cycle) {
+          const firstStart = this.getFirstCycleStartDate(task);
+          const dueAt = calculateDueAt(firstStart, task.notificationTime);
+          cycle = {
+            taskId: task.id!,
+            cycleStartDate: firstStart,
+            dueAt,
+            softDeadline: calculateSoftDeadline(dueAt, task.frequency),
+            hardDeadline: calculateHardDeadline(dueAt, task.frequency),
+            resolution: 'open',
+          };
         }
+        const displayStatus = deriveDisplayState(cycle, task, now);
+        const isOverdue = displayStatus === 'overdue';
+        let lastMissedDate: string | undefined;
+        const taskCyclesForTask = allCycles.filter((c: any) => c.taskId === task.id);
+        const resolvedCycles = taskCyclesForTask.filter((c: any) => c.resolution !== 'open');
+        const resolutionDate = (c: any) => c.resolution === 'done' ? (c.completedAt || c.cycleStartDate) : c.resolution === 'skipped' ? (c.skippedAt || c.cycleStartDate) : (c.hardDeadline || c.cycleStartDate);
+        const mostRecentResolved = resolvedCycles.length > 0
+          ? resolvedCycles.sort((a: any, b: any) => new Date(resolutionDate(b)).getTime() - new Date(resolutionDate(a)).getTime())[0]
+          : null;
+        if (mostRecentResolved?.resolution === 'lapsed') lastMissedDate = mostRecentResolved.dueAt || mostRecentResolved.hardDeadline;
+
+        const item: TaskListItem = {
+          task,
+          currentCycle: cycle,
+          displayStatus,
+          isOverdue: displayStatus === 'overdue',
+          nextDueDate: cycle.dueAt,
+          daysSinceLastCompletion: cycle.completedAt
+            ? Math.floor((now.getTime() - new Date(cycle.completedAt).getTime()) / (1000 * 60 * 60 * 24))
+            : undefined,
+          lastMissedDate,
+        };
+        if (view === 'all') taskList.push(item);
+        else if (view === 'due' && displayStatus === 'due') taskList.push(item);
+        else if (view === 'upcoming' && displayStatus === 'upcoming') taskList.push(item);
+        else if (view === 'overdue' && displayStatus === 'overdue') taskList.push(item);
       }
 
-      // Reload the task list to reflect changes
-      await this.loadTaskList();
+      taskList.sort((a, b) => {
+        const priority = (s: string) => (s === 'due' ? 0 : s === 'overdue' ? 1 : 2);
+        const pa = priority(a.displayStatus || '');
+        const pb = priority(b.displayStatus || '');
+        if (pa !== pb) return pa - pb;
+        return new Date(a.currentCycle.dueAt).getTime() - new Date(b.currentCycle.dueAt).getTime();
+      });
+
+      this.taskListSubject.next(taskList);
     } catch (error) {
-      console.error('Error updating task cycle status:', error);
+      console.error('Error loading task list:', error);
       throw error;
     }
   }
 
-  async createNextCycle(task: Task, previousCycle?: TaskCycle): Promise<number> {
-    try {
-      if (!task.id) {
-        throw new Error('Task ID is required to create cycle');
-      }
+  private mapRowToCycle(row: any): Cycle {
+    return {
+      id: row.id,
+      taskId: row.taskId,
+      cycleStartDate: row.cycleStartDate,
+      dueAt: row.dueAt,
+      softDeadline: row.softDeadline,
+      hardDeadline: row.hardDeadline,
+      resolution: (row.resolution || 'open') as CycleResolution,
+      startedAt: row.startedAt,
+      completedAt: row.completedAt,
+      skippedAt: row.skippedAt,
+    };
+  }
 
-      console.log('Creating next cycle for task:', task);
+  /** Resolve a cycle (done or skipped). For lapsed cycles, only 'done' is allowed (retroactive). */
+  async resolveCycle(cycleId: number, resolution: 'done' | 'skipped'): Promise<void> {
+    const res = await this.db.executeQuery('SELECT * FROM task_cycles WHERE id = ?', [cycleId]);
+    if (!res.values?.length) throw new Error('Cycle not found');
+    const row = res.values[0] as any;
+    const cycle = this.mapRowToCycle(row);
+    const task = await this.getTask(cycle.taskId);
+    if (!task) throw new Error('Task not found');
 
-      // Get the latest cycle for this task
-      const latestCycle = await this.getCurrentCycle(task.id);
-      console.log('Latest cycle:', latestCycle);
-      
-      // If there's a latest cycle and it's pending or in_progress, return its ID
-      const pending: TaskCycleStatus = 'pending';
-      const inProgress: TaskCycleStatus = 'in_progress';
-      if (latestCycle && (latestCycle.status === pending || latestCycle.status === inProgress)) {
-        console.log('Using existing cycle:', latestCycle.id);
-        return latestCycle.id!;
-      }
+    const now = new Date().toISOString();
+    if (resolution === 'done') {
+      await this.db.executeQuery(
+        'UPDATE task_cycles SET resolution = ?, completedAt = ? WHERE id = ?',
+        ['done', now, cycleId]
+      );
+    } else {
+      if (cycle.resolution === 'lapsed') throw new Error('Cannot skip a lapsed cycle');
+      await this.db.executeQuery(
+        'UPDATE task_cycles SET resolution = ?, skippedAt = ? WHERE id = ?',
+        ['skipped', now, cycleId]
+      );
+    }
 
-      // For skipped: use cycle start so next cycle has a later due date (not the same as skipped one)
-      const skipped: TaskCycleStatus = 'skipped';
-      const startDate = previousCycle
-        ? (previousCycle.status === skipped
-            ? this.calculateNextCycleStart(previousCycle.cycleStartDate, task.frequency)
-            : this.calculateNextCycleStart(previousCycle.cycleEndDate, task.frequency))
-        : this.getFirstCycleStartDate(task);
-
-      const endDate = this.calculateCycleEnd(startDate, task.frequency);
-      console.log('New cycle dates:', { startDate, endDate });
-
-      // Insert the new cycle
-      const insertResult = await this.db.executeQuery(`
-        INSERT INTO task_cycles (
-          taskId,
-          cycleStartDate,
-          cycleEndDate,
-          status,
-          progress
-        ) VALUES (?, ?, ?, ?, 0)
-      `, [task.id, startDate, endDate, pending]);
-      console.log('Insert result:', insertResult);
-
-      if (!insertResult.changes?.lastId) {
-        console.error('No lastId in insert result');
-        throw new Error('Failed to get new cycle ID');
-      }
-
-      const newCycleId = insertResult.changes.lastId;
-      console.log('New cycle created with ID:', newCycleId);
-
-      // Verify the cycle exists
-      const verifyResult = await this.db.executeQuery(`
-        SELECT * FROM task_cycles WHERE id = ?
-      `, [newCycleId]);
-      console.log('Verify result:', verifyResult);
-
-      if (!verifyResult.values?.length) {
-        console.error('Could not verify new cycle');
-        throw new Error('Failed to verify new cycle');
-      }
-
-      // Reload the task list to reflect changes
+    if (cycle.resolution === 'open') {
+      await this.createNextCycle(task, { ...cycle, resolution });
+    } else if (cycle.resolution === 'lapsed' && resolution === 'done') {
       await this.loadTaskList();
-      
-      return newCycleId;
-    } catch (error) {
-      console.error('Error creating next cycle:', error);
-      throw new Error('Failed to create new cycle for task');
     }
   }
 
-  private calculateNextCycleStart(previousEnd: string, frequency: string): string {
-    try {
-      // Parse the date string and ensure it's valid
-      const parsedDate = new Date(previousEnd);
-      if (isNaN(parsedDate.getTime())) {
-        console.error('Invalid previous end date:', previousEnd);
-        // If invalid, use current date as fallback
-        parsedDate.setTime(Date.now());
-      }
-
-      // Create a new date object to avoid modifying the original
-      const startDate = new Date(parsedDate);
-      
-      switch (frequency) {
-        case 'daily':
-          startDate.setDate(startDate.getDate() + 1);
-          break;
-        case 'weekly':
-          startDate.setDate(startDate.getDate() + 7);
-          break;
-        case 'monthly':
-          startDate.setMonth(startDate.getMonth() + 1);
-          break;
-        case 'yearly':
-          startDate.setFullYear(startDate.getFullYear() + 1);
-          break;
-        default:
-          console.warn('Unknown frequency:', frequency);
-          // Default to daily if frequency is unknown
-          startDate.setDate(startDate.getDate() + 1);
-      }
-
-      // Ensure the date is valid before converting to ISO string
-      if (isNaN(startDate.getTime())) {
-        console.error('Invalid start date calculated');
-        return new Date().toISOString(); // Fallback to current date
-      }
-
-      return startDate.toISOString();
-    } catch (error) {
-      console.error('Error calculating next cycle start date:', error);
-      return new Date().toISOString(); // Fallback to current date
-    }
+  /** @deprecated Use resolveCycle(cycleId, 'done'|'skipped'). Kept for compatibility during migration. */
+  async updateTaskCycleStatus(cycleId: number, status: string, _progress?: number): Promise<void> {
+    if (status === 'completed') await this.resolveCycle(cycleId, 'done');
+    else if (status === 'skipped') await this.resolveCycle(cycleId, 'skipped');
   }
 
-  private calculateCycleEnd(startDate: string, frequency: string): string {
-    try {
-      // Parse the date string and ensure it's valid
-      const parsedDate = new Date(startDate);
-      if (isNaN(parsedDate.getTime())) {
-        console.error('Invalid start date:', startDate);
-        // If invalid, use current date as fallback
-        parsedDate.setTime(Date.now());
-      }
+  async createNextCycle(task: Task, previousCycle?: Cycle): Promise<number> {
+    if (!task.id) throw new Error('Task ID is required to create cycle');
 
-      // Create a new date object to avoid modifying the original
-      const endDate = new Date(parsedDate);
-      
-      switch (frequency) {
-        case 'daily':
-          endDate.setDate(endDate.getDate() + 1);
-          break;
-        case 'weekly':
-          endDate.setDate(endDate.getDate() + 7);
-          break;
-        case 'monthly':
-          endDate.setMonth(endDate.getMonth() + 1);
-          break;
-        case 'yearly':
-          endDate.setFullYear(endDate.getFullYear() + 1);
-          break;
-        default:
-          console.warn('Unknown frequency:', frequency);
-          // Default to daily if frequency is unknown
-          endDate.setDate(endDate.getDate() + 1);
-      }
-
-      // Ensure the date is valid before converting to ISO string
-      if (isNaN(endDate.getTime())) {
-        console.error('Invalid end date calculated');
-        return new Date().toISOString(); // Fallback to current date
-      }
-
-      return endDate.toISOString();
-    } catch (error) {
-      console.error('Error calculating cycle end date:', error);
-      return new Date().toISOString(); // Fallback to current date
+    if (task.frequency === 'once') {
+      await this.db.executeQuery(
+        "UPDATE tasks SET state = 'archived', isArchived = 1 WHERE id = ?",
+        [task.id]
+      );
+      await this.loadTaskList();
+      return 0;
     }
+
+    const latestCycle = await this.getCurrentCycle(task.id);
+    if (latestCycle && latestCycle.resolution === 'open') return latestCycle.id!;
+
+    const startDate = previousCycle
+      ? (previousCycle.resolution === 'skipped' || previousCycle.resolution === 'lapsed'
+          ? calculateNextCycleStart(previousCycle.cycleStartDate, task.frequency)
+          : calculateNextCycleStart(previousCycle.hardDeadline, task.frequency))
+      : this.getFirstCycleStartDate(task);
+
+    const dueAt = calculateDueAt(startDate, task.notificationTime);
+    const softDeadline = calculateSoftDeadline(dueAt, task.frequency);
+    const hardDeadline = calculateHardDeadline(dueAt, task.frequency);
+
+    const insertResult = await this.db.executeQuery(
+      `INSERT INTO task_cycles (taskId, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution)
+       VALUES (?, ?, ?, ?, ?, 'open')`,
+      [task.id, startDate, dueAt, softDeadline, hardDeadline]
+    );
+    const newCycleId = insertResult.changes?.lastId;
+    if (!newCycleId) throw new Error('Failed to get new cycle ID');
+    await this.loadTaskList();
+    return newCycleId;
   }
 
   async getTask(id: number): Promise<Task | null> {
     try {
-      const result = await this.db.executeQuery(`
-        SELECT * FROM tasks WHERE id = ?
-      `, [id]);
-
-      if (result.values?.length) {
-        return result.values[0] as Task;
-      }
-      return null;
+      const result = await this.db.executeQuery(
+        'SELECT * FROM tasks WHERE id = ?',
+        [id]
+      );
+      if (!result.values?.length) return null;
+      const row = result.values[0] as any;
+      const state = row.state || (row.isArchived ? 'archived' : 'active');
+      return {
+        id: Number(row.id),
+        title: row.title,
+        type: row.type,
+        customerId: row.customerId != null ? Number(row.customerId) : null,
+        frequency: row.frequency,
+        startDate: row.startDate,
+        notificationTime: row.notificationTime,
+        notificationType: row.notificationType,
+        notificationValue: row.notificationValue,
+        notes: row.notes,
+        state,
+      } as Task;
     } catch (error) {
       console.error('Error getting task:', error);
       throw error;
@@ -645,6 +376,7 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
   async createTask(task: Task): Promise<number> {
     try {
       // Insert the task
+      const state = task.state || 'active';
       const result = await this.db.executeQuery(`
         INSERT INTO tasks (
           title,
@@ -656,8 +388,9 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
           notificationTime,
           notificationValue,
           notes,
-          isArchived
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          isArchived,
+          state
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         task.title,
         task.type,
@@ -668,7 +401,8 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
         task.notificationTime,
         task.notificationValue,
         task.notes,
-        task.isArchived ? 1 : 0
+        state === 'archived' ? 1 : 0,
+        state
       ]);
 
       const taskId = result.changes?.lastId;
@@ -691,6 +425,8 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     try {
       if (!task.id) throw new Error('Task ID is required for update');
 
+      const state = task.state || 'active';
+      const isArchived = state === 'archived' ? 1 : 0;
       await this.db.executeQuery(`
         UPDATE tasks
         SET title = ?,
@@ -702,6 +438,7 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
             notificationTime = ?,
             notificationValue = ?,
             notes = ?,
+            state = ?,
             isArchived = ?
         WHERE id = ?
       `, [
@@ -714,19 +451,21 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
         task.notificationTime,
         task.notificationValue,
         task.notes,
-        task.isArchived ? 1 : 0,
+        state,
+        isArchived,
         task.id
       ]);
 
-      // Update current cycle if frequency changed
+      // Update current cycle timestamps if frequency changed and cycle is open
       const currentCycle = await this.getCurrentCycle(task.id);
-      if (currentCycle && currentCycle.status === 'pending') {
-        const endDate = this.calculateCycleEnd(currentCycle.cycleStartDate, task.frequency);
-        await this.db.executeQuery(`
-          UPDATE task_cycles
-          SET cycleEndDate = ?
-          WHERE id = ?
-        `, [endDate, currentCycle.id]);
+      if (currentCycle && currentCycle.resolution === 'open') {
+        const dueAt = calculateDueAt(currentCycle.cycleStartDate, task.notificationTime);
+        const softDeadline = calculateSoftDeadline(dueAt, task.frequency);
+        const hardDeadline = calculateHardDeadline(dueAt, task.frequency);
+        await this.db.executeQuery(
+          'UPDATE task_cycles SET dueAt = ?, softDeadline = ?, hardDeadline = ? WHERE id = ?',
+          [dueAt, softDeadline, hardDeadline, currentCycle.id]
+        );
       }
 
       // Reload the task list
@@ -737,128 +476,39 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     }
   }
 
-  async getCurrentCycle(taskId: number): Promise<TaskCycle | null> {
-    try {
-      const result = await this.db.executeQuery(`
-        SELECT *
-        FROM task_cycles
-        WHERE taskId = ?
-        ORDER BY cycleStartDate DESC
-        LIMIT 1
-      `, [taskId]);
+  async getCurrentCycle(taskId: number): Promise<Cycle | null> {
+    const result = await this.db.executeQuery(
+      `SELECT * FROM task_cycles WHERE taskId = ? ORDER BY CASE WHEN resolution = 'open' THEN 0 ELSE 1 END, cycleStartDate DESC LIMIT 1`,
+      [taskId]
+    );
+    if (!result.values?.length) return null;
+    return this.mapRowToCycle(result.values[0]);
+  }
 
-      if (result.values?.length) {
-        const cycle = result.values[0];
-        return {
-          id: cycle.id,
-          taskId: cycle.taskId,
-          cycleStartDate: cycle.cycleStartDate,
-          cycleEndDate: cycle.cycleEndDate,
-          status: cycle.status as TaskCycleStatus,
-          progress: cycle.progress || 0,
-          completedAt: cycle.completedAt
-        };
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting current cycle:', error);
-      throw new Error('Failed to get current cycle');
-    }
+  /** Most recent cycle with resolution=lapsed for this task (for retroactive "I actually did this"). */
+  async getMostRecentLapsedCycle(taskId: number): Promise<Cycle | null> {
+    const result = await this.db.executeQuery(
+      `SELECT * FROM task_cycles WHERE taskId = ? AND resolution = 'lapsed' ORDER BY hardDeadline DESC LIMIT 1`,
+      [taskId]
+    );
+    if (!result.values?.length) return null;
+    return this.mapRowToCycle(result.values[0]);
   }
 
   async archiveTask(taskId: number): Promise<void> {
-    try {
-      console.log('Archiving task:', taskId);
-
-      // First verify the task exists
-      const checkResult = await this.db.executeQuery(`
-        SELECT isArchived FROM tasks WHERE id = ?
-      `, [taskId]);
-      console.log('Task check result:', checkResult);
-
-      if (!checkResult.values?.length) {
-        throw new Error(`Task ${taskId} not found`);
-      }
-
-      // Update the task's isArchived status
-      const updateResult = await this.db.executeQuery(`
-        UPDATE tasks 
-        SET isArchived = ?
-        WHERE id = ?
-      `, [1, taskId]);
-      console.log('Archive update result:', updateResult);
-
-      // Verify the update was successful
-      const verifyResult = await this.db.executeQuery(`
-        SELECT isArchived FROM tasks WHERE id = ?
-      `, [taskId]);
-      console.log('Archive verification result:', verifyResult);
-
-      // Check if the value exists and is truthy (1, '1', true)
-      const archivedValue = verifyResult.values?.[0]?.isArchived;
-      if (!verifyResult.values?.[0] || ![1, '1', true].includes(archivedValue)) {
-        console.error('Archive operation failed verification:', verifyResult);
-        throw new Error('Failed to archive task - verification failed');
-      }
-
-      // Update task list after archiving
-      await this.loadTaskList();
-    } catch (error) {
-      console.error('Error archiving task:', error);
-      throw error;
-    }
+    const check = await this.db.executeQuery('SELECT id FROM tasks WHERE id = ?', [taskId]);
+    if (!check.values?.length) throw new Error(`Task ${taskId} not found`);
+    await this.db.executeQuery("UPDATE tasks SET state = 'archived', isArchived = 1 WHERE id = ?", [taskId]);
+    await this.loadTaskList();
   }
 
   async unarchiveTask(taskId: number): Promise<void> {
-    try {
-      console.log('TaskCycleService: Unarchiving task:', taskId);
-      
-      // First verify the task exists and is archived
-      const taskResult = await this.db.executeQuery(`
-        SELECT isArchived FROM tasks WHERE id = ?
-      `, [taskId]);
-      
-      if (!taskResult.values?.length) {
-        throw new Error(`Task with ID ${taskId} not found`);
-      }
-      
-      // Use our normalizeIsArchived function to handle the value consistently
-      const isArchived = normalizeIsArchived(taskResult.values[0].isArchived);
-      if (isArchived === 0) {
-        console.log('Task is not archived');
-        return;
-      }
-
-      // Update the task's archived status
-      const result = await this.db.executeQuery(`
-        UPDATE tasks 
-        SET isArchived = ?
-        WHERE id = ?
-      `, [0, taskId]);
-      console.log('TaskCycleService: Unarchive query result:', result);
-
-      // Verify the update was successful
-      const verifyResult = await this.db.executeQuery(`
-        SELECT isArchived FROM tasks WHERE id = ?
-      `, [taskId]);
-      console.log('Unarchive verification result:', verifyResult);
-
-      // Verify using our normalized value and handle web database boolean values
-      const rawValue = verifyResult.values?.[0]?.isArchived;
-      console.log('Raw isArchived value after update:', rawValue);
-      
-      // Check all possible falsy values that indicate successful unarchive
-      if (![0, '0', false, 'false', null, undefined].includes(rawValue)) {
-        console.error('Unarchive operation failed verification:', verifyResult);
-        throw new Error('Failed to unarchive task - verification failed');
-      }
-
-      await this.loadTaskList();
-      console.log('TaskCycleService: Task list reloaded after unarchive');
-    } catch (error) {
-      console.error('Error unarchiving task:', error);
-      throw error;
-    }
+    const taskResult = await this.db.executeQuery('SELECT state, isArchived FROM tasks WHERE id = ?', [taskId]);
+    if (!taskResult.values?.length) throw new Error(`Task ${taskId} not found`);
+    const row = taskResult.values[0] as any;
+    if (row.state !== 'archived' && normalizeIsArchived(row.isArchived) === 0) return;
+    await this.db.executeQuery("UPDATE tasks SET state = 'active', isArchived = 0 WHERE id = ?", [taskId]);
+    await this.loadTaskList();
   }
 
   private calculateDaysSince(date: Date): number {
@@ -867,168 +517,57 @@ async loadTaskList(view: 'all' | 'overdue' | 'in_progress' | 'upcoming' = 'all')
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  private async calculateNextDueDate(task: Task, currentCycle?: TaskCycle): Promise<string> {
-    if (currentCycle?.cycleEndDate) {
-      return currentCycle.cycleEndDate;
+  /**
+   * After DB migration (v6), ensure every active task has exactly one open cycle.
+   * Call once on app launch so upgraded users get initial cycles.
+   */
+  async ensureOpenCyclesForActiveTasks(): Promise<void> {
+    const result = await this.db.executeQuery(
+      `SELECT id FROM tasks WHERE (state = 'active' OR (state IS NULL AND (isArchived = 0 OR isArchived IS NULL))) AND frequency != 'once'`,
+      []
+    );
+    const rows = (result.values || []) as Array<{ id: number }>;
+    for (const row of rows) {
+      const task = await this.getTask(row.id);
+      if (!task) continue;
+      const cycle = await this.getCurrentCycle(task.id!);
+      if (!cycle || cycle.resolution !== 'open') {
+        await this.createNextCycle(task);
+      }
     }
-
-    // If no current cycle, calculate based on start date
-    const startDate = new Date(task.startDate);
-    const today = new Date();
-    
-    switch (task.frequency) {
-      case 'daily':
-        startDate.setDate(startDate.getDate() + 1);
-        break;
-      case 'weekly':
-        startDate.setDate(startDate.getDate() + 7);
-        break;
-      case 'monthly':
-        startDate.setMonth(startDate.getMonth() + 1);
-        break;
-      case 'yearly':
-        startDate.setFullYear(startDate.getFullYear() + 1);
-        break;
-    }
-
-    return startDate.toISOString();
-  }
-
-  private isOverdue(date: string): boolean {
-    return new Date(date) < new Date();
+    await this.loadTaskList();
   }
 
   async getArchivedTasks(): Promise<TaskListItem[]> {
-    try {
-      const query = `
-        SELECT 
-          t.*,
-          c.name as customerName,
-          tc.id as cycle_id,
-          tc.cycleStartDate,
-          tc.cycleEndDate,
-          tc.status,
-          tc.progress,
-          tc.completedAt
-        FROM tasks t
-        LEFT JOIN customers c ON t.customerId = c.id
-        LEFT JOIN (
-          SELECT tc2.*,
-            ROW_NUMBER() OVER (
-              PARTITION BY tc2.taskId 
-              ORDER BY tc2.cycleStartDate DESC
-            ) as rn
-          FROM task_cycles tc2
-        ) tc ON t.id = tc.taskId AND tc.rn = 1
-        WHERE t.isArchived = 1
-        ORDER BY t.title ASC
-      `;
-
-      const result = await this.db.executeQuery(query);
-      const archivedTasks = (result.values || []).map((taskData: any) => {
-        const task = {
-          id: taskData.id,
-          title: taskData.title,
-          type: taskData.type,
-          customerId: taskData.customerId,
-          customerName: taskData.customerName || undefined,
-          frequency: taskData.frequency,
-          startDate: taskData.startDate,
-          notificationTime: taskData.notificationTime,
-          notificationType: taskData.notificationType,
-          notificationValue: taskData.notificationValue,
-          notes: taskData.notes,
-          isArchived: true
-        };
-
-        const currentCycle = taskData.cycle_id ? {
-          id: taskData.cycle_id,
-          taskId: task.id!,
-          cycleStartDate: taskData.cycleStartDate,
-          cycleEndDate: taskData.cycleEndDate,
-          status: taskData.status as TaskCycleStatus,
-          progress: taskData.progress || 0,
-          completedAt: taskData.completedAt
-        } : {
-          taskId: task.id!,
-          cycleStartDate: task.startDate,
-          cycleEndDate: this.calculateCycleEnd(task.startDate, task.frequency),
-          status: 'pending' as TaskCycleStatus,
-          progress: 0
-        };
-
-        return {
-          task,
-          currentCycle,
-          taskStatus: this.getTaskStatus(currentCycle),
-          isOverdue: false, // Archived tasks are not considered overdue
-          nextDueDate: currentCycle.cycleEndDate,
-          daysSinceLastCompletion: currentCycle.completedAt ? 
-            Math.floor((new Date().getTime() - new Date(currentCycle.completedAt).getTime()) / (1000 * 60 * 60 * 24)) : 
-            undefined,
-          canStartEarly: false, // Archived tasks cannot be started
-          canComplete: false // Archived tasks cannot be completed
-        };
+    const result = await this.db.executeQuery(
+      `SELECT t.*, c.name as customerName FROM tasks t LEFT JOIN customers c ON t.customerId = c.id WHERE t.state = 'archived' OR t.isArchived = 1 ORDER BY t.title ASC`,
+      []
+    );
+    const rows = (result.values || []) as any[];
+    const list: TaskListItem[] = [];
+    for (const row of rows) {
+      const task = await this.getTask(row.id);
+      if (!task) continue;
+      const cycle = await this.getCurrentCycle(task.id!);
+      const currentCycle: Cycle = cycle || {
+        taskId: task.id!,
+        cycleStartDate: task.startDate,
+        dueAt: calculateDueAt(task.startDate, task.notificationTime),
+        softDeadline: calculateDueAt(task.startDate, task.notificationTime),
+        hardDeadline: calculateHardDeadline(calculateDueAt(task.startDate, task.notificationTime), task.frequency),
+        resolution: 'open',
+      };
+      list.push({
+        task: { ...task, state: 'archived' },
+        currentCycle,
+        displayStatus: 'upcoming',
+        isOverdue: false,
+        nextDueDate: currentCycle.dueAt,
+        daysSinceLastCompletion: currentCycle.completedAt
+          ? Math.floor((Date.now() - new Date(currentCycle.completedAt).getTime()) / (1000 * 60 * 60 * 24))
+          : undefined,
       });
-
-      return archivedTasks;
-    } catch (error) {
-      console.error('Error getting archived tasks:', error);
-      throw error;
     }
-  }
-
-  // Add new methods for task status management
-  private getTaskStatus(cycle: TaskCycle): 'Active' | 'Pending' | 'Completed' | 'Overdue' {
-    const now = new Date();
-    const cycleStart = new Date(cycle.cycleStartDate);
-    const cycleEnd = new Date(cycle.cycleEndDate);
-
-    if (cycle.status === 'completed') {
-      return 'Completed';
-    }
-
-    if (cycle.status === 'in_progress') {
-      return cycleEnd < now ? 'Overdue' : 'Active';
-    }
-
-    if (cycle.status === 'pending') {
-      return cycleEnd < now ? 'Overdue' : 'Pending';
-    }
-
-    // For skipped status, we don't show in main view
-    return 'Pending';
-  }
-
-  /** Public for use in task detail: whether the cycle can be started early */
-  canStartCycle(cycle: TaskCycle): boolean {
-    return this.canStartEarly(cycle);
-  }
-
-  /** Public for use in task detail: whether the cycle can be marked complete */
-  canCompleteCycle(cycle: TaskCycle): boolean {
-    return this.canComplete(cycle);
-  }
-
-  private canStartEarly(cycle: TaskCycle): boolean {
-    const now = new Date();
-    const cycleStart = new Date(cycle.cycleStartDate);
-    
-    // Can start early if:
-    // 1. Status is pending
-    // 2. Within reasonable timeframe (e.g., 3 days) before cycle start
-    const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-    return cycle.status === 'pending' && 
-           (cycleStart.getTime() - now.getTime()) <= threeDaysMs;
-  }
-
-  private canComplete(cycle: TaskCycle): boolean {
-    const now = new Date();
-    const cycleStart = new Date(cycle.cycleStartDate);
-    
-    // Can complete if:
-    // 1. Status is in_progress
-    // 2. Cycle has officially started
-    return cycle.status === 'in_progress' && now >= cycleStart;
+    return list;
   }
 }

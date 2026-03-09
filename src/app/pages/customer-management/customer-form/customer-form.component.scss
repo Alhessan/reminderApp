@@ -144,3 +144,16 @@ form {
   }
 }
 
+// Form Footer
+.form-actions {
+  margin: 24px 0 32px;
+
+  .submit-button {
+    --border-radius: 12px;
+    font-weight: 600;
+    --background: var(--ion-color-primary);
+    --color: var(--ion-color-primary-contrast);
+    min-height: 52px;
+  }
+}
+

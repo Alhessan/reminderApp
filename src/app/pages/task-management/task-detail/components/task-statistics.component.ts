@@ -3,13 +3,14 @@ import { IonicModule } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { Task } from '../../../../models/task.model';
 import { DatabaseService } from '../../../../services/database.service';
+import { STATUS_CONFIG } from '../../../../models/cycle-display.model';
 
 interface TaskStatistics {
   totalCycles: number;
   completedCycles: number;
   skippedCycles: number;
-  inProgressCycles: number;
-  pendingCycles: number;
+  lapsedCycles: number;
+  openCycles: number;
   completionRate: number;
   averageCompletionTime: number;
   streak: {
@@ -108,31 +109,31 @@ interface TaskStatistics {
                   [style.width.%]="getStatusPercentage('skipped')">
                 </div>
                 <div 
-                  class="status-segment in-progress" 
-                  [style.width.%]="getStatusPercentage('in_progress')">
+                  class="status-segment lapsed" 
+                  [style.width.%]="getStatusPercentage('lapsed')">
                 </div>
                 <div 
-                  class="status-segment pending" 
-                  [style.width.%]="getStatusPercentage('pending')">
+                  class="status-segment open" 
+                  [style.width.%]="getStatusPercentage('open')">
                 </div>
               </div>
               
               <div class="status-legend">
                 <div class="legend-item">
                   <div class="legend-color completed"></div>
-                  <span>Completed ({{ statistics.completedCycles }})</span>
+                  <span>{{ STATUS_CONFIG.completed.label }} ({{ statistics.completedCycles }})</span>
                 </div>
                 <div class="legend-item">
                   <div class="legend-color skipped"></div>
-                  <span>Missed ({{ statistics.skippedCycles }})</span>
+                  <span>{{ STATUS_CONFIG.skipped.label }} ({{ statistics.skippedCycles }})</span>
                 </div>
                 <div class="legend-item">
-                  <div class="legend-color in-progress"></div>
-                  <span>In Progress ({{ statistics.inProgressCycles }})</span>
+                  <div class="legend-color lapsed"></div>
+                  <span>{{ STATUS_CONFIG.missed.label }} ({{ statistics.lapsedCycles }})</span>
                 </div>
                 <div class="legend-item">
-                  <div class="legend-color pending"></div>
-                  <span>Pending ({{ statistics.pendingCycles }})</span>
+                  <div class="legend-color open"></div>
+                  <span>Open ({{ statistics.openCycles }})</span>
                 </div>
               </div>
             </div>
@@ -286,8 +287,8 @@ interface TaskStatistics {
           
           &.completed { background: var(--ion-color-success); }
           &.skipped { background: var(--ion-color-warning); }
-          &.in-progress { background: var(--ion-color-primary); }
-          &.pending { background: var(--ion-color-medium); }
+          &.lapsed { background: var(--ion-color-medium-shade); }
+          &.open { background: var(--ion-color-medium); }
         }
       }
       
@@ -309,8 +310,8 @@ interface TaskStatistics {
             
             &.completed { background: var(--ion-color-success); }
             &.skipped { background: var(--ion-color-warning); }
-            &.in-progress { background: var(--ion-color-primary); }
-            &.pending { background: var(--ion-color-medium); }
+            &.lapsed { background: var(--ion-color-medium); }
+            &.open { background: var(--ion-color-medium); }
           }
           
           span {
@@ -373,6 +374,8 @@ export class TaskStatisticsComponent implements OnInit {
   isLoading = false;
   statistics: TaskStatistics | null = null;
 
+  readonly STATUS_CONFIG = STATUS_CONFIG;
+
   constructor(private db: DatabaseService) {}
 
   async ngOnInit() {
@@ -393,8 +396,13 @@ export class TaskStatisticsComponent implements OnInit {
     
     this.isLoading = true;
     try {
-      const cycles = await this.getCycleData(this.task.id);
-      this.statistics = this.calculateStatistics(cycles);
+      const [cycles, history] = await Promise.all([
+        this.getCycleData(this.task.id),
+        this.getTaskHistory(this.task.id),
+      ]);
+      const activeIntervals = this.buildActiveIntervals(this.task, history);
+      const cyclesInActivePeriods = this.filterCyclesToActivePeriods(cycles, activeIntervals);
+      this.statistics = this.calculateStatistics(cyclesInActivePeriods);
     } catch (error) {
       console.error('Error loading task statistics:', error);
     } finally {
@@ -408,41 +416,80 @@ export class TaskStatisticsComponent implements OnInit {
       WHERE taskId = ? 
       ORDER BY cycleStartDate ASC
     `, [taskId]);
-    
     return result.values || [];
+  }
+
+  private async getTaskHistory(taskId: number): Promise<{ timestamp: string; action: string }[]> {
+    const result = await this.db.executeQuery(
+      'SELECT timestamp, action FROM task_history WHERE taskId = ? ORDER BY timestamp ASC',
+      [taskId]
+    );
+    return (result.values || []) as { timestamp: string; action: string }[];
+  }
+
+  /** Build [start, end] intervals when the task was active (not paused). Used to exclude paused periods from stats. */
+  private buildActiveIntervals(task: Task, history: { timestamp: string; action: string }[]): [string, string][] {
+    const now = new Date().toISOString();
+    const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    const intervals: [string, string][] = [];
+    let currentStart: string = task.startDate;
+    for (const entry of history) {
+      if (entry.action === 'paused' && currentStart) {
+        intervals.push([currentStart, entry.timestamp]);
+        currentStart = '';
+      } else if (entry.action === 'resumed') {
+        currentStart = entry.timestamp;
+      }
+    }
+    if (currentStart) intervals.push([currentStart, farFuture]);
+    return intervals;
+  }
+
+  private filterCyclesToActivePeriods(cycles: any[], intervals: [string, string][]): any[] {
+    if (intervals.length === 0) return cycles;
+    return cycles.filter((c: any) => {
+      const start = new Date(c.cycleStartDate).getTime();
+      return intervals.some(([s, e]) => {
+        const segStart = new Date(s).getTime();
+        const segEnd = new Date(e).getTime();
+        return start >= segStart && start < segEnd;
+      });
+    });
   }
 
   private calculateStatistics(cycles: any[]): TaskStatistics {
     const totalCycles = cycles.length;
-    const completedCycles = cycles.filter(c => c.status === 'completed').length;
-    const skippedCycles = cycles.filter(c => c.status === 'skipped').length;
-    const inProgressCycles = cycles.filter(c => c.status === 'in_progress').length;
-    const pendingCycles = cycles.filter(c => c.status === 'pending').length;
-    
-    const completionRate = totalCycles > 0 ? Math.round((completedCycles / totalCycles) * 100) : 0;
-    
-    const completedWithTimes = cycles.filter(c => c.status === 'completed' && c.completedAt);
-    const averageCompletionTime = completedWithTimes.length > 0 
-      ? Math.round(completedWithTimes.reduce((sum, c) => {
+    const completedCycles = cycles.filter((c: any) => c.resolution === 'done').length;
+    const skippedCycles = cycles.filter((c: any) => c.resolution === 'skipped').length;
+    const lapsedCycles = cycles.filter((c: any) => c.resolution === 'lapsed').length;
+    const openCycles = cycles.filter((c: any) => c.resolution === 'open').length;
+
+    // Completion rate excludes skipped from denominator: done / (done + lapsed)
+    const rateDenominator = completedCycles + lapsedCycles;
+    const completionRate = rateDenominator > 0 ? Math.round((completedCycles / rateDenominator) * 100) : 0;
+
+    const completedWithTimes = cycles.filter((c: any) => c.resolution === 'done' && c.completedAt);
+    const averageCompletionTime = completedWithTimes.length > 0
+      ? Math.round(completedWithTimes.reduce((sum: number, c: any) => {
           const start = new Date(c.cycleStartDate);
           const end = new Date(c.completedAt);
           return sum + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
         }, 0) / completedWithTimes.length)
       : 0;
-    
+
     const streak = this.calculateStreaks(cycles);
-    
+
     const lastActivity = cycles
-      .filter(c => c.completedAt || c.status !== 'pending')
-      .sort((a, b) => new Date(b.completedAt || b.cycleStartDate).getTime() - new Date(a.completedAt || a.cycleStartDate).getTime())
+      .filter((c: any) => c.completedAt || c.skippedAt || c.resolution !== 'open')
+      .sort((a: any, b: any) => new Date(b.completedAt || b.skippedAt || b.cycleStartDate).getTime() - new Date(a.completedAt || a.skippedAt || a.cycleStartDate).getTime())
       [0]?.completedAt || cycles[cycles.length - 1]?.cycleStartDate || null;
 
     return {
       totalCycles,
       completedCycles,
       skippedCycles,
-      inProgressCycles,
-      pendingCycles,
+      lapsedCycles,
+      openCycles,
       completionRate,
       averageCompletionTime,
       streak,
@@ -454,42 +501,42 @@ export class TaskStatisticsComponent implements OnInit {
     let current = 0;
     let best = 0;
     let temp = 0;
-    
-    const sortedCycles = cycles.sort((a, b) => 
+
+    const sortedCycles = [...cycles].sort((a, b) =>
       new Date(a.cycleStartDate).getTime() - new Date(b.cycleStartDate).getTime()
     );
-    
+
     for (const cycle of sortedCycles) {
-      if (cycle.status === 'completed') {
+      if (cycle.resolution === 'done') {
         temp++;
         best = Math.max(best, temp);
-      } else if (cycle.status === 'skipped') {
+      } else if (cycle.resolution === 'skipped' || cycle.resolution === 'lapsed') {
         temp = 0;
       }
     }
-    
+
     for (let i = sortedCycles.length - 1; i >= 0; i--) {
-      if (sortedCycles[i].status === 'completed') {
+      if (sortedCycles[i].resolution === 'done') {
         current++;
       } else {
         break;
       }
     }
-    
+
     return { current, best };
   }
 
   getStatusPercentage(status: string): number {
     if (!this.statistics || this.statistics.totalCycles === 0) return 0;
-    
+
     let count = 0;
     switch (status) {
       case 'completed': count = this.statistics.completedCycles; break;
       case 'skipped': count = this.statistics.skippedCycles; break;
-      case 'in_progress': count = this.statistics.inProgressCycles; break;
-      case 'pending': count = this.statistics.pendingCycles; break;
+      case 'lapsed': count = this.statistics.lapsedCycles; break;
+      case 'open': count = this.statistics.openCycles; break;
     }
-    
+
     return (count / this.statistics.totalCycles) * 100;
   }
 

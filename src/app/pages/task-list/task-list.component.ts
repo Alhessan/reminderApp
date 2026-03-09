@@ -4,7 +4,8 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { TaskCycleService } from '../../services/task-cycle.service';
-import { TaskListItem, TaskCycleStatus } from '../../models/task-cycle.model';
+import { TaskListItem } from '../../models/task-cycle.model';
+import { STATUS_CONFIG, CycleDisplayStatus } from '../../models/cycle-display.model';
 import { NotificationService } from '../../services/notification.service';
 import { TaskService } from '../../services/task.service';
 import { catchError } from 'rxjs/operators';
@@ -46,24 +47,14 @@ export class TaskListComponent implements OnInit {
     await this.loadTasks();
   }
 
-  getStatusColor(status: TaskCycleStatus): string {
-    switch (status) {
-      case 'pending': return 'medium';
-      case 'in_progress': return 'primary';
-      case 'completed': return 'success';
-      case 'skipped': return 'warning';
-      default: return 'medium';
-    }
+  getStatusColor(status: string): string {
+    const config = status ? STATUS_CONFIG[status as CycleDisplayStatus] : null;
+    return config?.color ?? 'medium';
   }
 
-  getStatusIcon(status: TaskCycleStatus): string {
-    switch (status) {
-      case 'pending': return 'time-outline';
-      case 'in_progress': return 'play-outline';
-      case 'completed': return 'checkmark-circle-outline';
-      case 'skipped': return 'forward-outline';
-      default: return 'help-outline';
-    }
+  getStatusIcon(status: string): string {
+    const config = status ? STATUS_CONFIG[status as CycleDisplayStatus] : null;
+    return config?.icon ?? 'help-outline';
   }
 
   getTypeColor(type: string): string {
@@ -77,25 +68,9 @@ export class TaskListComponent implements OnInit {
 
   async openStatusActionSheet(taskItem: TaskListItem) {
     const buttons = [];
-    const currentStatus = taskItem.currentCycle.status;
+    const isOpen = taskItem.currentCycle.resolution === 'open';
 
-    // Start option - Only show if:
-    // 1. Status is pending AND
-    // 2. Either it's within the start date or canStartEarly is true
-    if (currentStatus === 'pending' && taskItem.canStartEarly) {
-      buttons.push({
-        text: 'Start',
-        icon: 'play-outline',
-        data: 'in_progress',
-        color: 'primary',
-        handler: () => this.updateStatus(taskItem, 'in_progress')
-      });
-    }
-
-    // Complete option - Only show if:
-    // 1. Status is in_progress AND
-    // 2. canComplete is true
-    if (currentStatus === 'in_progress' && taskItem.canComplete) {
+    if (isOpen) {
       buttons.push({
         text: 'Complete',
         icon: 'checkmark-outline',
@@ -103,10 +78,6 @@ export class TaskListComponent implements OnInit {
         color: 'success',
         handler: () => this.updateStatus(taskItem, 'completed')
       });
-    }
-
-    // Skip option - Only show for pending or in_progress tasks
-    if (currentStatus === 'pending' || currentStatus === 'in_progress') {
       buttons.push({
         text: 'Skip',
         icon: 'forward-outline',
@@ -116,17 +87,6 @@ export class TaskListComponent implements OnInit {
       });
     }
 
-    // Reset option - Only show for in_progress or skipped tasks
-    if (currentStatus === 'in_progress' || currentStatus === 'skipped') {
-      buttons.push({
-        text: 'Reset',
-        icon: 'refresh-outline',
-        data: 'pending',
-        handler: () => this.updateStatus(taskItem, 'pending')
-      });
-    }
-
-    // Always add the cancel button
     buttons.push({
       text: 'Cancel',
       icon: 'close-outline',
@@ -141,41 +101,13 @@ export class TaskListComponent implements OnInit {
     await actionSheet.present();
   }
 
-  async updateProgress(taskItem: TaskListItem) {
-    const alert = await this.alertCtrl.create({
-      header: 'Update Progress',
-      inputs: [
-        {
-          name: 'progress',
-          type: 'number',
-          min: 0,
-          max: 100,
-          value: taskItem.currentCycle.progress,
-          placeholder: 'Enter progress (0-100)'
-        }
-      ],
-      buttons: [
-        {
-          text: 'Cancel',
-          role: 'cancel'
-        },
-        {
-          text: 'Update',
-          handler: (data) => {
-            const progress = Number(data.progress);
-            if (progress >= 0 && progress <= 100) {
-              this.taskCycleService.updateTaskCycleStatus(
-                taskItem.currentCycle.id!,
-                taskItem.currentCycle.status,
-                progress
-              );
-            }
-          }
-        }
-      ]
+  async updateProgress(_taskItem: TaskListItem) {
+    const toast = await this.toastCtrl.create({
+      message: 'Use Complete or Skip for the current cycle.',
+      duration: 2000,
+      position: 'bottom'
     });
-
-    await alert.present();
+    await toast.present();
   }
 
   async openTaskMenu(taskItem: TaskListItem) {
@@ -186,7 +118,7 @@ export class TaskListComponent implements OnInit {
           text: 'Edit',
           icon: 'create-outline',
           handler: () => {
-            this.router.navigate(['/task-form', taskItem.task.id]);
+            this.router.navigate(['/tasks/edit', taskItem.task.id]);
           }
         },
         {
@@ -215,7 +147,7 @@ export class TaskListComponent implements OnInit {
     await actionSheet.present();
   }
 
-  async updateStatus(taskItem: TaskListItem, status: TaskCycleStatus) {
+  async updateStatus(taskItem: TaskListItem, status: 'completed' | 'skipped') {
     try {
       await this.taskCycleService.updateTaskCycleStatus(taskItem.currentCycle.id!, status);
       

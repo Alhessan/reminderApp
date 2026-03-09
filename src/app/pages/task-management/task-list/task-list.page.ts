@@ -10,9 +10,8 @@ import { CommonModule, DatePipe } from '@angular/common'; // Added CommonModule,
 import { FormsModule } from '@angular/forms'; // Added FormsModule
 import { TaskListItemComponent } from './components/task-list-item.component';
 import { TaskCycleService } from '../../../services/task-cycle.service';
-import { TaskCycle, TaskCycleStatus, TaskListItem } from '../../../models/task-cycle.model';
+import { Cycle, TaskListItem } from '../../../models/task-cycle.model';
 import { BehaviorSubject, Subscription } from 'rxjs';
-import { ProgressSliderComponent } from '../../../components/progress-slider/progress-slider.component';
 import { ModalController } from '@ionic/angular';
 
 @Component({
@@ -26,8 +25,7 @@ import { ModalController } from '@ionic/angular';
     FormsModule,
     DatePipe,
     TaskListItemComponent,
-    RouterModule,
-    ProgressSliderComponent
+    RouterModule
   ]
 })
 export class TaskListPage implements OnInit {
@@ -76,13 +74,12 @@ export class TaskListPage implements OnInit {
       await this.loadTasks();
     });
 
-    // Subscribe to task list updates
+    // Subscribe to task list updates (Phase 8: filter by customer when customerIdFilter set)
     this.taskListSubscription = this.taskCycleService.taskList$.subscribe({
       next: (tasks) => {
-        console.log('TaskListPage: Received tasks in subscription:', tasks);
-        console.log('TaskListPage: Number of tasks:', tasks.length);
-        console.log('TaskListPage: First task if exists:', tasks[0]);
-        this.filteredTasks = tasks;
+        this.filteredTasks = this.customerIdFilter != null
+          ? tasks.filter(t => t.task.customerId === this.customerIdFilter)
+          : tasks;
         this.isLoading = false;
       },
       error: (error) => {
@@ -134,7 +131,7 @@ export class TaskListPage implements OnInit {
     this.isLoading = true;
     console.log('TaskListPage: Loading tasks with filter:', this.filterSegment);
     try {
-      await this.taskCycleService.loadTaskList(this.filterSegment as 'all' | 'overdue' | 'in_progress' | 'upcoming');
+      await this.taskCycleService.loadTaskList(this.filterSegment as 'all' | 'due' | 'upcoming' | 'overdue');
       console.log('TaskListPage: Task list loaded successfully');
       console.log('TaskListPage: Current filtered tasks:', this.filteredTasks);
     } catch (error) {
@@ -145,18 +142,7 @@ export class TaskListPage implements OnInit {
 
   async segmentChanged(event: any) {
     this.filterSegment = event.detail.value;
-    // Map segment values to view values
-    let view: 'all' | 'overdue' | 'in_progress' | 'upcoming';
-    switch (this.filterSegment) {
-      case 'pending':
-        view = 'upcoming';
-        break;
-      case 'in_progress':
-        view = 'in_progress';
-        break;
-      default:
-        view = 'all';
-    }
+    const view = this.filterSegment as 'all' | 'due' | 'upcoming' | 'overdue';
     await this.taskCycleService.loadTaskList(view);
   }
 
@@ -318,25 +304,9 @@ async navigateToArchive() {
     }
   }
 
-  async toggleCompletion(task: Task, event: any) {
-    const isChecked = event.detail.checked;
-    task.isCompleted = isChecked;
-    task.lastCompletedDate = isChecked ? new Date().toISOString() : undefined;
-
-    try {
-      await this.taskService.updateTask(task);
-      if (isChecked) {
-        await this.taskService.addHistoryEntry(task.id!, 'Completed', `Task "${task.title}" marked as completed.`);
-      } else {
-        await this.taskService.addHistoryEntry(task.id!, 'Marked Pending', `Task "${task.title}" marked as pending.`);
-      }
-      this.loadTasks(); 
-    } catch (error) {
-      console.error('Error updating task completion status:', error);
-      task.isCompleted = !isChecked;
-      task.lastCompletedDate = !isChecked ? task.lastCompletedDate : undefined; 
-      this.presentErrorAlert('Failed to update task status.');
-    }
+  async toggleCompletion(_task: Task, _event: any) {
+    // Completion is per-cycle; use openStatusActionSheet or detail page Complete button
+    await this.loadTasks();
   }
 
   async deleteTask(taskId: number) {
@@ -395,91 +365,37 @@ async navigateToArchive() {
   }
 
   async openStatusActionSheet(taskItem: TaskListItem) {
-    const buttons = [];
-    const currentStatus = taskItem.currentCycle.status;
+    const resolution = taskItem.currentCycle.resolution;
+    const buttons: ActionSheetButton[] = [];
 
-    if (currentStatus === 'pending' && taskItem.canStartEarly) {
-      buttons.push({
-        text: 'Start',
-        icon: 'play-outline',
-        data: 'in_progress',
-        handler: () => this.updateTaskStatus(taskItem, 'in_progress')
-      });
-    }
-
-    if (currentStatus === 'in_progress' && taskItem.canComplete) {
+    if (resolution === 'open') {
       buttons.push({
         text: 'Complete',
         icon: 'checkmark-outline',
-        data: 'completed',
-        handler: () => this.updateTaskStatus(taskItem, 'completed')
+        handler: () => this.updateTaskStatus(taskItem, 'done')
       });
-    }
-
-    // Add Complete option for overdue pending tasks
-    if (currentStatus === 'pending' && taskItem.isOverdue) {
-      // Check if Complete button is not already added
-      const hasCompleteButton = buttons.some(button => button.data === 'completed');
-      if (!hasCompleteButton) {
-        buttons.push({
-          text: 'Complete',
-          icon: 'checkmark-outline',
-          data: 'completed',
-          handler: () => this.updateTaskStatus(taskItem, 'completed')
-        });
-      }
-    }
-
-    if (currentStatus === 'pending' || currentStatus === 'in_progress') {
       buttons.push({
         text: 'Skip',
         icon: 'forward-outline',
-        data: 'skipped',
         handler: () => this.updateTaskStatus(taskItem, 'skipped')
       });
     }
 
-    if (currentStatus === 'in_progress' || currentStatus === 'skipped') {
-      buttons.push({
-        text: 'Reset',
-        icon: 'refresh-outline',
-        data: 'pending',
-        handler: () => this.updateTaskStatus(taskItem, 'pending')
-      });
-    }
-
-    buttons.push({
-      text: 'Cancel',
-      icon: 'close-outline',
-      role: 'cancel'
-    });
+    buttons.push({ text: 'Cancel', icon: 'close-outline', role: 'cancel' });
 
     const actionSheet = await this.actionSheetCtrl.create({
       header: 'Update Status',
       cssClass: 'accessible-action-sheet',
       buttons
     });
-
     await actionSheet.present();
   }
 
-  async updateTaskStatus(taskItem: TaskListItem, status: TaskCycleStatus) {
+  async updateTaskStatus(taskItem: TaskListItem, resolution: 'done' | 'skipped') {
     try {
-      let cycleId: number;
-
-      if (!taskItem.currentCycle?.id) {
-        // Create a new cycle if none exists
-        cycleId = await this.taskCycleService.createNextCycle(taskItem.task);
-      } else {
-        cycleId = taskItem.currentCycle.id;
-      }
-
-      await this.taskCycleService.updateTaskCycleStatus(cycleId, status);
-      
-      if (status === 'completed') {
-        await this.taskCycleService.createNextCycle(taskItem.task);
-      }
-      
+      const cycleId = taskItem.currentCycle?.id;
+      if (!cycleId) return;
+      await this.taskCycleService.resolveCycle(cycleId, resolution);
       await this.loadTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
@@ -488,66 +404,42 @@ async navigateToArchive() {
   }
 
   async updateProgress(taskItem: TaskListItem) {
-    const modal = await this.modalController.create({
-      component: ProgressSliderComponent,
-      componentProps: {
-        taskItem: taskItem
-      },
-      backdropDismiss: true,
-      showBackdrop: true,
-      mode: 'md',
-      animated: true,
-      cssClass: 'compact-modal'
-    });
-  
-    await modal.present();
-    
-    const { data: result, role } = await modal.onWillDismiss();
-    
-    if (role === 'confirm' && result) {
-      try {
-        let cycleId: number;
-        
-        if (!taskItem.currentCycle?.id) {
-          // Create a new cycle if none exists
-          cycleId = await this.taskCycleService.createNextCycle(taskItem.task);
-        } else {
-          cycleId = taskItem.currentCycle.id;
-        }
-        
-        if (result.action === 'complete') {
-          // Mark task as completed (createNextCycle is called automatically in updateTaskCycleStatus)
-          await this.taskCycleService.updateTaskCycleStatus(cycleId, 'completed', 100);
-          
-          // Show success toast
-          const toast = await this.toastController.create({
-            message: `Task "${taskItem.task.title}" completed successfully! Next cycle created.`,
-            duration: 3000,
-            color: 'success',
-            position: 'bottom'
-          });
-          await toast.present();
-        } else if (result.action === 'update_progress') {
-          // Update progress only
-          await this.taskCycleService.updateTaskCycleStatus(cycleId, 'in_progress', result.progress);
-          
-          // Show progress update toast
-          const toast = await this.toastController.create({
-            message: `Progress updated to ${result.progress}%`,
-            duration: 2000,
-            color: 'primary',
-            position: 'bottom'
-          });
-          await toast.present();
-        }
-        
-        await this.loadTasks();
-      } catch (error) {
-        console.error('Error updating task progress:', error);
-        this.presentErrorAlert('Failed to update task progress. Please try again.');
-      }
+    const cycleId = taskItem.currentCycle?.id;
+    if (!cycleId || taskItem.currentCycle.resolution !== 'open') return;
+    try {
+      await this.taskCycleService.resolveCycle(cycleId, 'done');
+      const toast = await this.toastController.create({
+        message: `"${taskItem.task.title}" completed.`,
+        duration: 2000,
+        color: 'success',
+        position: 'bottom'
+      });
+      await toast.present();
+      await this.loadTasks();
+    } catch (error) {
+      console.error('Error completing task:', error);
+      this.presentErrorAlert('Failed to complete. Please try again.');
     }
   }
+
+  /** One-tap complete from list item (Phase 6 US4). */
+  async onQuickComplete(cycleId: number) {
+    try {
+      await this.taskCycleService.resolveCycle(cycleId, 'done');
+      const toast = await this.toastController.create({
+        message: 'Routine completed.',
+        duration: 2000,
+        color: 'success',
+        position: 'bottom'
+      });
+      await toast.present();
+      await this.loadTasks();
+    } catch (error) {
+      console.error('Error on quick complete:', error);
+      this.presentErrorAlert('Failed to complete. Please try again.');
+    }
+  }
+
   async openTaskMenu(taskItem: TaskListItem) {
     const buttons: ActionSheetButton[] = [
       {
@@ -557,20 +449,25 @@ async navigateToArchive() {
           this.navigateToTaskDetail(taskItem.task.id);
         }
       },
-        {
-          text: 'Edit',
-          icon: 'create-outline',
-          handler: () => {
-            this.navigateToEditTask(taskItem.task.id);
-          }
-        },
-        {
-          text: 'Archive',
-          icon: 'archive-outline',
-          handler: () => {
-            this.archiveTask(taskItem);
-          }
-        },
+      ...(taskItem.task.state === 'active'
+        ? [{ text: 'Pause', icon: 'pause-outline', handler: () => this.pauseTaskFromList(taskItem) }]
+        : taskItem.task.state === 'paused'
+          ? [{ text: 'Resume', icon: 'play-outline', handler: () => this.resumeTaskFromList(taskItem) }]
+          : []),
+      {
+        text: 'Edit',
+        icon: 'create-outline',
+        handler: () => {
+          this.navigateToEditTask(taskItem.task.id);
+        }
+      },
+      {
+        text: 'Archive',
+        icon: 'archive-outline',
+        handler: () => {
+          this.archiveTask(taskItem);
+        }
+      },
         {
           text: 'Delete',
           icon: 'trash-outline',
@@ -593,6 +490,26 @@ async navigateToArchive() {
     });
 
     await actionSheet.present();
+  }
+
+  async pauseTaskFromList(taskItem: TaskListItem) {
+    try {
+      await this.taskService.pauseTask(taskItem.task.id!);
+      await this.loadTasks();
+    } catch (error) {
+      console.error('Error pausing task:', error);
+      this.presentErrorAlert('Failed to pause task. Please try again.');
+    }
+  }
+
+  async resumeTaskFromList(taskItem: TaskListItem) {
+    try {
+      await this.taskService.resumeTask(taskItem.task.id!);
+      await this.loadTasks();
+    } catch (error) {
+      console.error('Error resuming task:', error);
+      this.presentErrorAlert('Failed to resume task. Please try again.');
+    }
   }
 
   async archiveTask(taskItem: TaskListItem) {

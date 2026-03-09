@@ -1,69 +1,59 @@
 <ion-item [class.overdue]="taskItem.isOverdue" class="task-item" (click)="navigateToTaskDetail()" [button]="true" [routerDirection]="'forward'">
-  <!-- Status Button -->
-  <ion-button 
-    fill="clear"
-    size="default"
-    slot="start"
-    [color]="getStatusColor(taskItem.currentCycle.status)"
-    (click)="onStatusClick($event)"
-    class="status-button">
-    <ion-icon 
-      [name]="getStatusIcon(taskItem.currentCycle.status)"
-      slot="icon-only">
+  <!-- Status Icon -->
+  <div slot="start" class="status-indicator" [class]="'status-' + (taskItem.displayStatus || 'upcoming')">
+    <ion-icon
+      [name]="getStatusIcon(taskItem.displayStatus || 'upcoming')"
+      (click)="onStatusClick($event)">
     </ion-icon>
-  </ion-button>
+  </div>
 
-  <!-- Task Details -->
+  <!-- Task Content -->
   <ion-label>
     <h2>{{ taskItem.task.title }}</h2>
-    <div class="task-info">
-      <!-- Due Date -->
-      <ion-text [color]="taskItem.isOverdue ? 'danger' : 'medium'">
-        Due: {{ formatDate(taskItem.nextDueDate) }}
-      </ion-text>
-    </div>
-    
-    <!-- Progress Bar - Only show for in_progress and completed tasks -->
-    <div class="progress-container" *ngIf="taskItem.currentCycle.status === 'in_progress' || taskItem.currentCycle.status === 'completed'">
-      <div class="progress-info">
-        <span>Progress: {{ taskItem.currentCycle.progress || 0 }}%</span>
-        <ion-button 
-          *ngIf="taskItem.currentCycle.status === 'in_progress'"
-          fill="clear"
-          size="small"
-          (click)="onProgressClick($event)">
-          <ion-icon name="add-circle-outline" slot="icon-only"></ion-icon>
-        </ion-button>
-      </div>
-      <ion-progress-bar 
-        [value]="progressValue"
-        [color]="taskItem.isOverdue ? 'danger' : 'primary'">
-      </ion-progress-bar>
-    </div>
+    <p class="task-due">
+      <ion-icon name="time-outline"></ion-icon>
+      {{ formatDate(taskItem.nextDueDate) }}
+    </p>
+    <ion-note *ngIf="taskItem.lastMissedDate" class="last-missed">
+      Last missed {{ taskItem.lastMissedDate | date:'shortDate' }}
+    </ion-note>
   </ion-label>
 
-  <!-- Additional Info -->
-  <div slot="end" class="task-meta">
-     <!-- Status Badge -->
-     <ion-badge [color]="getStatusColor(taskItem.currentCycle.status)" mode="ios">
-      {{ formatStatus(taskItem.currentCycle.status) }}
+  <!-- Right-side meta -->
+  <div slot="end" class="task-end">
+    <!-- Paused badge -->
+    <ion-badge *ngIf="taskItem.task.state === 'paused'" color="medium" mode="ios" class="paused-badge">
+      Paused
     </ion-badge>
-    <!-- Task Type -->
-    <ion-chip 
+
+    <!-- Status Badge -->
+    <ion-badge [color]="getStatusColor(taskItem.displayStatus || 'upcoming')" mode="ios" class="status-badge">
+      <app-cycle-status-badge [status]="taskItem.displayStatus || 'upcoming'"></app-cycle-status-badge>
+    </ion-badge>
+
+    <!-- Task Type Chip -->
+    <ion-chip
       *ngIf="taskItem.task.type"
       [color]="getTypeColor(taskItem.task.type)"
       size="small"
       class="task-type">
       <ion-label>{{ taskItem.task.type }}</ion-label>
     </ion-chip>
-    <!-- Last Completion -->
-    <ion-note *ngIf="taskItem.daysSinceLastCompletion !== undefined">
-      Last: {{ taskItem.daysSinceLastCompletion }}d ago
-    </ion-note>
+
+    <!-- Quick complete -->
+    <ion-button
+      *ngIf="canQuickComplete"
+      fill="clear"
+      size="small"
+      color="success"
+      (click)="onQuickComplete($event)"
+      class="quick-complete-btn">
+      <ion-icon slot="icon-only" name="checkmark-circle-outline"></ion-icon>
+    </ion-button>
   </div>
 
   <!-- Options Button -->
-  <ion-button 
+  <ion-button
     fill="clear"
     size="small"
     slot="end"

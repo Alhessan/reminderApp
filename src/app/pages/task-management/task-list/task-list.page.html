@@ -34,11 +34,14 @@
       <ion-segment-button value="all">
         <ion-label>All</ion-label>
       </ion-segment-button>
-      <ion-segment-button value="pending">
-        <ion-label>Pending</ion-label>
+      <ion-segment-button value="due">
+        <ion-label>Due</ion-label>
       </ion-segment-button>
-      <ion-segment-button value="in_progress">
-        <ion-label>In Progress</ion-label>
+      <ion-segment-button value="upcoming">
+        <ion-label>Upcoming</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="overdue">
+        <ion-label>Overdue</ion-label>
       </ion-segment-button>
     </ion-segment>
   </ion-toolbar>
@@ -67,7 +70,8 @@
         [taskItem]="taskItem"
         (statusChange)="openStatusActionSheet(taskItem)"
         (progressUpdate)="updateProgress(taskItem)"
-        (optionsClick)="openTaskMenu(taskItem)">
+        (optionsClick)="openTaskMenu(taskItem)"
+        (quickComplete)="onQuickComplete($event)">
       </app-task-list-item>
     </ion-list>
   </div>

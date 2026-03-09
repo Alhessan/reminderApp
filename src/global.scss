@@ -1,11 +1,9 @@
 // ===========================================
-// ANDROID-COMPATIBLE GLOBAL STYLES
-// Flattened structure for better WebView compatibility
+// GLOBAL STYLES — LIGHT THEME
 // ===========================================
 
-// CRITICAL: CSS Variables MUST be defined first
 :root {
-  // Enhanced color palette
+  // Ionic color palette
   --ion-color-primary: #7c4dff;
   --ion-color-primary-rgb: 124, 77, 255;
   --ion-color-primary-contrast: #ffffff;
@@ -69,13 +67,22 @@
   --ion-color-light-shade: #d7d8da;
   --ion-color-light-tint: #f5f6f9;
 
-  // Custom app colors
-  --app-gradient-primary: linear-gradient(135deg, #7c4dff 0%, #9c27b0 100%);
+  // Toolbar gradient
+  --app-toolbar-gradient: var(--ion-color-primary);
+  --app-toolbar-color: var(--ion-color-primary-contrast);
   --app-gradient-secondary: linear-gradient(135deg, #e91e63 0%, #ff5722 100%);
   --app-gradient-success: linear-gradient(135deg, #4caf50 0%, #2dd36f 100%);
   --app-gradient-warning: linear-gradient(135deg, #ff9800 0%, #ffc409 100%);
-  
-  // Enhanced spacing
+
+  // Toolbar gradient and color
+  --app-toolbar-gradient: var(--ion-color-primary);
+  --app-toolbar-color: var(--ion-color-primary-contrast);
+
+  // Toolbar gradient and color
+  --app-toolbar-gradient: var(--ion-color-primary);
+  --app-toolbar-color: var(--ion-color-primary-contrast);
+
+  // Spacing
   --app-spacing-xs: 4px;
   --app-spacing-sm: 8px;
   --app-spacing-md: 16px;
@@ -83,18 +90,18 @@
   --app-spacing-xl: 32px;
   --app-spacing-xxl: 48px;
 
-  // Enhanced border radius
+  // Border radius
   --app-border-radius-sm: 4px;
   --app-border-radius-md: 8px;
   --app-border-radius-lg: 12px;
   --app-border-radius-xl: 16px;
   --app-border-radius-full: 50px;
 
-  // Enhanced shadows
-  --app-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
-  --app-shadow-md: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
-  --app-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
-  --app-shadow-xl: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
+  // Shadows
+  --app-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --app-shadow-md: 0 3px 6px rgba(0, 0, 0, 0.1), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --app-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --app-shadow-xl: 0 14px 28px rgba(0, 0, 0, 0.15), 0 10px 10px rgba(0, 0, 0, 0.1);
 
   // Animation durations
   --app-animation-fast: 150ms;
@@ -109,44 +116,98 @@
 }
 
 // ===========================================
-// GLOBAL SAFE AREA HANDLING
-// Prevent overlap with system status bar
+// DARK MODE — Ionic Color Overrides
 // ===========================================
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ion-background-color: #121212;
+    --ion-background-color-rgb: 18, 18, 18;
 
-// Ensure safe-area variables exist in all runtimes
+    --ion-text-color: #e0e0e0;
+    --ion-text-color-rgb: 224, 224, 224;
+
+    --ion-card-background: #1e1e2d;
+
+    --ion-item-background: #1e1e2d;
+
+    --ion-toolbar-background: #1a1a2e;
+
+    --ion-border-color: rgba(255, 255, 255, 0.08);
+
+    --ion-tab-bar-background: #1a1a2e;
+
+    // Stepped colors (elevation levels from dark to light)
+    --ion-color-step-50: #1d1d1d;
+    --ion-color-step-100: #2a2a2a;
+    --ion-color-step-150: #363636;
+    --ion-color-step-200: #414141;
+    --ion-color-step-250: #4d4d4d;
+    --ion-color-step-300: #595959;
+    --ion-color-step-350: #656565;
+    --ion-color-step-400: #717171;
+    --ion-color-step-450: #7d7d7d;
+    --ion-color-step-500: #898989;
+    --ion-color-step-550: #949494;
+    --ion-color-step-600: #a0a0a0;
+    --ion-color-step-650: #acacac;
+    --ion-color-step-700: #b8b8b8;
+    --ion-color-step-750: #c4c4c4;
+    --ion-color-step-800: #cfcfcf;
+    --ion-color-step-850: #dbdbdb;
+    --ion-color-step-900: #e7e7e7;
+    --ion-color-step-950: #f3f3f3;
+
+    --ion-color-light: #2a2a3e;
+    --ion-color-light-rgb: 42, 42, 62;
+    --ion-color-light-contrast: #e0e0e0;
+    --ion-color-light-contrast-rgb: 224, 224, 224;
+    --ion-color-light-shade: #222236;
+    --ion-color-light-tint: #35354a;
+
+    --ion-color-dark: #e0e0e0;
+    --ion-color-dark-rgb: 224, 224, 224;
+    --ion-color-dark-contrast: #121212;
+    --ion-color-dark-contrast-rgb: 18, 18, 18;
+    --ion-color-dark-shade: #c8c8c8;
+    --ion-color-dark-tint: #e8e8e8;
+
+    --ion-color-medium: #808080;
+    --ion-color-medium-rgb: 128, 128, 128;
+    --ion-color-medium-contrast: #ffffff;
+    --ion-color-medium-shade: #6e6e6e;
+    --ion-color-medium-tint: #929292;
+
+    --ion-color-danger-tint: #3d1a22;
+
+    // Custom tokens - dark overrides
+    --app-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --app-shadow-md: 0 3px 6px rgba(0, 0, 0, 0.5);
+    --app-shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.6);
+    --app-shadow-xl: 0 14px 28px rgba(0, 0, 0, 0.7);
+
+    --app-range-track: #4a4a4a;
+    --app-range-background: #333333;
+
+    --app-toolbar-gradient: var(--ion-toolbar-background);
+    --app-toolbar-color: var(--ion-text-color);
+  }
+
+  body {
+    background-color: #121212;
+    color: #e0e0e0;
+  }
+}
+
+// ===========================================
+// SAFE AREA HANDLING
+// ===========================================
 :root {
   --app-safe-area-top: var(--ion-safe-area-top, env(safe-area-inset-top, 0px));
   --app-safe-area-bottom: var(--ion-safe-area-bottom, env(safe-area-inset-bottom, 0px));
 }
 
-// Apply safe padding to headers/toolbars
-
-// Remove Ionic header/toolbar hairline and shadows globally
-ion-header::after,
-ion-toolbar::after {
-  background-image: none !important;
-  box-shadow: none !important;
-}
-
-ion-header,
-ion-toolbar {
-  --border-width: 0 !important;
-  --border-style: none !important;
-  --border-color: transparent !important;
-  box-shadow: none !important;
-}
-
-// Remove content top hairline (when present)
-ion-content::part(background) {
-  box-shadow: none !important;
-}
-
-ion-content::before {
-  background: transparent !important;
-}
-
 // ===========================================
-// BASE RESETS - CRITICAL FOR ANDROID
+// GLOBAL RESETS
 // ===========================================
 * {
   -webkit-box-sizing: border-box;
@@ -162,6 +223,32 @@ html, body {
   overflow-x: hidden;
 }
 
+// Remove Ionic header/toolbar hairline and shadows
+ion-header::after,
+ion-toolbar::after {
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+ion-header,
+ion-toolbar {
+  --border-width: 0 !important;
+  --border-style: none !important;
+  --border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+ion-content::part(background) {
+  box-shadow: none !important;
+}
+
+ion-content::before {
+  background: transparent !important;
+}
+
+// ===========================================
+// APP SHELL
+// ===========================================
 ion-app {
   width: 100% !important;
   height: 100% !important;
@@ -177,11 +264,11 @@ ion-router-outlet {
 }
 
 ion-router-outlet > .ion-page {
-  background: var(--ion-color-light);
+  background: var(--ion-background-color);
 }
 
 ion-list, ion-content, .list-ios {
-  background: var(--ion-color-light-tint);
+  background: var(--ion-background-color);
 }
 
 ion-content {
@@ -190,8 +277,43 @@ ion-content {
   --padding-top: 0;
   --padding-bottom: 0;
   --background: var(--ion-background-color);
-  --ion-background-color: var(--ion-background-color);
   width: 100% !important;
+}
+
+// ===========================================
+// TOOLBAR
+// ===========================================
+ion-toolbar {
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --padding-top: var(--app-safe-area-top, 0px);
+  --min-height: 56px;
+  min-height: calc(56px + var(--app-safe-area-top, 0px));
+  --background: var(--app-toolbar-gradient) !important;
+  --color: var(--app-toolbar-color) !important;
+}
+
+.tabs-toolbar {
+  --padding-top: 4px !important;
+  --padding-bottom: 4px !important;
+  --min-height: 44px;
+  min-height: 44px;
+}
+
+ion-toolbar ion-button {
+  --color: var(--app-toolbar-color) !important;
+}
+
+ion-toolbar ion-title {
+  --color: var(--app-toolbar-color) !important;
+}
+
+ion-toolbar ion-menu-button {
+  --color: var(--app-toolbar-color) !important;
+}
+
+ion-toolbar ion-back-button {
+  --color: var(--app-toolbar-color) !important;
 }
 
 // ===========================================
@@ -201,10 +323,10 @@ ion-content {
   text-align: center;
   padding: 24px 12px 28px 12px;
   margin: 0 -16px 24px -16px;
-  color: var(--ion-color-dark);
+  color: var(--ion-text-color);
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, var(--ion-color-light) 0%, var(--ion-color-light-tint) 100%);
+  background: var(--ion-color-light);
 }
 
 .unified-page-header::before {
@@ -214,7 +336,7 @@ ion-content {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, rgba(255,255,255,0.1) 0%, transparent 100%);
+  background: linear-gradient(45deg, rgba(124, 77, 255, 0.03) 0%, transparent 100%);
   pointer-events: none;
 }
 
@@ -222,7 +344,7 @@ ion-content {
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(124, 77, 255, 0.08);
   display: flex;
   display: -webkit-flex;
   align-items: center;
@@ -230,17 +352,14 @@ ion-content {
   justify-content: center;
   -webkit-justify-content: center;
   margin: 0 auto 16px;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--ion-color-primary-shade);
+  border: 1px solid rgba(124, 77, 255, 0.12);
   -webkit-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .unified-page-header .header-icon-container ion-icon {
   font-size: 2.2rem;
-  -webkit-filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+  color: var(--ion-color-primary);
 }
 
 .unified-page-header h2 {
@@ -248,15 +367,16 @@ ion-content {
   font-weight: 600;
   margin: 0 0 8px 0;
   letter-spacing: 0.3px;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  color: var(--ion-text-color);
 }
 
 .unified-page-header p {
   font-size: 0.95rem;
-  opacity: 0.95;
+  opacity: 0.7;
   margin: 0 auto;
   line-height: 1.4;
   max-width: 320px;
+  color: var(--ion-color-medium);
 }
 
 // ===========================================
@@ -277,6 +397,7 @@ ion-content {
   transform: translateX(-50%) !important;
   -webkit-transform: translateX(-50%) !important;
   z-index: 20000 !important;
+  background: var(--ion-background-color);
 }
 
 .custom-alert .alert-wrapper .alert-head {
@@ -349,6 +470,29 @@ ion-content {
   color: #d32f2f;
 }
 
+@media (prefers-color-scheme: dark) {
+  .alert-success .alert-wrapper {
+    background: rgba(45, 211, 111, 0.1);
+    border-color: rgba(45, 211, 111, 0.2);
+  }
+  .alert-success .alert-wrapper .alert-head .alert-title { color: #66bb6a; }
+  .alert-success .alert-wrapper .alert-message { color: #81c784; }
+
+  .alert-warning .alert-wrapper {
+    background: rgba(255, 196, 9, 0.1);
+    border-color: rgba(255, 196, 9, 0.2);
+  }
+  .alert-warning .alert-wrapper .alert-head .alert-title { color: #ffb74d; }
+  .alert-warning .alert-wrapper .alert-message { color: #ffc107; }
+
+  .alert-danger .alert-wrapper {
+    background: rgba(235, 68, 90, 0.1);
+    border-color: rgba(235, 68, 90, 0.2);
+  }
+  .alert-danger .alert-wrapper .alert-head .alert-title { color: #ef5350; }
+  .alert-danger .alert-wrapper .alert-message { color: #e57373; }
+}
+
 // ===========================================
 // COMPACT MODAL
 // ===========================================
@@ -399,42 +543,6 @@ ion-progress-bar {
 }
 
 // ===========================================
-// TOOLBAR STYLING (safe area only – no extra top space)
-// ===========================================
-ion-toolbar {
-  --padding-start: 16px;
-  --padding-end: 16px;
-  --padding-top: var(--app-safe-area-top, 0px);
-  --min-height: 56px;
-  min-height: calc(56px + var(--app-safe-area-top, 0px));
-  --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-  --color: white !important;
-}
-
-.tabs-toolbar {
-  --padding-top: 4px !important;
-  --padding-bottom: 4px !important;
-  --min-height: 44px;
-  min-height: 44px;
-}
-
-ion-toolbar ion-button {
-  --color: white !important;
-}
-
-ion-toolbar ion-title {
-  --color: white !important;
-}
-
-ion-toolbar ion-menu-button {
-  --color: white !important;
-}
-
-ion-toolbar ion-back-button {
-  --color: white !important;
-}
-
-// ===========================================
 // FORM HEADER
 // ===========================================
 .form-header {
@@ -455,9 +563,7 @@ ion-toolbar ion-back-button {
   justify-content: center;
   -webkit-justify-content: center;
   margin: 0 auto 16px;
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(124, 77, 255, 0.15);
   -webkit-transition: all 0.3s ease;
   transition: all 0.3s ease;
 }
@@ -473,6 +579,7 @@ ion-toolbar ion-back-button {
   font-weight: 600;
   margin: 0 0 8px 0;
   letter-spacing: 0.5px;
+  color: var(--ion-text-color);
 }
 
 .form-header p {
@@ -490,21 +597,21 @@ ion-toolbar ion-back-button {
 .m-0 { margin: 0 !important; }
 .p-0 { padding: 0 !important; }
 .text-center { text-align: center !important; }
-.flex { 
-  display: flex !important; 
-  display: -webkit-flex !important; 
+.flex {
+  display: flex !important;
+  display: -webkit-flex !important;
 }
-.flex-column { 
-  flex-direction: column !important; 
-  -webkit-flex-direction: column !important; 
+.flex-column {
+  flex-direction: column !important;
+  -webkit-flex-direction: column !important;
 }
-.justify-center { 
-  justify-content: center !important; 
-  -webkit-justify-content: center !important; 
+.justify-center {
+  justify-content: center !important;
+  -webkit-justify-content: center !important;
 }
-.align-center { 
-  align-items: center !important; 
-  -webkit-align-items: center !important; 
+.align-center {
+  align-items: center !important;
+  -webkit-align-items: center !important;
 }
 .no-margin { margin: 0 !important; }
 .no-padding { padding: 0 !important; }
@@ -578,58 +685,58 @@ ion-toolbar ion-back-button {
     max-width: 100vw !important;
     min-width: 100vw !important;
   }
-  
+
   ion-content {
     width: 100vw !important;
     max-width: 100vw !important;
   }
-  
+
   ion-header {
     width: 100% !important;
   }
-  
+
   ion-toolbar {
     width: 100% !important;
   }
-  
+
   .unified-page-header {
     padding: 20px 12px 24px;
     margin: -16px -16px 20px -16px;
   }
-  
+
   .unified-page-header .header-icon-container {
     width: 64px;
     height: 64px;
     margin-bottom: 12px;
   }
-  
+
   .unified-page-header .header-icon-container ion-icon {
     font-size: 2rem;
   }
-  
+
   .unified-page-header h2 {
     font-size: 1.35rem;
   }
-  
+
   .unified-page-header p {
     font-size: 0.9rem;
   }
-  
+
   .compact-modal {
     --width: 95vw !important;
     --height: 45vh !important;
   }
-  
+
   ion-range {
     --bar-height: 6px !important;
     --knob-size: 20px !important;
     min-height: 60px !important;
     padding: 20px 0 !important;
   }
-  
-  .mobile-full-width { 
-    width: 100vw !important; 
-    max-width: 100vw !important; 
+
+  .mobile-full-width {
+    width: 100vw !important;
+    max-width: 100vw !important;
   }
   .mobile-no-margin { margin: 0 !important; }
   .mobile-no-padding { padding: 0 !important; }
@@ -637,9 +744,7 @@ ion-toolbar ion-back-button {
   .mobile-padding-md { padding: var(--app-spacing-md) !important; }
 }
 
-// ===========================================
-// SMALL MOBILE (max-width: 480px)
-// ===========================================
+// Small Mobile
 @media (max-width: 480px) {
   .compact-modal {
     --width: 95vw !important;
@@ -647,9 +752,7 @@ ion-toolbar ion-back-button {
   }
 }
 
-// ===========================================
-// VERY SMALL MOBILE (max-width: 360px)
-// ===========================================
+// Very Small Mobile
 @media (max-width: 360px) {
   .compact-modal {
     --width: 98vw !important;
@@ -657,9 +760,7 @@ ion-toolbar ion-back-button {
   }
 }
 
-// ===========================================
-// TABLET (min-width: 481px and max-width: 768px)
-// ===========================================
+// Tablet
 @media (min-width: 481px) and (max-width: 768px) {
   .compact-modal {
     --width: 80vw !important;
@@ -667,9 +768,7 @@ ion-toolbar ion-back-button {
   }
 }
 
-// ===========================================
-// DESKTOP (min-width: 769px)
-// ===========================================
+// Desktop
 @media (min-width: 769px) {
   .compact-modal {
     --width: 400px !important;

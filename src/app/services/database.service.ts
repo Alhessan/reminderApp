@@ -78,14 +78,17 @@ const DEFAULT_NOTIFICATION_TYPES = [
   }
 ];
 
-interface TaskCycle {
+interface TaskCycleRow {
   id: number;
   taskId: number;
   cycleStartDate: string;
-  cycleEndDate: string;
-  status: string;
-  progress: number;
+  dueAt: string;
+  softDeadline: string;
+  hardDeadline: string;
+  resolution: string;
+  startedAt?: string;
   completedAt?: string;
+  skippedAt?: string;
 }
 
 interface TaskWithCycle {
@@ -139,7 +142,7 @@ export class DatabaseService {
   private initializationPromise: Promise<void> | null = null;
   private isInitialized = false;
 
-  private currentVersion = 5; // Increment this when adding new migrations
+  private currentVersion = 6; // Increment this when adding new migrations
 
   private readonly tableSchemas: TableSchemas = {
     tasks: [
@@ -153,16 +156,20 @@ export class DatabaseService {
       { cid: 7, name: 'notificationTime', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
       { cid: 8, name: 'notificationValue', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
       { cid: 9, name: 'notes', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
-      { cid: 10, name: 'isArchived', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 }
+      { cid: 10, name: 'isArchived', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
+      { cid: 11, name: 'state', type: 'TEXT', notnull: 1, dflt_value: "'active'", pk: 0 }
     ],
     task_cycles: [
       { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
       { cid: 1, name: 'taskId', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 0 },
       { cid: 2, name: 'cycleStartDate', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
-      { cid: 3, name: 'cycleEndDate', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
-      { cid: 4, name: 'status', type: 'TEXT', notnull: 1, dflt_value: "'pending'", pk: 0 },
-      { cid: 5, name: 'progress', type: 'INTEGER', notnull: 1, dflt_value: '0', pk: 0 },
-      { cid: 6, name: 'completedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
+      { cid: 3, name: 'dueAt', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 4, name: 'softDeadline', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 5, name: 'hardDeadline', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 6, name: 'resolution', type: 'TEXT', notnull: 1, dflt_value: "'open'", pk: 0 },
+      { cid: 7, name: 'startedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 8, name: 'completedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 9, name: 'skippedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
     ],
     task_types: [
       { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
@@ -527,6 +534,49 @@ export class DatabaseService {
       await this.migrateAddTaskCompletionColumns();
       await this.setVersion(2);
     }
+    if (currentVersion < 6) {
+      await this.migrateTaskCycleRedesign();
+      await this.setVersion(6);
+    }
+  }
+
+  /** Redesign: add task state, wipe task_cycles and recreate with resolution + dueAt/softDeadline/hardDeadline. */
+  private async migrateTaskCycleRedesign(): Promise<void> {
+    const isDuplicateColumn = (e: any) =>
+      (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
+    try {
+      await this.executeQuery(
+        "ALTER TABLE tasks ADD COLUMN state TEXT DEFAULT 'active'",
+        []
+      );
+    } catch (e: any) {
+      if (isDuplicateColumn(e)) {
+        // already has state
+      } else {
+        throw e;
+      }
+    }
+    await this.executeQuery(
+      "UPDATE tasks SET state = 'archived' WHERE isArchived = 1 OR isArchived = '1'",
+      []
+    );
+    await this.executeQuery('DROP TABLE IF EXISTS task_cycles', []);
+    await this.executeQuery(
+      `CREATE TABLE task_cycles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        taskId INTEGER NOT NULL,
+        cycleStartDate TEXT NOT NULL,
+        dueAt TEXT NOT NULL,
+        softDeadline TEXT NOT NULL,
+        hardDeadline TEXT NOT NULL,
+        resolution TEXT DEFAULT 'open',
+        startedAt TEXT,
+        completedAt TEXT,
+        skippedAt TEXT,
+        FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
+      )`,
+      []
+    );
   }
 
   /** Add isCompleted and lastCompletedDate to tasks (for DBs created before these columns existed). */
@@ -763,6 +813,9 @@ export class DatabaseService {
       }
     } else {
       // Web platform - use in-memory store
+      if (!this.isInitialized) {
+        await this.initializeDatabase();
+      }
       return this.executeWebQuery(statement, values || []);
     }
   }

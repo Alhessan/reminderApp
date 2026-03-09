@@ -220,7 +220,10 @@ export class AppComponent {
 
           // Initialize database (non-blocking, idempotent)
           await this.databaseService.initializeDatabase();
-          
+          // Ensure every active task has one open cycle (post-migration v6)
+          await this.taskCycleService.ensureOpenCyclesForActiveTasks().catch(err =>
+            console.warn('[App] ensureOpenCyclesForActiveTasks:', err)
+          );
           if (shouldLog) {
             console.log('[App] Database initialized');
           }
@@ -338,12 +341,8 @@ export class AppComponent {
     }
   }
 
-  onRouterOutletDeactivate(event: any) {
-    console.log('Router outlet deactivated from component:', event.constructor.name);
-    // Ensure cleanup of any resources
-    if (event.ngOnDestroy) {
-      event.ngOnDestroy();
-    }
+  onRouterOutletDeactivate(_event: unknown) {
+    // Angular calls ngOnDestroy automatically; do not call it here (would cause double cleanup / crashes).
   }
 
   async reinitializeDatabase() {

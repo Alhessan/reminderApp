@@ -38,24 +38,20 @@
         <ion-icon name="checkbox-outline" style="color: var(--ion-color-primary-shade)"></ion-icon>
       </div>
       <h2>{{ task.title }}</h2>
-      <p>{{ task.isCompleted ? 'Completed Task' : 'Active Task' }}</p>
+      <p>{{ task.state === 'paused' ? 'Paused' : (currentCycle?.resolution === 'done' || task.state === 'archived') ? 'Completed / Archived' : 'Active' }}</p>
     </div>
 
-    <!-- Status Card -->
+    <!-- Status Card (unified STATUS_CONFIG via badge) -->
     <ion-card class="status-card">
       <ion-card-content>
         <div class="status-indicator">
-          <ion-icon 
-            [name]="task.isCompleted ? 'checkmark-circle' : 'time-outline'" 
-            [color]="task.isCompleted ? 'success' : 'warning'">
-          </ion-icon>
-          <div class="status-text">
-            <h3>{{ task.isCompleted ? 'Completed' : 'Pending' }}</h3>
-            <p *ngIf="task.isCompleted && task.lastCompletedDate">
-              {{ task.lastCompletedDate | date:'medium' }}
+          <app-cycle-status-badge *ngIf="displayStatus" [status]="displayStatus"></app-cycle-status-badge>
+          <div class="status-text" *ngIf="displayStatus">
+            <p *ngIf="currentCycle?.resolution === 'done' && currentCycle?.completedAt">
+              Completed {{ currentCycle?.completedAt | date:'medium' }}
             </p>
-            <p *ngIf="!task.isCompleted">
-              Awaiting completion
+            <p *ngIf="currentCycle?.resolution === 'open'">
+              Due {{ currentCycle?.dueAt | date:'short' }}
             </p>
           </div>
         </div>
@@ -69,19 +65,35 @@
         <ion-card-subtitle>Actions and progress</ion-card-subtitle>
       </ion-card-header>
       <ion-card-content>
-        <!-- Primary actions: Start, Mark complete, Skip -->
+        <!-- Pause / Resume -->
+        <div class="work-bench-section" *ngIf="task?.state === 'active' || task?.state === 'paused'">
+          <span class="section-label">Task state</span>
+          <div class="action-row">
+            <ion-button
+              *ngIf="canPause"
+              fill="outline"
+              color="medium"
+              (click)="pauseTask()"
+              [disabled]="actionInProgress">
+              <ion-icon slot="start" name="pause-outline"></ion-icon>
+              Pause
+            </ion-button>
+            <ion-button
+              *ngIf="canResume"
+              fill="solid"
+              color="primary"
+              (click)="resumeTask()"
+              [disabled]="actionInProgress">
+              <ion-icon slot="start" name="play-outline"></ion-icon>
+              Resume
+            </ion-button>
+          </div>
+        </div>
+
+        <!-- Primary actions: Mark complete, Skip (when cycle is open) -->
         <div class="work-bench-section">
           <span class="section-label">Actions</span>
           <div class="action-row primary">
-            <ion-button
-              *ngIf="canStart"
-              fill="solid"
-              color="primary"
-              (click)="startCycle()"
-              [disabled]="actionInProgress">
-              <ion-icon slot="start" name="play-outline"></ion-icon>
-              Start
-            </ion-button>
             <ion-button
               *ngIf="canMarkComplete"
               fill="solid"
@@ -100,48 +112,16 @@
               <ion-icon slot="start" name="play-forward-outline"></ion-icon>
               Skip
             </ion-button>
-            <p *ngIf="!canStart && !canMarkComplete && !canSkip" class="no-actions-hint">No actions for this cycle (completed or skipped).</p>
-          </div>
-        </div>
-
-        <!-- Progress (when in progress): slider, quick %, then Update | Mark complete | Skip -->
-        <div class="work-bench-section" *ngIf="currentCycle?.status === 'in_progress'">
-          <span class="section-label">Progress</span>
-          <div class="progress-block">
-            <div class="progress-header-row">
-              <span class="progress-value" [class.ready]="progressValue === 100">{{ progressValue }}%</span>
-              <ion-progress-bar [value]="progressValue / 100" [color]="progressValue === 100 ? 'success' : 'primary'"></ion-progress-bar>
-            </div>
-            <ion-range
-              [(ngModel)]="progressValue"
-              min="0"
-              max="100"
-              step="5"
-              [pin]="true"
-              color="primary">
-              <ion-label slot="start">0</ion-label>
-              <ion-label slot="end">100</ion-label>
-            </ion-range>
-            <div class="quick-progress-buttons">
-              <ion-button fill="outline" size="small" (click)="setProgressQuick(25)" [color]="progressValue === 25 ? 'primary' : 'medium'">25%</ion-button>
-              <ion-button fill="outline" size="small" (click)="setProgressQuick(50)" [color]="progressValue === 50 ? 'warning' : 'medium'">50%</ion-button>
-              <ion-button fill="outline" size="small" (click)="setProgressQuick(75)" [color]="progressValue === 75 ? 'primary' : 'medium'">75%</ion-button>
-              <ion-button fill="outline" size="small" (click)="setProgressQuick(100)" [color]="progressValue === 100 ? 'success' : 'medium'">100%</ion-button>
-            </div>
-            <div class="progress-actions">
-              <ion-button fill="outline" size="small" (click)="updateProgressInline()" [disabled]="actionInProgress">
-                <ion-icon slot="start" name="trending-up-outline"></ion-icon>
-                Update
-              </ion-button>
-              <ion-button fill="solid" color="success" size="small" (click)="markComplete()" [disabled]="actionInProgress">
-                <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
-                Mark complete
-              </ion-button>
-              <ion-button fill="outline" color="warning" size="small" (click)="skipCycle()" [disabled]="actionInProgress">
-                <ion-icon slot="start" name="play-forward-outline"></ion-icon>
-                Skip
-              </ion-button>
-            </div>
+            <p *ngIf="!canMarkComplete && !canSkip && !canShowRetroactiveComplete" class="no-actions-hint">No actions for this cycle (completed or skipped).</p>
+            <ion-button
+              *ngIf="canShowRetroactiveComplete"
+              fill="outline"
+              color="secondary"
+              (click)="markRetroactiveComplete()"
+              [disabled]="actionInProgress">
+              <ion-icon slot="start" name="checkmark-done-outline"></ion-icon>
+              I actually did this
+            </ion-button>
           </div>
         </div>
 

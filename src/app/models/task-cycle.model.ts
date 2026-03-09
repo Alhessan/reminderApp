@@ -1,35 +1,42 @@
 import { Task } from './task.model';
 
-export type TaskCycleStatus = 'pending' | 'in_progress' | 'completed' | 'skipped';
-export type TaskStatus = 'Active' | 'Pending' | 'Completed' | 'Overdue';
+/** Stored resolution for a cycle. At most one open cycle per task. */
+export type CycleResolution = 'open' | 'done' | 'lapsed' | 'skipped';
 
-export interface TaskCycle {
+export interface Cycle {
   id?: number;
   taskId: number;
-  task?: Task;  // For easier access when needed
-  cycleStartDate: string; // ISO 8601
-  cycleEndDate: string;   // ISO 8601
-  status: TaskCycleStatus;
-  progress: number;       // 0-100
-  completedAt?: string;   // ISO 8601
+  /** Cycle window start (used for recurrence). */
+  cycleStartDate: string;
+  /** When the cue fires (notification time). */
+  dueAt: string;
+  /** dueAt + buffer; after this, display = overdue. */
+  softDeadline: string;
+  /** dueAt + grace; after this, cycle is auto-lapsed (missed). */
+  hardDeadline: string;
+  resolution: CycleResolution;
+  startedAt?: string;
+  completedAt?: string;
+  skippedAt?: string;
 }
 
 export interface TaskProgress {
   id?: number;
   taskCycleId: number;
-  progressValue: number;  // 0-100
-  timestamp: string;      // ISO 8601
+  progressValue: number;
+  timestamp: string;
   notes?: string;
 }
 
-// View model for task list items
+/** View model for task list items. displayStatus and lastMissedDate set by service. */
 export interface TaskListItem {
   task: Task;
-  currentCycle: TaskCycle;
-  taskStatus: TaskStatus;  // Derived status for display
+  currentCycle: Cycle;
+  /** Derived from deriveDisplayState(); same across list, detail, statistics. */
+  displayStatus?: string;
   isOverdue: boolean;
-  nextDueDate: string;    // ISO 8601
+  nextDueDate: string;
   daysSinceLastCompletion?: number;
-  canStartEarly: boolean; // Whether the task can be started before its official start date
-  canComplete: boolean;   // Whether the task can be marked as completed
-} 
+  /** Set when the most recent resolved cycle for this task was lapsed. */
+  lastMissedDate?: string;
+}

@@ -11,6 +11,14 @@ import { RouteReuseStrategy } from '@angular/router';
 // Ensure Ionic Web Components are defined in all runtimes (incl. WebView)
 defineCustomElements(window);
 
+// Prevent unhandled errors from killing the app (e.g. on Android)
+window.addEventListener('error', (e) => {
+  console.error('[Uncaught error]', e.error ?? e.message, e.filename, e.lineno, e.colno);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[Unhandled promise rejection]', e.reason);
+});
+
 bootstrapApplication(AppComponent, {
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },

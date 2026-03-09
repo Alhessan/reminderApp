@@ -21,19 +21,14 @@
     aria-modal="true">
      
     <form [formGroup]="taskTypeForm" (ngSubmit)="onSubmit()" novalidate>
-      <!-- Header Section -->
-      <div class="unified-page-header">
-        <div class="header-icon-container" [style.background-color]="selectedColor + '20'">
-          <ion-icon 
-            [name]="selectedIcon" 
-            [style.color]="selectedColor" 
-            [attr.aria-label]="'Selected icon: ' + selectedIcon">
-          </ion-icon>
+      <!-- Preview -->
+      <div class="dialog-preview">
+        <div class="preview-icon" [style.background-color]="selectedColor + '15'" [style.border-color]="selectedColor + '30'">
+          <ion-icon [name]="selectedIcon" [style.color]="selectedColor"></ion-icon>
         </div>
-        <h2>{{ isEditMode ? t('taskType.edit.title') : t('taskType.add.title') }}</h2>
-        <p>{{ isEditMode ? t('taskType.edit.subtitle') : t('taskType.add.subtitle') }}</p>
+        <p class="preview-subtitle">{{ isEditMode ? t('taskType.edit.subtitle') : t('taskType.add.subtitle') }}</p>
       </div>
-  
+
       <!-- Form Fields -->
       <div class="form-group">
         <!-- Name Field -->

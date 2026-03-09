@@ -39,7 +39,7 @@ export class ProgressSliderComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     if (this.taskItem) {
-      this.currentProgress = this.taskItem?.currentCycle?.progress || 0;
+      this.currentProgress = 0; // New cycle model has no progress field
       this.previousProgress = this.currentProgress;
     }
   }

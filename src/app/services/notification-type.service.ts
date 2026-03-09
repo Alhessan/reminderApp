@@ -72,10 +72,12 @@ export class NotificationTypeService {
   }
 
   getNotificationTypes(): Observable<NotificationType[]> {
+    this.loadNotificationTypes(); // Refresh the data
     return this.notificationTypes$;
   }
 
   getEnabledNotificationTypes(): Observable<NotificationType[]> {
+    this.loadNotificationTypes(); // Refresh the data
     return this.notificationTypes$.pipe(
       map(types => types.filter(type => type.isEnabled))
     );

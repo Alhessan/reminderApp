@@ -3,6 +3,8 @@ import { IonicModule } from '@ionic/angular';
 import { CommonModule, DatePipe } from '@angular/common';
 import { TaskListItem } from '../../../../models/task-cycle.model';
 import { Router, RouterModule } from '@angular/router';
+import { CycleStatusBadgeComponent } from '../../../../components/cycle-status-badge/cycle-status-badge.component';
+import { STATUS_CONFIG, CycleDisplayStatus } from '../../../../models/cycle-display.model';
 import { addIcons } from 'ionicons';
 import { 
   timeOutline, playOutline, checkmarkCircleOutline, playForwardOutline, 
@@ -14,17 +16,17 @@ import {
   templateUrl: './task-list-item.component.html',
   styleUrls: ['./task-list-item.component.scss'],
   standalone: true,
-  imports: [IonicModule, CommonModule, DatePipe, RouterModule]
+  imports: [IonicModule, CommonModule, DatePipe, RouterModule, CycleStatusBadgeComponent]
 })
 export class TaskListItemComponent {
   @Input() taskItem!: TaskListItem;
   @Output() statusChange = new EventEmitter<void>();
   @Output() progressUpdate = new EventEmitter<void>();
   @Output() optionsClick = new EventEmitter<Event>();
+  @Output() quickComplete = new EventEmitter<number>();
 
   get progressValue(): number {
-    const progress = this.taskItem?.currentCycle?.progress || 0;
-    return Math.max(0, Math.min(100, progress)) / 100; // Clamp between 0-1
+    return 0; // No progress in new cycle model
   }
 
   constructor(private router: Router) {
@@ -40,34 +42,20 @@ export class TaskListItemComponent {
     });
   }
 
+  /** Single source of truth: STATUS_CONFIG (Phase 7 US5). */
   getStatusColor(status: string): string {
-    switch (status) {
-      case 'pending': return 'medium';
-      case 'in_progress': return 'primary';
-      case 'completed': return 'success';
-      case 'skipped': return 'warning';
-      default: return 'medium';
-    }
+    const config = status ? STATUS_CONFIG[status as CycleDisplayStatus] : null;
+    return config?.color ?? 'medium';
   }
 
   getStatusIcon(status: string): string {
-    switch (status) {
-      case 'pending': return 'time-outline';
-      case 'in_progress': return 'play-outline';
-      case 'completed': return 'checkmark-circle-outline';
-      case 'skipped': return 'play-forward-outline';
-      default: return 'help-outline';
-    }
+    const config = status ? STATUS_CONFIG[status as CycleDisplayStatus] : null;
+    return config?.icon ?? 'help-outline';
   }
 
   formatStatus(status: string): string {
-    switch (status) {
-      case 'in_progress': return 'In Progress';
-      case 'completed': return 'Completed';
-      case 'skipped': return 'Skipped';
-      case 'pending': return 'Pending';
-      default: return status;
-    }
+    const config = status ? STATUS_CONFIG[status as CycleDisplayStatus] : null;
+    return config?.label ?? status ?? '';
   }
 
   getTypeColor(type: string): string {
@@ -110,6 +98,18 @@ export class TaskListItemComponent {
   onOptionsClick(event: Event) {
     event.stopPropagation();
     this.optionsClick.emit(event);
+  }
+
+  onQuickComplete(event: Event) {
+    event.stopPropagation();
+    const cycleId = this.taskItem.currentCycle?.id;
+    if (cycleId != null && this.taskItem.currentCycle?.resolution === 'open') {
+      this.quickComplete.emit(cycleId);
+    }
+  }
+
+  get canQuickComplete(): boolean {
+    return !!(this.taskItem?.currentCycle?.id && this.taskItem.currentCycle.resolution === 'open');
   }
 
   navigateToTaskDetail() {

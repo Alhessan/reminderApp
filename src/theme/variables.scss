@@ -1,13 +1,13 @@
-// For information on how to create your own theme, please see:
-// http://ionicframework.com/docs/theming/
+// ===========================================
+// DESIGN TOKENS & THEME
+// ===========================================
 
-// Design Tokens - Colors
 :root {
-  // Primary Brand Colors
-  --app-primary: #3880ff;
-  --app-primary-shade: #3171e0;
-  --app-primary-tint: #4c8dff;
-  
+  // Primary Brand Colors (aligned with Ionic --ion-color-primary)
+  --app-primary: #7c4dff;
+  --app-primary-shade: #6d44e0;
+  --app-primary-tint: #8960ff;
+
   // Neutral Colors
   --app-neutral-100: #ffffff;
   --app-neutral-200: #f8f9fa;
@@ -41,6 +41,10 @@
   --app-border-medium: var(--app-neutral-400);
   --app-border-dark: var(--app-neutral-500);
 
+  // Card surface
+  --app-card-bg: var(--app-neutral-100);
+  --app-card-border: rgba(0, 0, 0, 0.06);
+
   // Spacing Scale
   --space-xxs: 4px;
   --space-xs: 8px;
@@ -54,16 +58,18 @@
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 
   // Shadows
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.06);
 
   // Typography
   --font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  
+
   // Font Sizes
   --text-xs: 12px;
   --text-sm: 14px;
@@ -97,9 +103,44 @@
   --transition-fast: 150ms ease-in-out;
   --transition-normal: 250ms ease-in-out;
   --transition-slow: 350ms ease-in-out;
+
+  // Toolbar gradient (Clean native look)
+  --app-toolbar-gradient: var(--ion-color-primary);
 }
 
-// Utility Classes
+// ===========================================
+// DARK MODE DESIGN TOKENS
+// ===========================================
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-bg-primary: #1a1a2e;
+    --app-bg-secondary: #16213e;
+    --app-bg-tertiary: #0f3460;
+
+    --app-text-primary: #e0e0e0;
+    --app-text-secondary: #b0b0b0;
+    --app-text-tertiary: #808080;
+    --app-text-inverse: #1a1a2e;
+
+    --app-border-light: rgba(255, 255, 255, 0.08);
+    --app-border-medium: rgba(255, 255, 255, 0.12);
+    --app-border-dark: rgba(255, 255, 255, 0.18);
+
+    --app-card-bg: #1e1e2d;
+    --app-card-border: rgba(255, 255, 255, 0.06);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+    --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.3);
+
+    --app-toolbar-gradient: var(--ion-color-step-100, #1e1e2d);
+  }
+}
+
+// ===========================================
+// UTILITY CLASSES
+// ===========================================
 .text-primary { color: var(--app-text-primary); }
 .text-secondary { color: var(--app-text-secondary); }
 .text-tertiary { color: var(--app-text-tertiary); }
@@ -167,13 +208,19 @@
 .gap-md { gap: var(--space-md); }
 .gap-lg { gap: var(--space-lg); }
 
+// ===========================================
+// IONIC COMPONENT OVERRIDES
+// ===========================================
+
 // Card Styles
 ion-card {
   border-radius: var(--radius-lg);
   margin: var(--space-md) 0;
-  box-shadow: var(--shadow-sm);
-  background: var(--app-bg-primary);
-  
+  box-shadow: var(--shadow-card);
+  background: var(--app-card-bg);
+  border: 1px solid var(--app-card-border);
+  --background: var(--app-card-bg);
+
   ion-card-header {
     padding-bottom: var(--space-xs);
   }
@@ -199,8 +246,8 @@ ion-card {
 ion-item {
   --padding-start: var(--space-md);
   --inner-padding-end: var(--space-md);
-  --background: var(--app-bg-primary);
-  
+  --background: transparent;
+
   ion-label {
     color: var(--app-text-secondary);
     font-weight: var(--weight-medium);
@@ -215,21 +262,19 @@ ion-item {
 
 // Button Styles
 ion-button {
-  --padding-top: var(--space-sm);
-  --padding-bottom: var(--space-sm);
-  --padding-start: var(--space-lg);
-  --padding-end: var(--space-lg);
-  font-weight: var(--weight-medium);
+  --border-radius: var(--radius-md);
+  min-height: 44px;
+  font-weight: 500;
   text-transform: none;
-  
-  &.button-solid {
-    --background: var(--app-primary);
-    --color: var(--app-text-inverse);
+  letter-spacing: 0.2px;
+
+  &:not([fill="clear"]) {
+    --padding-start: var(--space-lg);
+    --padding-end: var(--space-lg);
   }
 
-  &.button-outline {
-    --border-color: var(--app-primary);
-    --color: var(--app-primary);
+  &.button-solid {
+    --box-shadow: none;
   }
 }
 
@@ -244,7 +289,7 @@ ion-segment.frequency-segment {
   border: none;
   display: flex;
   justify-content: space-between;
-  
+
   &::part(indicator) {
     display: none;
   }
@@ -252,10 +297,10 @@ ion-segment.frequency-segment {
   .segment-button-indicator {
     display: none;
   }
-  
+
   ion-segment-button {
-    --background: var(--app-neutral-200);
-    --background-checked: var(--app-primary);
+    --background: var(--app-bg-secondary);
+    --background-checked: var(--ion-color-primary);
     --color: var(--app-text-tertiary);
     --color-checked: var(--app-text-inverse);
     --indicator-color: transparent;
@@ -268,18 +313,18 @@ ion-segment.frequency-segment {
     --margin-bottom: 0;
     --margin-start: 0;
     --margin-end: 0;
-    
+
     min-height: 80px;
     width: 75px;
     margin: 0 2px;
     padding: 0;
     border-radius: 16px;
     overflow: visible;
-    
+
     &:first-child {
       margin-left: 0;
     }
-    
+
     &:last-child {
       margin-right: 0;
     }
@@ -297,7 +342,7 @@ ion-segment.frequency-segment {
 
     &.segment-button-checked {
       position: relative;
-      
+
       &::before {
         content: '';
         position: absolute;
@@ -305,7 +350,7 @@ ion-segment.frequency-segment {
         top: 0;
         height: 100%;
         width: 16px;
-        background: var(--app-primary);
+        background: var(--ion-color-primary);
         z-index: -1;
         border-radius: 16px 0 0 16px;
       }
@@ -322,13 +367,13 @@ ion-segment.frequency-segment {
       flex-direction: column;
       align-items: center;
       line-height: 1.1;
-      
+
       div {
         font-size: 13px;
         font-weight: 500;
         margin-bottom: 1px;
       }
-      
+
       small {
         font-size: 11px;
         opacity: 0.8;
@@ -346,17 +391,17 @@ ion-segment.frequency-segment {
   display: flex;
   -ms-overflow-style: none;
   scrollbar-width: none;
-  
+
   &::-webkit-scrollbar {
     display: none;
   }
-  
+
   ion-segment {
     min-width: min-content;
   }
 }
 
-// Regular Segment Styles (keep existing but update selector to be more specific)
+// Regular Segment Styles (pill-style tabs)
 ion-segment:not(.frequency-segment) {
   background: var(--app-bg-secondary);
   border-radius: var(--radius-full);
@@ -365,12 +410,12 @@ ion-segment:not(.frequency-segment) {
   width: fit-content;
   min-width: 280px;
   display: flex;
-  
+
   ion-segment-button {
     --background: transparent;
-    --background-checked: var(--app-primary);
+    --background-checked: var(--ion-color-primary);
     --color: var(--app-text-tertiary);
-    --color-checked: var(--app-text-inverse);
+    --color-checked: #ffffff;
     --indicator-color: transparent;
     min-height: 30px;
     min-width: 80px;
@@ -380,7 +425,7 @@ ion-segment:not(.frequency-segment) {
     transition: all var(--transition-fast);
     position: relative;
     overflow: hidden;
-    
+
     &::part(indicator) {
       display: none;
     }
@@ -421,7 +466,7 @@ ion-chip {
   font-weight: var(--weight-medium);
   height: 32px;
   padding: 0 var(--space-sm);
-  
+
   &.chip-outline {
     --background: transparent;
     border: 1px solid var(--app-border-light);
@@ -438,14 +483,14 @@ ion-tab-bar {
 
 ion-tab-button {
   --color: var(--app-text-tertiary);
-  --color-selected: var(--app-primary);
+  --color-selected: var(--ion-color-primary);
   --padding-start: var(--space-xs);
   --padding-end: var(--space-xs);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   letter-spacing: -0.2px;
   text-transform: none;
-  
+
   &::before {
     background-color: transparent;
     display: block;
@@ -461,7 +506,7 @@ ion-tab-button {
 
   &.tab-selected {
     &::before {
-      background-color: var(--app-primary);
+      background-color: var(--ion-color-primary);
     }
 
     ion-icon {
@@ -483,18 +528,18 @@ ion-segment.tab-like {
   background: var(--app-bg-primary);
   border-bottom: 1px solid var(--app-border-light);
   padding: var(--space-xs) var(--space-md);
-  
+
   ion-segment-button {
     --background: transparent;
     --background-checked: transparent;
     --color: var(--app-text-tertiary);
-    --color-checked: var(--app-primary);
+    --color-checked: var(--ion-color-primary);
     --indicator-height: 3px;
     min-width: 100px;
     text-transform: none;
     font-weight: var(--weight-medium);
     letter-spacing: -0.2px;
-    
+
     &::part(indicator) {
       height: 3px;
       bottom: -1px;
@@ -505,5 +550,3 @@ ion-segment.tab-like {
     }
   }
 }
-
-

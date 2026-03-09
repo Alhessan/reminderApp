@@ -22,10 +22,18 @@ allprojects {
         google()
         mavenCentral()
     }
-    tasks.withType(JavaCompile).configureEach {
-        options.compilerArgs += [
-            '--release', '17'
-        ]
+}
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            project.android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_17
+                    targetCompatibility JavaVersion.VERSION_17
+                }
+            }
+        }
     }
 }
 

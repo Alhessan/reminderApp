@@ -9,24 +9,34 @@ import { CommonModule, DatePipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { TaskHistoryComponent } from "./components/task-history.component";
 import { TaskStatisticsComponent } from "./components/task-statistics.component";
-import { TaskCycle, TaskListItem } from "../../../models/task-cycle.model";
+import { CycleStatusBadgeComponent } from "../../../components/cycle-status-badge/cycle-status-badge.component";
+import { Cycle } from "../../../models/task-cycle.model";
+import { deriveDisplayState, STATUS_CONFIG, CycleDisplayStatus } from "../../../models/cycle-display.model";
 
 @Component({
   selector: "app-task-detail",
   templateUrl: "./task-detail.page.html",
   styleUrls: ["./task-detail.page.scss"],
   standalone: true,
-  imports: [IonicModule, CommonModule, FormsModule, DatePipe, RouterModule, TaskHistoryComponent, TaskStatisticsComponent]
+  imports: [IonicModule, CommonModule, FormsModule, DatePipe, RouterModule, TaskHistoryComponent, TaskStatisticsComponent, CycleStatusBadgeComponent]
 })
 export class TaskDetailPage implements OnInit {
   task: Task | null = null;
-  currentCycle: TaskCycle | null = null;
+  currentCycle: Cycle | null = null;
+  /** Most recent lapsed cycle for this task (for retroactive "I actually did this"). */
+  mostRecentLapsedCycle: Cycle | null = null;
   taskHistory: TaskHistoryEntry[] = [];
   isLoading = true;
   taskId?: number;
   actionInProgress = false;
-  /** For inline progress when cycle is in_progress */
-  progressValue = 0;
+  /** Derived display status for current cycle (e.g. upcoming, due, overdue, completed, missed, skipped). */
+  displayStatus: string = '';
+
+  /** Human-readable label from STATUS_CONFIG for template. */
+  get displayStatusLabel(): string {
+    const config = this.displayStatus ? STATUS_CONFIG[this.displayStatus as CycleDisplayStatus] : null;
+    return config?.label ?? this.displayStatus ?? '—';
+  }
 
   constructor(
     private route: ActivatedRoute,
@@ -37,34 +47,6 @@ export class TaskDetailPage implements OnInit {
     private navController: NavController,
     private databaseService: DatabaseService
   ) { }
-
-  setProgressQuick(percent: number): void {
-    this.progressValue = Math.min(100, Math.max(0, percent));
-  }
-
-  /** Build list item for progress modal and action sheet */
-  get taskListItem(): TaskListItem | null {
-    if (!this.task || !this.currentCycle) return null;
-    const cycle = this.currentCycle;
-    const now = new Date();
-    const cycleStart = new Date(cycle.cycleStartDate);
-    const cycleEnd = new Date(cycle.cycleEndDate);
-    const isOverdue = cycle.status === "in_progress" && now > cycleEnd;
-    const canStart = cycle.status === "pending" && this.taskCycleService.canStartCycle(cycle);
-    const canComplete = cycle.status === "in_progress" && this.taskCycleService.canCompleteCycle(cycle);
-    let taskStatus: "Active" | "Pending" | "Completed" | "Overdue" = "Pending";
-    if (cycle.status === "completed" || cycle.status === "skipped") taskStatus = "Completed";
-    else if (cycle.status === "in_progress") taskStatus = isOverdue ? "Overdue" : "Active";
-    return {
-      task: this.task,
-      currentCycle: { ...cycle, progress: (this.progressValue ?? cycle.progress) ?? 0 },
-      taskStatus,
-      isOverdue,
-      nextDueDate: cycle.cycleEndDate,
-      canStartEarly: canStart,
-      canComplete,
-    };
-  }
 
   async ngOnInit() {
     await this.databaseService.initializeDatabase();
@@ -95,11 +77,15 @@ export class TaskDetailPage implements OnInit {
       if (taskData) {
         this.task = taskData;
         this.currentCycle = await this.taskCycleService.getCurrentCycle(id);
-        this.progressValue = this.currentCycle?.progress ?? 0;
+        this.mostRecentLapsedCycle = await this.taskCycleService.getMostRecentLapsedCycle(id);
+        this.displayStatus = this.task && this.currentCycle
+          ? deriveDisplayState(this.currentCycle, this.task)
+          : '';
         this.taskHistory = await this.taskService.getTaskHistory(id);
       } else {
         this.task = null;
         this.currentCycle = null;
+        this.mostRecentLapsedCycle = null;
         this.taskHistory = [];
         await this.presentErrorAlert("Task not found.");
         this.navController.navigateBack("/tasks");
@@ -109,6 +95,7 @@ export class TaskDetailPage implements OnInit {
       await this.presentErrorAlert("Failed to load task details. Please try again.");
       this.task = null;
       this.currentCycle = null;
+      this.mostRecentLapsedCycle = null;
       this.taskHistory = [];
       this.navController.navigateBack("/tasks");
     } finally {
@@ -135,38 +122,51 @@ export class TaskDetailPage implements OnInit {
     this.navController.navigateBack("/tasks");
   }
 
-  get canStart(): boolean {
-    return !!(
-      this.currentCycle &&
-      this.currentCycle.status === "pending" &&
-      this.taskCycleService.canStartCycle(this.currentCycle)
-    );
-  }
-
+  /** One-tap complete: show when current cycle is open. */
   get canMarkComplete(): boolean {
-    return !!(
-      this.currentCycle &&
-      this.currentCycle.status === "in_progress" &&
-      this.taskCycleService.canCompleteCycle(this.currentCycle)
-    );
+    return !!this.currentCycle?.id && this.currentCycle.resolution === 'open';
   }
 
-  /** Can skip when there is a pending or in-progress cycle. */
   get canSkip(): boolean {
-    if (!this.currentCycle?.id || !this.taskId) return false;
-    const s = this.currentCycle.status;
-    return s === "pending" || s === "in_progress";
+    return !!this.currentCycle?.id && this.currentCycle.resolution === 'open';
   }
 
-  async startCycle() {
-    if (!this.currentCycle?.id || !this.taskId || this.actionInProgress) return;
+  get canPause(): boolean {
+    return !!this.task && this.task.state === 'active';
+  }
+
+  get canResume(): boolean {
+    return !!this.task && this.task.state === 'paused';
+  }
+
+  /** Show "I actually did this" when the most recent resolved cycle is lapsed (Phase 6 US4). */
+  get canShowRetroactiveComplete(): boolean {
+    return !!this.mostRecentLapsedCycle?.id && !this.actionInProgress;
+  }
+
+  async pauseTask() {
+    if (!this.taskId || this.actionInProgress) return;
     this.actionInProgress = true;
     try {
-      await this.taskCycleService.updateTaskCycleStatus(this.currentCycle.id, "in_progress");
+      await this.taskService.pauseTask(this.taskId);
       await this.loadTaskDetails(this.taskId);
     } catch (e) {
-      console.error("Start cycle failed", e);
-      await this.presentErrorAlert("Could not start. Try again.");
+      console.error("Pause failed", e);
+      await this.presentErrorAlert("Could not pause. Try again.");
+    } finally {
+      this.actionInProgress = false;
+    }
+  }
+
+  async resumeTask() {
+    if (!this.taskId || this.actionInProgress) return;
+    this.actionInProgress = true;
+    try {
+      await this.taskService.resumeTask(this.taskId);
+      await this.loadTaskDetails(this.taskId);
+    } catch (e) {
+      console.error("Resume failed", e);
+      await this.presentErrorAlert("Could not resume. Try again.");
     } finally {
       this.actionInProgress = false;
     }
@@ -176,7 +176,7 @@ export class TaskDetailPage implements OnInit {
     if (!this.currentCycle?.id || !this.taskId || this.actionInProgress) return;
     this.actionInProgress = true;
     try {
-      await this.taskCycleService.updateTaskCycleStatus(this.currentCycle.id, "completed");
+      await this.taskCycleService.resolveCycle(this.currentCycle.id, 'done');
       await this.loadTaskDetails(this.taskId);
     } catch (e) {
       console.error("Mark complete failed", e);
@@ -186,17 +186,31 @@ export class TaskDetailPage implements OnInit {
     }
   }
 
+  async markRetroactiveComplete() {
+    if (!this.mostRecentLapsedCycle?.id || !this.taskId || this.actionInProgress) return;
+    this.actionInProgress = true;
+    try {
+      await this.taskCycleService.resolveCycle(this.mostRecentLapsedCycle.id!, 'done');
+      await this.loadTaskDetails(this.taskId);
+    } catch (e) {
+      console.error('Retroactive complete failed', e);
+      await this.presentErrorAlert('Could not mark as done. Try again.');
+    } finally {
+      this.actionInProgress = false;
+    }
+  }
+
   async skipCycle() {
     if (!this.currentCycle?.id || !this.taskId || this.actionInProgress) return;
     const alert = await this.alertController.create({
       header: "Skip this occurrence?",
-      message: "The next occurrence will be created. You can still see this one as missed in statistics.",
+      message: "The next occurrence will be scheduled. This one will be recorded as skipped.",
       buttons: [
         { text: "Cancel", role: "cancel" },
         { text: "Skip", handler: async () => {
           this.actionInProgress = true;
           try {
-            await this.taskCycleService.updateTaskCycleStatus(this.currentCycle!.id!, "skipped");
+            await this.taskCycleService.resolveCycle(this.currentCycle!.id!, 'skipped');
             await this.loadTaskDetails(this.taskId!);
           } catch (e) {
             console.error("Skip failed", e);
@@ -234,21 +248,4 @@ export class TaskDetailPage implements OnInit {
     await alert.present();
   }
 
-  async updateProgressInline() {
-    if (!this.currentCycle?.id || this.actionInProgress) return;
-    this.actionInProgress = true;
-    try {
-      await this.taskCycleService.updateTaskCycleStatus(
-        this.currentCycle.id,
-        "in_progress",
-        this.progressValue
-      );
-      await this.loadTaskDetails(this.taskId!);
-    } catch (e) {
-      console.error("Progress update failed", e);
-      await this.presentErrorAlert("Could not update progress. Try again.");
-    } finally {
-      this.actionInProgress = false;
-    }
-  }
 }

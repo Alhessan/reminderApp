@@ -116,7 +116,8 @@ export class NotificationService {
   /** Thrown when scheduling on Capacitor and notification permission is not granted */
   static readonly NOTIFICATION_PERMISSION_DENIED = 'NOTIFICATION_PERMISSION_DENIED';
 
-  async scheduleNotification(task: Task, isTestMode: boolean = false): Promise<void> {
+  /** When scheduledAt is provided (e.g. cycle.dueAt), use it instead of computing from task.startDate+notificationTime. */
+  async scheduleNotification(task: Task, isTestMode: boolean = false, scheduledAt?: Date): Promise<void> {
     try {
       console.log('NotificationService: Starting notification scheduling for task:', task);
 
@@ -164,22 +165,26 @@ export class NotificationService {
           repeatInterval: repeatInterval ? 'every minute' : 'none'
         });
       } else {
-        // Normal mode - use the task's scheduled time
-        const [hours, minutes] = task.notificationTime.split(':').map(Number);
-        notificationDate = new Date(task.startDate);
-        notificationDate.setHours(hours, minutes, 0, 0);
-
-        // If the time is in the past and it's a daily task, adjust to today/tomorrow
-        if (notificationDate < now) {
-          if (task.frequency === 'daily') {
-            notificationDate = new Date(now);
-            notificationDate.setHours(hours, minutes, 0, 0);
-            if (notificationDate < now) {
-              notificationDate.setDate(notificationDate.getDate() + 1);
-            }
-          } else {
-            console.log('NotificationService: Non-daily notification time is in the past, skipping');
+        // Normal mode - use cycle dueAt when provided, else task's scheduled time
+        if (scheduledAt) {
+          notificationDate = new Date(scheduledAt);
+          if (notificationDate < now) {
+            console.log('NotificationService: scheduledAt is in the past, skipping');
             return;
+          }
+        } else {
+          const [hours, minutes] = task.notificationTime.split(':').map(Number);
+          notificationDate = new Date(task.startDate);
+          notificationDate.setHours(hours, minutes, 0, 0);
+          if (notificationDate < now) {
+            if (task.frequency === 'daily') {
+              notificationDate = new Date(now);
+              notificationDate.setHours(hours, minutes, 0, 0);
+              if (notificationDate < now) notificationDate.setDate(notificationDate.getDate() + 1);
+            } else {
+              console.log('NotificationService: Non-daily notification time is in the past, skipping');
+              return;
+            }
           }
         }
       }

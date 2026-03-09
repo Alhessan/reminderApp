@@ -29,19 +29,19 @@ export class SampleDataService {
         notificationType: 'email',
         notificationTime: '09:00',
         notes: 'This task is overdue and needs attention',
-        isCompleted: false
+        state: 'active'
       },
       {
         id: 2,
-        title: 'In-Progress Update Task',
+        title: 'Due Task',
         type: 'Update',
         frequency: 'weekly',
         startDate: new Date().toISOString(),
         notificationType: 'push',
         notificationTime: '10:00',
-        notificationValue: 'Update progress status',
-        notes: 'This task is currently in progress',
-        isCompleted: false
+        notificationValue: 'Update status',
+        notes: 'This task is due',
+        state: 'active'
       },
       {
         id: 3,
@@ -52,8 +52,7 @@ export class SampleDataService {
         notificationType: 'push',
         notificationTime: '08:00',
         notes: 'This task was completed and generated next cycle',
-        isCompleted: true,
-        lastCompletedDate: new Date().toISOString()
+        state: 'active'
       },
       {
         id: 4,
@@ -64,7 +63,7 @@ export class SampleDataService {
         notificationType: 'email',
         notificationTime: '14:00',
         notes: 'This task is scheduled for the future',
-        isCompleted: false
+        state: 'active'
       },
       {
         id: 5,
@@ -75,7 +74,7 @@ export class SampleDataService {
         notificationType: 'push',
         notificationTime: '15:00',
         notes: 'This task was skipped',
-        isCompleted: false
+        state: 'active'
       }
     ];
 
@@ -88,15 +87,12 @@ export class SampleDataService {
       const cycle = await this.taskCycleService.getCurrentCycle(taskId);
       if (cycle) {
         switch (task.title) {
-          case 'In-Progress Update Task':
-            await this.taskCycleService.updateTaskCycleStatus(cycle.id!, 'in_progress', 60);
-            break;
           case 'Completed Daily Check':
-            await this.taskCycleService.updateTaskCycleStatus(cycle.id!, 'completed');
-            await this.taskCycleService.createNextCycle(createdTask, cycle);
+            await this.taskCycleService.resolveCycle(cycle.id!, 'done');
+            await this.taskCycleService.createNextCycle(createdTask);
             break;
           case 'Skipped Weekly Task':
-            await this.taskCycleService.updateTaskCycleStatus(cycle.id!, 'skipped');
+            await this.taskCycleService.resolveCycle(cycle.id!, 'skipped');
             break;
         }
       }

@@ -1,34 +1,40 @@
-// Task Form Page Styles
-// Enhanced styling with mobile-first responsive design
-
 :host {
-  display: block;
+  display: flex;
+  flex-direction: column;
   height: 100%;
   --task-form-footer-height: 92px;
 }
 
-// Hide the page header bar (title/back button)
-ion-header {
-  display: none;
-}
+// ion-header {
+//   display: none;
+// }
 
-// Content styling
 ion-content {
   --background: var(--ion-background-color);
   --padding-start: 16px;
   --padding-end: 16px;
   --padding-top: 16px;
-  // Extra space so content doesn't hide behind fixed footer
-  --padding-bottom: calc(16px + var(--task-form-footer-height) + var(--app-safe-area-bottom));
+  --padding-bottom: 16px;
 }
 
-// Form section styling
+ion-card {
+  margin: 16px 0;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+ion-card-content {
+  overflow: hidden;
+}
+
+// Form section
 .form-section {
-  background: var(--ion-item-background);
-  border-radius: 8px;
+  background: var(--ion-card-background, var(--ion-item-background));
+  border-radius: 12px;
   margin-bottom: 16px;
   padding: 16px;
-  
+  border: 1px solid var(--app-card-border, rgba(0, 0, 0, 0.04));
+
   h2 {
     color: var(--ion-text-color);
     font-size: 1.1rem;
@@ -36,7 +42,7 @@ ion-content {
     margin: 0 0 16px 0;
     display: flex;
     align-items: center;
-    
+
     ion-icon {
       margin-right: 8px;
       color: var(--ion-color-primary);
@@ -44,65 +50,37 @@ ion-content {
   }
 }
 
-// Form controls
+// Form items
 ion-item {
   --background: transparent;
-  // --border-color: var(--ion-border-color);
   --padding-start: 0;
   --inner-padding-end: 0;
   margin-bottom: 12px;
-  padding: 5px;;
-  
+  padding: 5px;
+
   &:last-child {
     margin-bottom: 0;
   }
-  
+
   ion-label {
     --color: var(--ion-text-color);
     font-weight: 500;
   }
-  
+
   ion-input, ion-select, ion-datetime, ion-textarea {
-    --background: var(--ion-item-background);
+    --background: var(--ion-color-light);
     --padding-start: 12px;
     --padding-end: 12px;
     border-radius: 8px;
-    
-    &.has-focus {
-      --background: var(--ion-item-background-focused);
-    }
   }
 }
 
-// Segment control
-ion-segment {
-  background: var(--ion-item-background);
-  border-radius: 8px;
-  margin: 16px 0;
-  padding: 4px;
-  
-  ion-segment-button {
-    --background: transparent;
-    --background-checked: var(--ion-color-primary);
-    --color: var(--ion-color-medium);
-    --color-checked: var(--ion-color-primary-contrast);
-    --indicator-color: transparent;
-    min-height: 40px;
-    border-radius: 6px;
-    text-transform: none;
-    
-    &::part(indicator) {
-      display: none;
-    }
-  }
-}
-
-// Chips and tags
+// Chips
 ion-chip {
-  --background: var(--ion-item-background);
+  --background: var(--ion-color-light);
   --color: var(--ion-text-color);
   margin: 4px;
-  
+
   &.selected {
     --background: var(--ion-color-primary);
     --color: var(--ion-color-primary-contrast);
@@ -114,14 +92,14 @@ ion-chip {
   display: flex;
   gap: 8px;
   margin-top: 24px;
-  
+
   ion-button {
     flex: 1;
     margin: 0;
     --border-radius: 8px;
-    
+
     &[color="light"] {
-      --background: var(--ion-item-background);
+      --background: var(--ion-color-light);
       --color: var(--ion-text-color);
     }
   }
@@ -135,37 +113,45 @@ ion-chip {
   padding-left: 16px;
 }
 
-// Mobile optimizations
+// Mobile
 @media (max-width: 768px) {
   ion-content {
     --padding-start: 12px;
     --padding-end: 12px;
     --padding-top: 12px;
-    --padding-bottom: calc(12px + var(--task-form-footer-height) + var(--app-safe-area-bottom));
+    --padding-bottom: 12px;
   }
-  
+
   .form-section {
     padding: 12px;
     margin-bottom: 12px;
   }
 }
 
-// Dark mode specific adjustments
+// Dark mode
 @media (prefers-color-scheme: dark) {
   .form-section {
-    background: var(--ion-item-background);
+    background: var(--ion-card-background, var(--ion-item-background));
+    border-color: rgba(255, 255, 255, 0.06);
   }
-  
+
   ion-item {
-    --background: var(--ion-item-background);
-    
     ion-input, ion-select, ion-datetime, ion-textarea {
-      --background: rgba(var(--ion-color-dark-rgb), 0.3);
-      
-      &.has-focus {
-        --background: rgba(var(--ion-color-dark-rgb), 0.5);
-      }
+      --background: var(--ion-color-step-100, #2a2a2a);
     }
+  }
+
+  .type-selection-wrapper {
+    background: var(--ion-color-step-100, #2a2a2a);
+  }
+
+  ion-segment {
+    background: var(--ion-color-step-100, #2a2a2a);
+  }
+
+  ion-chip {
+    --background: var(--ion-color-step-100, #2a2a2a);
+    --color: var(--ion-text-color);
   }
 }
 
@@ -174,30 +160,40 @@ ion-chip {
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  background: var(--ion-color-light);
+  border-radius: 8px;
+  padding-right: 4px;
 
   ion-select {
     flex: 1;
+    --background: transparent !important;
+    --padding-start: 12px;
+    --padding-end: 8px;
   }
 
   ion-button {
-    margin: 0 0 0 8px;
+    margin: 0;
+    height: 36px;
+    min-height: 36px;
+    --padding-start: 8px;
+    --padding-end: 12px;
+    font-size: 14px;
   }
 }
 
-.notification-time-picker{
+.notification-time-picker {
   height: 150px !important;
-  // centerize the picker vertically after height is set
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-// Common styles for all segment tabs
+// Custom segment tabs
 .custom-segment {
   --background: var(--ion-color-light);
   border-radius: 8px;
   margin-bottom: 1rem;
-  
+
   ion-segment-button {
     --background: transparent;
     --background-checked: var(--ion-color-light);
@@ -206,10 +202,10 @@ ion-chip {
     --indicator-color: var(--ion-color-primary);
     min-height: 60px;
     font-size: 12px;
-    
+
     &.segment-button-checked {
       position: relative;
-      
+
       &::after {
         content: '';
         position: absolute;
@@ -221,12 +217,12 @@ ion-chip {
         border-radius: 3px;
       }
     }
-    
+
     ion-icon {
       font-size: 24px;
       margin-bottom: 4px;
     }
-    
+
     ion-label {
       margin-top: 4px;
       font-size: 12px;
@@ -234,20 +230,31 @@ ion-chip {
   }
 }
 
-// Frequency segment specific styles
+// Frequency segment
 .frequency-info {
   padding: 16px 0;
+  max-width: 100%;
+  overflow: hidden;
 
   .frequency-label {
     margin: 0 0 12px;
-    color: var(--ion-color-dark);
+    color: var(--ion-text-color);
     font-weight: 500;
   }
 
   ion-segment {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
     background: var(--ion-color-light);
     border-radius: 8px;
     padding: 4px;
+    margin: 16px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 
     ion-segment-button {
       --background: transparent;
@@ -255,11 +262,23 @@ ion-chip {
       --color: var(--ion-color-medium);
       --color-checked: var(--ion-color-primary-contrast);
       --indicator-color: transparent;
+      --padding-start: 12px;
+      --padding-end: 12px;
       min-height: 40px;
+      min-width: 75px;
       font-size: 12px;
       text-transform: none;
       border-radius: 6px;
-      margin: 0;
+      margin: 0 2px;
+      flex-shrink: 0;
+
+      &:first-child {
+        margin-left: 0;
+      }
+
+      &:last-child {
+        margin-right: 0;
+      }
 
       &::part(indicator) {
         display: none;
@@ -280,11 +299,22 @@ ion-chip {
 
 .notification-info {
   padding: 16px 0;
+  max-width: 100%;
+  overflow: hidden;
 
   .notification-type-tabs {
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
     background: var(--ion-color-light);
     border-radius: 8px;
     padding: 4px;
+    margin: 16px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
 
     .notification-tab {
       --background: transparent;
@@ -292,11 +322,23 @@ ion-chip {
       --color: var(--ion-color-medium);
       --color-checked: var(--ion-color-primary-contrast);
       --indicator-color: transparent;
+      --padding-start: 12px;
+      --padding-end: 12px;
       min-height: 40px;
+      min-width: 75px;
       font-size: 12px;
       text-transform: none;
       border-radius: 6px;
-      margin: 0;
+      margin: 0 2px;
+      flex-shrink: 0;
+
+      &:first-child {
+        margin-left: 0;
+      }
+
+      &:last-child {
+        margin-right: 0;
+      }
 
       &::part(indicator) {
         display: none;
@@ -321,20 +363,6 @@ ion-chip {
 
 .notification-details {
   margin: 1rem 0;
-  
-  .notification-input {
-    ion-item {
-      --padding-start: 0;
-      --border-color: transparent;
-      margin-top: 8px;
-    }
-  }
-  
-  .manage-notifications {
-    ion-button {
-      margin: 1rem 0;
-    }
-  }
 }
 
 .notification-value-input {
@@ -353,7 +381,7 @@ ion-chip {
 }
 
 .notification-preview {
-  background: var(--ion-color-light-shade);
+  background: var(--ion-color-light);
   border-radius: 8px;
   padding: 16px;
   margin: 8px 0;
@@ -361,7 +389,7 @@ ion-chip {
   h2 {
     font-size: 16px;
     font-weight: 600;
-    color: var(--ion-color-dark);
+    color: var(--ion-text-color);
     margin: 0 0 8px;
   }
 
@@ -372,23 +400,15 @@ ion-chip {
   }
 }
 
-.task-form-footer {
-  width: 100%;
-}
+// Footer
+.form-actions {
+  margin: 24px 16px 32px;
 
-.task-form-footer ion-toolbar {
-  --background: var(--ion-color-light) !important;
-  --color: var(--ion-color-dark) !important;
-  --padding-start: 16px;
-  --padding-end: 16px;
-  --padding-top: 8px !important;
-  --padding-bottom: calc(8px + var(--app-safe-area-bottom)) !important;
-  min-height: 56px;
-}
-
-.submit-button {
-  --border-radius: 8px;
-  font-weight: 600;
-  --background: var(--ion-color-primary);
-  --color: var(--ion-color-primary-contrast);
+  .submit-button {
+    --border-radius: 12px;
+    font-weight: 600;
+    --background: var(--ion-color-primary);
+    --color: var(--ion-color-primary-contrast);
+    min-height: 52px;
+  }
 }

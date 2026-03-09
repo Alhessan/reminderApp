@@ -9,6 +9,9 @@ const config: CapacitorConfig = {
       smallIcon: 'ic_launcher_foreground',
       iconColor: '#667eea',
     },
+    CapacitorSQLite: {
+      androidIsEncryption: false,
+    },
   },
 };
 

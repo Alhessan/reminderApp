@@ -1,8 +1,10 @@
 import { Customer } from './customer.model';
-import { TaskCycleStatus } from './task-cycle.model';
 
 export type NotificationType = string; // This allows any notification type key
 export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'once';
+
+/** Task definition state. isArchived is derived as (state === 'archived'). */
+export type TaskState = 'active' | 'paused' | 'archived';
 
 export interface Task {
   id: number;
@@ -17,28 +19,10 @@ export interface Task {
   notificationTime: string; // HH:mm format for notification time
   notificationValue?: string; // Email for email notifications, phone for SMS, etc.
   notes?: string;
-  isCompleted: boolean;
-  lastCompletedDate?: string;
-  isArchived?: boolean; // Flag for archived tasks
+  /** active | paused | archived. Replaces isArchived (derived as state === 'archived'). */
+  state: TaskState;
 }
 
-export interface TaskCycle {
-  id?: number;
-  taskId: number;
-  cycleStartDate: string;
-  cycleEndDate: string;
-  status: TaskCycleStatus;
-  progress: number;
-  completedAt?: string;
-}
-
-export interface TaskListItem {
-  task: Task;
-  currentCycle: TaskCycle;
-  isOverdue: boolean;
-  nextDueDate: string;
-  daysSinceLastCompletion?: number;
-}
 
 export interface TaskHistoryEntry {
   id?: number;
@@ -69,6 +53,6 @@ export interface CreateTaskDTO {
   notificationTime: string;
   notificationValue?: string;
   notes?: string;
-  isArchived?: boolean;
+  state?: TaskState;
 }
 
