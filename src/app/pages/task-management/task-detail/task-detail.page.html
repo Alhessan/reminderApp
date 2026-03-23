@@ -1,7 +1,7 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
-      <ion-back-button defaultHref="/tasks"></ion-back-button>
+      <ion-back-button defaultHref="/tasks" text=""></ion-back-button>
     </ion-buttons>
     <ion-title>{{ task?.title || "Routine Detail" }}</ion-title>
     <ion-buttons slot="end">
@@ -10,161 +10,111 @@
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
+
+  <div class="dashboard-hero" *ngIf="!isLoading && task">
+    <div class="insight-bar" *ngIf="heroMessage">
+      <ion-icon name="sparkles" color="primary"></ion-icon>
+      <span class="insight-text">{{ heroMessage }}</span>
+    </div>
+
+    <div class="hero-main-row">
+      <div class="task-info">
+        <div class="task-icon-mini">
+          <ion-icon name="repeat-outline"></ion-icon>
+        </div>
+        <div class="task-text">
+          <h1>{{ task.title }}</h1>
+          <p>{{ task.frequency }} · {{ totalCount }} cycles</p>
+        </div>
+      </div>
+      <div class="mini-stats">
+        <span class="stat done">{{ completedCount }} <ion-icon name="checkmark"></ion-icon></span>
+        <span class="stat missed" *ngIf="missedCount > 0">{{ missedCount }} <ion-icon name="close"></ion-icon></span>
+      </div>
+    </div>
+
+    <div class="seamless-timeline-wrapper">
+      <app-task-cycle-timeline
+        [cycles]="timelineCycles"
+        [upcomingCycle]="timelineUpcomingCycle"
+        [hasMore]="timelineHasMore"
+        (loadMore)="onTimelineLoadMore()">
+      </app-task-cycle-timeline>
+    </div>
+  </div>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-state">
-    <ion-spinner name="crescent"></ion-spinner>
-    <p>Loading task details...</p>
-  </div>
-
-  <!-- Error State -->
-  <div *ngIf="!isLoading && !task" class="error-state">
-    <ion-icon name="alert-circle-outline" color="danger"></ion-icon>
-    <h3>Task Not Found</h3>
-    <p>The routine you're looking for could not be found or failed to load.</p>
-    <ion-button fill="outline" (click)="goBack()">
-      <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
-      Back to List
-    </ion-button>
-  </div>
-
-  <!-- Task Details -->
   <div *ngIf="!isLoading && task" class="task-details">
-    <!-- Page Header -->
-    <div class="unified-page-header">
-      <div class="header-icon-container">
-        <ion-icon name="checkbox-outline" style="color: var(--ion-color-primary-shade)"></ion-icon>
-      </div>
-      <h2>{{ task.title }}</h2>
-      <p>{{ task.state === 'paused' ? 'Paused' : (currentCycle?.resolution === 'done' || task.state === 'archived') ? 'Completed / Archived' : 'Active' }}</p>
+    
+    <div class="cycle-block" [@cycleTransition]="cycleTransitionState">
+      <ion-card class="status-card">
+        <ion-card-content>
+          <div class="status-indicator">
+            <app-cycle-status-badge *ngIf="displayStatus" [status]="displayStatus"></app-cycle-status-badge>
+            <div class="status-text" *ngIf="displayStatus">
+              <p *ngIf="currentCycle?.resolution === 'done' && currentCycle?.completedAt">
+                Completed {{ formatCycleDate(currentCycle?.completedAt, 'medium') }}
+              </p>
+              <p *ngIf="currentCycle?.resolution === 'open' && currentCycle?.dueAt">
+                Due {{ formatCycleDate(currentCycle?.dueAt, 'short') }}
+              </p>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+
+      <ion-card class="work-bench">
+        <ion-card-header>
+          <ion-card-title>Work bench</ion-card-title>
+          <ion-card-subtitle>Actions and progress</ion-card-subtitle>
+        </ion-card-header>
+        <ion-card-content>
+          <div class="work-bench-section">
+            <span class="section-label">Actions</span>
+            <div class="action-row primary">
+              <ion-button *ngIf="canMarkComplete" fill="solid" color="success" (click)="markComplete()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+                Mark complete
+              </ion-button>
+              <ion-button *ngIf="canSkip" fill="outline" color="warning" (click)="skipCycle()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="play-forward-outline"></ion-icon>
+                Skip
+              </ion-button>
+            </div>
+          </div>
+
+          <div class="work-bench-section correct-previous-section" *ngIf="canShowRetroactiveComplete">
+            <span class="section-label">Correct past occurrence</span>
+            <div class="action-row">
+              <ion-button fill="outline" color="medium" (click)="markRetroactiveComplete()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="time-outline"></ion-icon>
+                I did it last time
+              </ion-button>
+            </div>
+          </div>
+
+          <div class="work-bench-section" *ngIf="task?.state === 'active' || task?.state === 'paused'">
+            <span class="section-label">Task state</span>
+            <div class="action-row">
+              <ion-button *ngIf="canPause" fill="outline" color="medium" (click)="pauseTask()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="pause-outline"></ion-icon> Pause
+              </ion-button>
+              <ion-button *ngIf="canResume" fill="solid" color="primary" (click)="resumeTask()" [disabled]="actionInProgress">
+                <ion-icon slot="start" name="play-outline"></ion-icon> Resume
+              </ion-button>
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
     </div>
 
-    <!-- Status Card (unified STATUS_CONFIG via badge) -->
-    <ion-card class="status-card">
+    <ion-card *ngIf="task.notes" class="notes-card">
       <ion-card-content>
-        <div class="status-indicator">
-          <app-cycle-status-badge *ngIf="displayStatus" [status]="displayStatus"></app-cycle-status-badge>
-          <div class="status-text" *ngIf="displayStatus">
-            <p *ngIf="currentCycle?.resolution === 'done' && currentCycle?.completedAt">
-              Completed {{ currentCycle?.completedAt | date:'medium' }}
-            </p>
-            <p *ngIf="currentCycle?.resolution === 'open'">
-              Due {{ currentCycle?.dueAt | date:'short' }}
-            </p>
-          </div>
-        </div>
+        <p class="notes-content">{{ task.notes }}</p>
       </ion-card-content>
     </ion-card>
 
-    <!-- Work bench: one place for all actions + progress -->
-    <ion-card class="work-bench">
-      <ion-card-header>
-        <ion-card-title>Work bench</ion-card-title>
-        <ion-card-subtitle>Actions and progress</ion-card-subtitle>
-      </ion-card-header>
-      <ion-card-content>
-        <!-- Pause / Resume -->
-        <div class="work-bench-section" *ngIf="task?.state === 'active' || task?.state === 'paused'">
-          <span class="section-label">Task state</span>
-          <div class="action-row">
-            <ion-button
-              *ngIf="canPause"
-              fill="outline"
-              color="medium"
-              (click)="pauseTask()"
-              [disabled]="actionInProgress">
-              <ion-icon slot="start" name="pause-outline"></ion-icon>
-              Pause
-            </ion-button>
-            <ion-button
-              *ngIf="canResume"
-              fill="solid"
-              color="primary"
-              (click)="resumeTask()"
-              [disabled]="actionInProgress">
-              <ion-icon slot="start" name="play-outline"></ion-icon>
-              Resume
-            </ion-button>
-          </div>
-        </div>
-
-        <!-- Primary actions: Mark complete, Skip (when cycle is open) -->
-        <div class="work-bench-section">
-          <span class="section-label">Actions</span>
-          <div class="action-row primary">
-            <ion-button
-              *ngIf="canMarkComplete"
-              fill="solid"
-              color="success"
-              (click)="markComplete()"
-              [disabled]="actionInProgress">
-              <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
-              Mark complete
-            </ion-button>
-            <ion-button
-              *ngIf="canSkip"
-              fill="outline"
-              color="warning"
-              (click)="skipCycle()"
-              [disabled]="actionInProgress">
-              <ion-icon slot="start" name="play-forward-outline"></ion-icon>
-              Skip
-            </ion-button>
-            <p *ngIf="!canMarkComplete && !canSkip && !canShowRetroactiveComplete" class="no-actions-hint">No actions for this cycle (completed or skipped).</p>
-            <ion-button
-              *ngIf="canShowRetroactiveComplete"
-              fill="outline"
-              color="secondary"
-              (click)="markRetroactiveComplete()"
-              [disabled]="actionInProgress">
-              <ion-icon slot="start" name="checkmark-done-outline"></ion-icon>
-              I actually did this
-            </ion-button>
-          </div>
-        </div>
-
-        <!-- Secondary: Edit, Delete -->
-        <div class="work-bench-section secondary">
-          <span class="section-label">Task</span>
-          <div class="action-row">
-            <ion-button fill="outline" size="small" (click)="navigateToEditTask()" [disabled]="actionInProgress">
-              <ion-icon slot="start" name="create-outline"></ion-icon>
-              Edit
-            </ion-button>
-            <ion-button fill="outline" color="danger" size="small" (click)="deleteTask()" [disabled]="actionInProgress">
-              <ion-icon slot="start" name="trash-outline"></ion-icon>
-              Delete
-            </ion-button>
-          </div>
-        </div>
-      </ion-card-content>
-    </ion-card>
-
-    <!-- Task Information (compact) -->
-    <ion-card class="info-card info-card-compact">
-      <ion-card-content>
-        <div class="info-grid">
-          <div class="info-item"><span class="label">Type</span><span class="value">{{ task.type }}</span></div>
-          <div class="info-item" *ngIf="task.customer?.name"><span class="label">Contact</span><span class="value">{{ task.customer?.name }}</span></div>
-          <div class="info-item" *ngIf="!task.customer?.name && task.customerId"><span class="label">Contact</span><span class="value">#{{ task.customerId }}</span></div>
-          <div class="info-item"><span class="label">Frequency</span><span class="value">{{ task.frequency }}</span></div>
-          <div class="info-item"><span class="label">Start</span><span class="value">{{ task.startDate | date:'shortDate' }}</span></div>
-          <div class="info-item"><span class="label">Notify</span><span class="value">{{ task.notificationType }}</span></div>
-        </div>
-        <div class="notes-section compact" *ngIf="task.notes">
-          <span class="notes-label">Notes:</span>
-          <span class="notes-content">{{ task.notes }}</span>
-        </div>
-      </ion-card-content>
-    </ion-card>
-
-    <!-- Task Statistics Component -->
     <app-task-statistics [task]="task"></app-task-statistics>
-
-    <!-- Task History Component -->
-    <!-- <app-task-history [taskHistory]="taskHistory"></app-task-history> -->
   </div>
-
 </ion-content>

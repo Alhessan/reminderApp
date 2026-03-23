@@ -207,6 +207,13 @@ export class DatabaseService {
     ],
     database_version: [
       { cid: 0, name: 'version', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 }
+    ],
+    task_history: [
+      { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
+      { cid: 1, name: 'taskId', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 2, name: 'action', type: 'TEXT', notnull: 1, dflt_value: null, pk: 0 },
+      { cid: 3, name: 'details', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 4, name: 'timestamp', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
     ]
   };
 
@@ -315,6 +322,8 @@ export class DatabaseService {
       if (!this.webStore['task_history']) {
         this.webStore['task_history'] = [];
       }
+      // Align task_cycles with current schema (resolution, dueAt, softDeadline, hardDeadline)
+      this.normalizeWebStoreTaskCycles();
       if (!this.webStore['task_types']) {
         this.webStore['task_types'] = [
           {
@@ -431,6 +440,47 @@ export class DatabaseService {
     this.saveWebStoreToLocalStorage();
   }
 
+  /**
+   * Ensure task_cycles in web store use current schema (resolution, dueAt, softDeadline, hardDeadline).
+   * Converts old rows that have status/cycleEndDate into the shape expected by all queries.
+   */
+  private normalizeWebStoreTaskCycles(): void {
+    const cycles = this.webStore['task_cycles'] as any[];
+    if (!cycles?.length) return;
+    const tasks = (this.webStore['tasks'] || []) as any[];
+    const taskById = new Map(tasks.map((t: any) => [Number(t.id), t]));
+    for (const row of cycles) {
+      const task = taskById.get(Number(row.taskId));
+      const notifTime = task?.notificationTime || '00:00';
+      const freq = task?.frequency || 'daily';
+      // Resolve resolution from legacy status if missing
+      if (row.resolution == null || row.resolution === undefined) {
+        const s = row.status;
+        row.resolution = s === 'completed' ? 'done' : s === 'lapsed' ? 'lapsed' : s === 'skipped' ? 'skipped' : 'open';
+      }
+      // Ensure dueAt, softDeadline, hardDeadline exist (current schema)
+      if (row.dueAt == null || row.dueAt === undefined) {
+        const start = new Date(row.cycleStartDate);
+        const [h, m] = notifTime.split(':').map(Number);
+        start.setHours(h ?? 0, m ?? 0, 0, 0);
+        row.dueAt = start.toISOString();
+      }
+      if (row.softDeadline == null || row.softDeadline === undefined) {
+        const d = new Date(row.dueAt);
+        d.setMinutes(d.getMinutes() + 30);
+        row.softDeadline = d.toISOString();
+      }
+      if (row.hardDeadline == null || row.hardDeadline === undefined) {
+        row.hardDeadline = row.cycleEndDate ? new Date(row.cycleEndDate).toISOString() : (() => {
+          const d = new Date(row.dueAt);
+          const hours = freq === 'daily' ? 5 : freq === 'weekly' ? 24 : 48;
+          d.setTime(d.getTime() + hours * 60 * 60 * 1000);
+          return d.toISOString();
+        })();
+      }
+    }
+  }
+
   private saveWebStoreToLocalStorage(): void {
     try {
       const dataToStore = JSON.stringify(this.webStore);
@@ -472,11 +522,13 @@ export class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         taskId INTEGER NOT NULL,
         cycleStartDate TEXT NOT NULL,
-        cycleEndDate TEXT NOT NULL,
-        status TEXT DEFAULT 'pending',
-        progress INTEGER DEFAULT 0,
+        dueAt TEXT NOT NULL,
+        softDeadline TEXT NOT NULL,
+        hardDeadline TEXT NOT NULL,
+        resolution TEXT DEFAULT 'open',
+        startedAt TEXT,
         completedAt TEXT,
-        createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        skippedAt TEXT,
         FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
       )`,
       `CREATE TABLE IF NOT EXISTS task_history (
@@ -638,11 +690,13 @@ export class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         taskId INTEGER NOT NULL,
         cycleStartDate TEXT NOT NULL,
-        cycleEndDate TEXT NOT NULL,
-        status TEXT DEFAULT 'pending',
-        progress INTEGER DEFAULT 0,
+        dueAt TEXT NOT NULL,
+        softDeadline TEXT NOT NULL,
+        hardDeadline TEXT NOT NULL,
+        resolution TEXT DEFAULT 'open',
+        startedAt TEXT,
         completedAt TEXT,
-        createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+        skippedAt TEXT,
         FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
       )`,
         `CREATE TABLE IF NOT EXISTS task_history (
@@ -832,7 +886,8 @@ export class DatabaseService {
       }
       
       // Handle different types of SQL statements
-      if (statement.trim().toLowerCase().startsWith('select')) {
+      const isSelect = statement.trim().toLowerCase().startsWith('select');
+      if (isSelect) {
         result = this.handleWebSelect(statement, values || []);
       } else if (statement.trim().toLowerCase().startsWith('insert')) {
         result = this.handleWebInsert(statement, values || []);
@@ -844,9 +899,11 @@ export class DatabaseService {
         throw new Error(`Unsupported SQL statement: ${statement}`);
       }
 
-      // Save changes to localStorage
-      this.saveWebStoreToLocalStorage();
-      
+      // Persist only on writes to avoid repeated saves and possible re-triggers during read-heavy flows (e.g. task detail + timeline)
+      if (!isSelect) {
+        this.saveWebStoreToLocalStorage();
+      }
+
       console.log('Web query result:', result);
       return result;
     } catch (error) {
@@ -868,6 +925,18 @@ export class DatabaseService {
           return { values: [] };
         }
         return { values: [] };
+      }
+
+      // Handle SELECT COUNT(*) ... (e.g. getResolvedCyclesCount) - return single row { cnt } to avoid loading full result
+      const countMatch = statement.match(/SELECT\s+COUNT\s*\(\s*\*\s*\)\s+as\s+(\w+)\s+FROM\s+(\w+)/i);
+      if (countMatch) {
+        const [, countAlias, mainTable] = countMatch;
+        let data = [...(this.webStore[mainTable] || [])];
+        if (statement.includes('WHERE')) {
+          const whereBlock = statement.split('WHERE')[1].split(/ORDER BY|LIMIT|GROUP BY/)[0].trim();
+          data = data.filter((record: any) => this.evaluateWhereCondition(record, whereBlock, values));
+        }
+        return { values: [{ [countAlias]: data.length }] };
       }
 
       // Extract table name - handle both simple and complex queries
@@ -904,22 +973,24 @@ export class DatabaseService {
           const subQuery = match[1];
           const joinAlias = match[2];
           
-          // Handle subquery for task_cycles
+          // Handle subquery for task_cycles (current schema: resolution, dueAt, softDeadline, hardDeadline)
           if (subQuery.includes('task_cycles')) {
             const cycles = this.webStore['task_cycles'] || [];
             data = data.map(task => {
-              const taskCycles = cycles.filter(c => c.taskId === task.id)
-                .sort((a, b) => new Date(b.cycleStartDate).getTime() - new Date(a.cycleStartDate).getTime());
-              
+              const taskCycles = cycles.filter((c: any) => c.taskId === task.id)
+                .sort((a: any, b: any) => new Date(b.cycleStartDate).getTime() - new Date(a.cycleStartDate).getTime());
               if (taskCycles.length > 0) {
-            return {
+                const c = taskCycles[0];
+                return {
                   ...task,
-                  cycle_id: taskCycles[0].id,
-                  cycleStartDate: taskCycles[0].cycleStartDate,
-                  cycleEndDate: taskCycles[0].cycleEndDate,
-                  status: taskCycles[0].status,
-                  progress: taskCycles[0].progress,
-                  completedAt: taskCycles[0].completedAt
+                  cycle_id: c.id,
+                  cycleStartDate: c.cycleStartDate,
+                  dueAt: c.dueAt,
+                  softDeadline: c.softDeadline,
+                  hardDeadline: c.hardDeadline,
+                  resolution: c.resolution,
+                  completedAt: c.completedAt,
+                  skippedAt: c.skippedAt
                 };
               }
               return task;
@@ -929,8 +1000,11 @@ export class DatabaseService {
       }
 
       // Handle WHERE conditions
+      let wherePlaceholderCount = 0;
       if (statement.includes('WHERE')) {
-        const whereCondition = statement.split('WHERE')[1].split(/ORDER BY|LIMIT|GROUP BY/)[0].trim();
+        const whereBlock = statement.split('WHERE')[1];
+        const whereCondition = whereBlock.split(/ORDER BY|LIMIT|GROUP BY/)[0].trim();
+        wherePlaceholderCount = (whereCondition.match(/\?/g) || []).length;
         data = data.filter(record => {
           // Special handling for isArchived condition
           if (whereCondition.includes('isArchived')) {
@@ -939,6 +1013,51 @@ export class DatabaseService {
           }
           return this.evaluateWhereCondition(record, whereCondition, values);
         });
+      }
+
+      // ORDER BY (e.g. "ORDER BY hardDeadline DESC", "COALESCE(...) DESC", or "CASE WHEN resolution = 'open' THEN 0 ELSE 1 END, cycleStartDate DESC")
+      const orderByMatch = statement.match(/ORDER BY\s+([\s\S]+?)(?=\s+LIMIT|\s*$)/i);
+      if (orderByMatch && data.length > 0) {
+        const orderPart = orderByMatch[1].trim();
+        const caseOpenMatch = orderPart.match(/CASE\s+WHEN\s+(\w+)\s*=\s*'open'\s+THEN\s+0\s+ELSE\s+1\s+END\s*,\s*(\w+)\s+(ASC|DESC)/i);
+        const desc = /DESC\s*$/i.test(orderPart);
+        const coalesceMatch = orderPart.match(/COALESCE\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)/i);
+        data = [...data].sort((a, b) => {
+          let cmp = 0;
+          if (caseOpenMatch) {
+            const [, sortCol, dateCol] = caseOpenMatch;
+            const openFirst = (x: any) => (x[sortCol] === 'open' ? 0 : 1);
+            cmp = openFirst(a) - openFirst(b);
+            if (cmp === 0) {
+              const va = a[dateCol] != null ? new Date(a[dateCol]).getTime() : 0;
+              const vb = b[dateCol] != null ? new Date(b[dateCol]).getTime() : 0;
+              cmp = /DESC/i.test(orderPart) ? vb - va : va - vb;
+            }
+          } else if (coalesceMatch) {
+            const [, col1, col2] = coalesceMatch;
+            const rawA = a[col1] ?? a[col2];
+            const rawB = b[col1] ?? b[col2];
+            const va = rawA != null ? new Date(rawA).getTime() : 0;
+            const vb = rawB != null ? new Date(rawB).getTime() : 0;
+            cmp = desc ? vb - va : va - vb;
+          } else {
+            const col = orderPart.replace(/\s+(ASC|DESC)\s*$/i, '').trim();
+            const va = a[col] != null ? new Date(a[col]).getTime() : 0;
+            const vb = b[col] != null ? new Date(b[col]).getTime() : 0;
+            cmp = desc ? vb - va : va - vb;
+          }
+          return cmp;
+        });
+      }
+
+      // LIMIT [number|?] [OFFSET [number|?]]
+      const limitClause = statement.match(/LIMIT\s+(\d+|\?)\s*(?:OFFSET\s+(\d+|\?))?\s*$/im);
+      if (limitClause) {
+        const limitVal = limitClause[1];
+        const offsetVal = limitClause[2];
+        const limit = limitVal === '?' ? (Number(values[wherePlaceholderCount] ?? 0) || data.length) : Math.max(0, parseInt(limitVal, 10));
+        const offset = offsetVal === undefined ? 0 : offsetVal === '?' ? (Number(values[wherePlaceholderCount + 1] ?? 0) || 0) : Math.max(0, parseInt(offsetVal, 10));
+        data = data.slice(offset, offset + limit);
       }
 
       console.log(`Returning ${data.length} records from table ${mainTable}`);
@@ -1002,10 +1121,7 @@ export class DatabaseService {
   
     // Add the record to the table
     this.webStore[tableName].push(newRecord);
-  
-    // Save changes to localStorage
-    this.saveWebStoreToLocalStorage();
-  
+
     console.log(`Inserted new record in ${tableName}:`, newRecord);
     return { changes: { lastId: newId, changes: 1 }, values: [newRecord] };
   }
@@ -1061,9 +1177,6 @@ export class DatabaseService {
       return record;
     });
 
-    // Save changes to localStorage
-    this.saveWebStoreToLocalStorage();
-
     console.log(`Updated ${updatedCount} records in ${tableName}:`, updates);
     return { changes: { changes: updatedCount } };
   }
@@ -1089,9 +1202,6 @@ export class DatabaseService {
     this.webStore[tableName] = this.webStore[tableName].filter((record: any) => 
       !this.evaluateWhereCondition(record, whereMatch[1], values));
 
-    // Save changes to localStorage
-      this.saveWebStoreToLocalStorage();
-      
     const deletedCount = initialLength - this.webStore[tableName].length;
     console.log(`Deleted ${deletedCount} records from ${tableName}`);
     return { changes: { changes: deletedCount } };
@@ -1101,16 +1211,31 @@ export class DatabaseService {
     let valueIndex = 0;
     const processedCondition = condition.replace(/\?/g, () => {
       const value = values[valueIndex++];
-      return typeof value === 'string' ? `'${value}'` : value;
+      return typeof value === 'string' ? `'${value}'` : String(value);
     });
-    
-    // Handle basic conditions (e.g., "id = 1")
-    const basicCondition = processedCondition.match(/(\w+)\s*(=|!=|>|<|>=|<=)\s*(.+)/);
+
+    // Split by AND and evaluate each clause (so "taskId = 1 AND resolution IN (...)" works)
+    const clauses = processedCondition.split(/\s+AND\s+/i).map(c => c.trim());
+    for (const clause of clauses) {
+      if (!this.evaluateOneWhereClause(record, clause)) return false;
+    }
+    return clauses.length > 0;
+  }
+
+  /** Evaluate a single WHERE clause: column = value, column != value, or column IN ('a','b'). */
+  private evaluateOneWhereClause(record: any, clause: string): boolean {
+    const inMatch = clause.match(/^\s*(\w+)\s+IN\s*\(\s*([^)]+)\s*\)\s*$/i);
+    if (inMatch) {
+      const [, column, listStr] = inMatch;
+      const values = listStr.split(',').map(s => this.parseValue(s.trim()));
+      const recordValue = record[column];
+      return values.some(v => recordValue === v || (typeof recordValue === 'number' && Number(v) === recordValue) || (typeof recordValue === 'string' && String(v) === recordValue));
+    }
+    const basicCondition = clause.match(/^\s*(\w+)\s*(=|!=|>|<|>=|<=)\s*(.+)\s*$/);
     if (basicCondition) {
       const [, column, operator, value] = basicCondition;
       const recordValue = record[column];
-      const compareValue = this.parseValue(value);
-      
+      const compareValue = this.parseValue(value.trim());
       switch (operator) {
         case '=': return recordValue === compareValue;
         case '!=': return recordValue !== compareValue;
@@ -1121,7 +1246,6 @@ export class DatabaseService {
         default: return false;
       }
     }
-    
     return false;
   }
 
@@ -1251,33 +1375,31 @@ export class DatabaseService {
 
           this.webStore['tasks'] = sampleTasks;
 
-        // Initialize task cycles
+        // Initialize task cycles (current schema: dueAt, softDeadline, hardDeadline, resolution)
           this.webStore['task_cycles'] = sampleTasks.map((task, index) => {
             const cycleStartDate = now.toISOString();
-            let cycleEndDate;
-            
-            switch (task.frequency) {
-              case 'daily':
-                cycleEndDate = tomorrow.toISOString();
-                break;
-              case 'weekly':
-                cycleEndDate = nextWeek.toISOString();
-                break;
-              case 'monthly':
-                cycleEndDate = nextMonth.toISOString();
-                break;
-              default:
-                cycleEndDate = nextMonth.toISOString();
-            }
-
+            const [h, m] = (task.notificationTime || '00:00').split(':').map(Number);
+            const dueDate = new Date(cycleStartDate);
+            dueDate.setHours(h || 0, m || 0, 0, 0);
+            const dueAt = dueDate.toISOString();
+            const softDate = new Date(dueAt);
+            softDate.setMinutes(softDate.getMinutes() + 30);
+            const softDeadline = softDate.toISOString();
+            const graceHours = task.frequency === 'daily' ? 5 : task.frequency === 'weekly' ? 24 : 48;
+            const hardDate = new Date(dueAt);
+            hardDate.setTime(hardDate.getTime() + graceHours * 60 * 60 * 1000);
+            const hardDeadline = hardDate.toISOString();
             return {
               id: index + 1,
               taskId: task.id,
               cycleStartDate,
-              cycleEndDate,
-              status: 'pending',
-              progress: 0,
-              createdAt: now.toISOString()
+              dueAt,
+              softDeadline,
+              hardDeadline,
+              resolution: 'open',
+              startedAt: null,
+              completedAt: null,
+              skippedAt: null
             };
           });
 

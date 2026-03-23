@@ -133,45 +133,42 @@ export class TaskCycleService {
    */
   private async closeLapsedCycles(): Promise<void> {
     const now = Date.now();
-    let iterations = 0;
-    const maxIterations = 365;
 
-    while (iterations++ < maxIterations) {
-      const cyclesResult = await this.db.executeQuery(
-        "SELECT * FROM task_cycles WHERE resolution = 'open'"
+    // Single pass: find all open cycles past their hardDeadline and lapse them.
+    // createNextCycle will jump to the current period if the next cycle would also be in the past,
+    // so we only need one pass — no cascading loop required.
+    const cyclesResult = await this.db.executeQuery(
+      "SELECT * FROM task_cycles WHERE resolution = 'open'"
+    );
+    const cycles = (cyclesResult.values || []) as Array<{
+      id: number;
+      taskId: number;
+      cycleStartDate: string;
+      dueAt: string;
+      softDeadline: string;
+      hardDeadline: string;
+      resolution: string;
+    }>;
+
+    for (const row of cycles) {
+      const task = await this.getTask(row.taskId);
+      if (!task || task.state !== 'active') continue;
+      const hardMs = new Date(row.hardDeadline).getTime();
+      if (now <= hardMs) continue;
+      await this.db.executeQuery(
+        'UPDATE task_cycles SET resolution = ?, completedAt = NULL WHERE id = ?',
+        ['lapsed', row.id]
       );
-      const cycles = (cyclesResult.values || []) as Array<{
-        id: number;
-        taskId: number;
-        cycleStartDate: string;
-        dueAt: string;
-        softDeadline: string;
-        hardDeadline: string;
-        resolution: string;
-      }>;
-      let lapsedAny = false;
-      for (const row of cycles) {
-        const task = await this.getTask(row.taskId);
-        if (!task || task.state !== 'active') continue;
-        const hardMs = new Date(row.hardDeadline).getTime();
-        if (now <= hardMs) continue;
-        await this.db.executeQuery(
-          'UPDATE task_cycles SET resolution = ?, completedAt = NULL WHERE id = ?',
-          ['lapsed', row.id]
-        );
-        const cycleObj: Cycle = {
-          id: row.id,
-          taskId: row.taskId,
-          cycleStartDate: row.cycleStartDate,
-          dueAt: row.dueAt,
-          softDeadline: row.softDeadline,
-          hardDeadline: row.hardDeadline,
-          resolution: 'lapsed',
-        };
-        await this.createNextCycle(task, cycleObj);
-        lapsedAny = true;
-      }
-      if (!lapsedAny) break;
+      const cycleObj: Cycle = {
+        id: row.id,
+        taskId: row.taskId,
+        cycleStartDate: row.cycleStartDate,
+        dueAt: row.dueAt,
+        softDeadline: row.softDeadline,
+        hardDeadline: row.hardDeadline,
+        resolution: 'lapsed',
+      };
+      await this.createNextCycle(task, cycleObj, true);
     }
   }
 
@@ -259,14 +256,17 @@ export class TaskCycleService {
   }
 
   private mapRowToCycle(row: any): Cycle {
+    let resolution = row.resolution;
+    if (!resolution && row.status === 'completed') resolution = 'done';
+    if (!resolution) resolution = 'open';
     return {
       id: row.id,
       taskId: row.taskId,
       cycleStartDate: row.cycleStartDate,
-      dueAt: row.dueAt,
-      softDeadline: row.softDeadline,
-      hardDeadline: row.hardDeadline,
-      resolution: (row.resolution || 'open') as CycleResolution,
+      dueAt: row.dueAt ?? row.cycleStartDate,
+      softDeadline: row.softDeadline ?? row.cycleStartDate,
+      hardDeadline: row.hardDeadline ?? row.cycleEndDate ?? row.cycleStartDate,
+      resolution: resolution as CycleResolution,
       startedAt: row.startedAt,
       completedAt: row.completedAt,
       skippedAt: row.skippedAt,
@@ -309,7 +309,7 @@ export class TaskCycleService {
     else if (status === 'skipped') await this.resolveCycle(cycleId, 'skipped');
   }
 
-  async createNextCycle(task: Task, previousCycle?: Cycle): Promise<number> {
+  async createNextCycle(task: Task, previousCycle?: Cycle, skipReload?: boolean): Promise<number> {
     if (!task.id) throw new Error('Task ID is required to create cycle');
 
     if (task.frequency === 'once') {
@@ -317,22 +317,31 @@ export class TaskCycleService {
         "UPDATE tasks SET state = 'archived', isArchived = 1 WHERE id = ?",
         [task.id]
       );
-      await this.loadTaskList();
+      if (!skipReload) await this.loadTaskList();
       return 0;
     }
 
     const latestCycle = await this.getCurrentCycle(task.id);
     if (latestCycle && latestCycle.resolution === 'open') return latestCycle.id!;
 
-    const startDate = previousCycle
+    let startDate = previousCycle
       ? (previousCycle.resolution === 'skipped' || previousCycle.resolution === 'lapsed'
           ? calculateNextCycleStart(previousCycle.cycleStartDate, task.frequency)
           : calculateNextCycleStart(previousCycle.hardDeadline, task.frequency))
       : this.getFirstCycleStartDate(task);
 
-    const dueAt = calculateDueAt(startDate, task.notificationTime);
+    // If the computed next cycle's hardDeadline is already in the past, jump directly
+    // to the current period instead of creating a cycle that will immediately be lapsed again.
+    // This prevents the closeLapsedCycles cascade that freezes the app for tasks with old sample data.
+    let dueAt = calculateDueAt(startDate, task.notificationTime);
+    let hardDeadline = calculateHardDeadline(dueAt, task.frequency);
+    if (new Date(hardDeadline).getTime() < Date.now()) {
+      startDate = this.getFirstCycleStartDate(task);
+      dueAt = calculateDueAt(startDate, task.notificationTime);
+      hardDeadline = calculateHardDeadline(dueAt, task.frequency);
+    }
+
     const softDeadline = calculateSoftDeadline(dueAt, task.frequency);
-    const hardDeadline = calculateHardDeadline(dueAt, task.frequency);
 
     const insertResult = await this.db.executeQuery(
       `INSERT INTO task_cycles (taskId, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution)
@@ -341,7 +350,7 @@ export class TaskCycleService {
     );
     const newCycleId = insertResult.changes?.lastId;
     if (!newCycleId) throw new Error('Failed to get new cycle ID');
-    await this.loadTaskList();
+    if (!skipReload) await this.loadTaskList();
     return newCycleId;
   }
 
@@ -495,6 +504,31 @@ export class TaskCycleService {
     return this.mapRowToCycle(result.values[0]);
   }
 
+  /**
+   * Resolved cycles (done, lapsed, skipped) for a task, most recent first.
+   * Used by timeline (default limit 10) and situational message achievement rate.
+   * Includes legacy rows (status 'completed') so timeline shows full history.
+   */
+  async getResolvedCycles(taskId: number, limit: number = 10, offset: number = 0): Promise<Cycle[]> {
+    const result = await this.db.executeQuery(
+      `SELECT * FROM task_cycles WHERE taskId = ? AND resolution IN ('done','lapsed','skipped')
+       ORDER BY COALESCE(hardDeadline, cycleStartDate) DESC LIMIT ? OFFSET ?`,
+      [taskId, limit, offset]
+    );
+    const rows = (result.values || []) as any[];
+    return rows.map((row: any) => this.mapRowToCycle(row));
+  }
+
+  /** Count of resolved cycles for a task (for pagination / "load more"). */
+  async getResolvedCyclesCount(taskId: number): Promise<number> {
+    const result = await this.db.executeQuery(
+      `SELECT COUNT(*) as cnt FROM task_cycles WHERE taskId = ? AND resolution IN ('done','lapsed','skipped')`,
+      [taskId]
+    );
+    const row = (result.values || [])[0] as { cnt: number };
+    return row?.cnt ?? 0;
+  }
+
   async archiveTask(taskId: number): Promise<void> {
     const check = await this.db.executeQuery('SELECT id FROM tasks WHERE id = ?', [taskId]);
     if (!check.values?.length) throw new Error(`Task ${taskId} not found`);
@@ -569,5 +603,13 @@ export class TaskCycleService {
       });
     }
     return list;
+  }
+
+  /** Delete all tasks and their cycles - used for regenerating sample data */
+  async deleteAllTasks(): Promise<void> {
+    // Delete in correct order (cycles first due to foreign key)
+    await this.db.executeQuery('DELETE FROM task_cycles WHERE 1=1');
+    await this.db.executeQuery('DELETE FROM task_history WHERE 1=1');
+    await this.db.executeQuery('DELETE FROM tasks WHERE 1=1');
   }
 }

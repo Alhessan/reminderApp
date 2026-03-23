@@ -354,11 +354,11 @@ export class NotificationService {
       return;
     }
 
+    // API is optional (e.g. no backend on localhost). Never throw — callers must not fail.
     try {
       await this.http.post(`${environment.apiUrl}/notifications/send`, payload).toPromise();
     } catch (error) {
-      console.error('Error sending notification through API:', error);
-      throw error;
+      console.warn('Notification API unavailable (ignored):', (error as any)?.message || error);
     }
   }
 

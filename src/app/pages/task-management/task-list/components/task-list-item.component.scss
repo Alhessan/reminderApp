@@ -91,6 +91,16 @@
   }
 }
 
+// Missed cycle: white/light surface + border/shadow (US5)
+.task-item.missed {
+  --background: var(--ion-color-missed-surface, #fff);
+  border: 1px solid var(--ion-color-light-shade);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  @media (prefers-color-scheme: dark) {
+    --background: var(--ion-color-missed-surface);
+  }
+}
+
 // Label area
 ion-label {
   margin: 10px 0;

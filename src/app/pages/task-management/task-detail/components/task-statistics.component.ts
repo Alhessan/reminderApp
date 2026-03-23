@@ -1,4 +1,4 @@
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { Task } from '../../../../models/task.model';
@@ -367,7 +367,7 @@ interface TaskStatistics {
     }
   `]
 })
-export class TaskStatisticsComponent implements OnInit {
+export class TaskStatisticsComponent implements OnInit, OnChanges {
   @Input() task: Task | null = null;
   
   showStatistics = false;
@@ -384,6 +384,17 @@ export class TaskStatisticsComponent implements OnInit {
     }
   }
 
+  async ngOnChanges(changes: SimpleChanges) {
+    const taskChange = changes['task'];
+    if (taskChange && !taskChange.firstChange) {
+      if (!this.task?.id) {
+        this.statistics = null;
+        return;
+      }
+      await this.loadStatistics();
+    }
+  }
+
   toggleStatistics() {
     this.showStatistics = !this.showStatistics;
     if (this.showStatistics && !this.statistics) {
@@ -392,31 +403,42 @@ export class TaskStatisticsComponent implements OnInit {
   }
 
   async loadStatistics() {
-    if (!this.task?.id) return;
-    
+    if (!this.task?.id) {
+      console.warn('[TaskDetail.Statistics] loadStatistics skipped: no task.id');
+      return;
+    }
     this.isLoading = true;
+    console.log('[TaskDetail.Statistics] loadStatistics start', { taskId: this.task.id });
     try {
       const [cycles, history] = await Promise.all([
         this.getCycleData(this.task.id),
         this.getTaskHistory(this.task.id),
       ]);
+      console.log('[TaskDetail.Statistics] getCycleData + getTaskHistory ok', { cycles: cycles?.length ?? 0, history: history?.length ?? 0 });
       const activeIntervals = this.buildActiveIntervals(this.task, history);
       const cyclesInActivePeriods = this.filterCyclesToActivePeriods(cycles, activeIntervals);
       this.statistics = this.calculateStatistics(cyclesInActivePeriods);
+      console.log('[TaskDetail.Statistics] loadStatistics done', { totalCycles: this.statistics?.totalCycles });
     } catch (error) {
-      console.error('Error loading task statistics:', error);
+      console.error('[TaskDetail.Statistics] loadStatistics failed', error);
+      console.error('[TaskDetail.Statistics] error stack', error instanceof Error ? error.stack : 'no stack');
     } finally {
       this.isLoading = false;
     }
   }
 
+  /** Max cycles to load for stats (most recent). Keeps stats fast for long-lived tasks. */
+  private static readonly STATS_CYCLE_LIMIT = 500;
+
   private async getCycleData(taskId: number): Promise<any[]> {
     const result = await this.db.executeQuery(`
       SELECT * FROM task_cycles 
       WHERE taskId = ? 
-      ORDER BY cycleStartDate ASC
-    `, [taskId]);
-    return result.values || [];
+      ORDER BY COALESCE(hardDeadline, cycleStartDate) DESC
+      LIMIT ?
+    `, [taskId, TaskStatisticsComponent.STATS_CYCLE_LIMIT]);
+    const rows = (result.values || []) as any[];
+    return rows.reverse();
   }
 
   private async getTaskHistory(taskId: number): Promise<{ timestamp: string; action: string }[]> {
@@ -457,32 +479,44 @@ export class TaskStatisticsComponent implements OnInit {
     });
   }
 
+  /** Normalize resolution for legacy cycles (e.g. status 'pending'/'completed' from old schema). */
+  private normalizeResolution(c: any): string {
+    if (c == null) return 'open';
+    if (c.resolution && ['done', 'skipped', 'lapsed', 'open'].includes(c.resolution)) return c.resolution;
+    if (c.status === 'completed') return 'done';
+    if (c.status === 'pending') return 'open';
+    return 'open';
+  }
+
   private calculateStatistics(cycles: any[]): TaskStatistics {
-    const totalCycles = cycles.length;
-    const completedCycles = cycles.filter((c: any) => c.resolution === 'done').length;
-    const skippedCycles = cycles.filter((c: any) => c.resolution === 'skipped').length;
-    const lapsedCycles = cycles.filter((c: any) => c.resolution === 'lapsed').length;
-    const openCycles = cycles.filter((c: any) => c.resolution === 'open').length;
+    const safe = (cycles || []).filter((c: any) => c != null);
+    const withResolution = safe.map((c: any) => ({ ...c, resolution: this.normalizeResolution(c) }));
+    const completedCycles = withResolution.filter((c: any) => c.resolution === 'done').length;
+    const skippedCycles = withResolution.filter((c: any) => c.resolution === 'skipped').length;
+    const lapsedCycles = withResolution.filter((c: any) => c.resolution === 'lapsed').length;
+    const openCycles = withResolution.filter((c: any) => c.resolution === 'open').length;
+    const totalCycles = completedCycles + skippedCycles + lapsedCycles + openCycles;
 
     // Completion rate excludes skipped from denominator: done / (done + lapsed)
     const rateDenominator = completedCycles + lapsedCycles;
     const completionRate = rateDenominator > 0 ? Math.round((completedCycles / rateDenominator) * 100) : 0;
 
-    const completedWithTimes = cycles.filter((c: any) => c.resolution === 'done' && c.completedAt);
-    const averageCompletionTime = completedWithTimes.length > 0
-      ? Math.round(completedWithTimes.reduce((sum: number, c: any) => {
-          const start = new Date(c.cycleStartDate);
-          const end = new Date(c.completedAt);
-          return sum + Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        }, 0) / completedWithTimes.length)
+    const completedWithTimes = withResolution.filter((c: any) => c.resolution === 'done' && c.completedAt);
+    const rawAvg = completedWithTimes.length > 0
+      ? completedWithTimes.reduce((sum: number, c: any) => {
+          const start = new Date(c.cycleStartDate).getTime();
+          const end = new Date(c.completedAt).getTime();
+          return sum + Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+        }, 0) / completedWithTimes.length
       : 0;
+    const averageCompletionTime = Math.max(0, Math.round(rawAvg));
 
-    const streak = this.calculateStreaks(cycles);
+    const streak = this.calculateStreaks(withResolution);
 
-    const lastActivity = cycles
-      .filter((c: any) => c.completedAt || c.skippedAt || c.resolution !== 'open')
-      .sort((a: any, b: any) => new Date(b.completedAt || b.skippedAt || b.cycleStartDate).getTime() - new Date(a.completedAt || a.skippedAt || a.cycleStartDate).getTime())
-      [0]?.completedAt || cycles[cycles.length - 1]?.cycleStartDate || null;
+    const withActivity = safe.filter((c: any) => c.completedAt || c.skippedAt);
+    const lastActivity = withActivity.length > 0
+      ? withActivity.sort((a: any, b: any) => new Date(b.completedAt || b.skippedAt).getTime() - new Date(a.completedAt || a.skippedAt).getTime())[0]?.completedAt || withActivity[0]?.skippedAt || null
+      : null;
 
     return {
       totalCycles,
@@ -544,7 +578,7 @@ export class TaskStatisticsComponent implements OnInit {
     const date = new Date(dateString);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+    if (diffDays < 0) return 'Today';
     if (diffDays === 0) return 'Today';
     if (diffDays === 1) return 'Yesterday';
     if (diffDays < 7) return `${diffDays} days ago`;

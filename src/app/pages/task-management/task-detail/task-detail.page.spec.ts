@@ -4,6 +4,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { IonicModule } from '@ionic/angular';
 import { TaskDetailPage } from './task-detail.page';
 import { TaskCycleService } from '../../../services/task-cycle.service';
+import { SituationalMessageService } from '../../../services/situational-message.service';
 import { Cycle } from '../../../models/task-cycle.model';
 
 describe('TaskDetailPage', () => {
@@ -16,6 +17,7 @@ describe('TaskDetailPage', () => {
       providers: [
         provideHttpClient(),
         { provide: TaskCycleService, useValue: {} },
+        { provide: SituationalMessageService, useValue: { getLevel: () => Promise.resolve({ level: 'not_started', message: '' }) } },
       ],
     });
     fixture = TestBed.createComponent(TaskDetailPage);
@@ -62,6 +64,7 @@ describe('TaskDetailPage', () => {
             getMostRecentLapsedCycle: getMostRecentLapsedCycleSpy,
           },
         },
+        { provide: SituationalMessageService, useValue: { getLevel: () => Promise.resolve({ level: 'not_started', message: '' }) } },
       ],
     });
     const f = TestBed.createComponent(TaskDetailPage);

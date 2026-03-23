@@ -196,6 +196,51 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
     });
   });
 
+  describe('getResolvedCycles (003-task-ux-improvements)', () => {
+    it('should return resolved cycles (done, lapsed, skipped) ordered by hardDeadline DESC', async () => {
+      dbExecuteQuerySpy.and.returnValue(
+        Promise.resolve({
+          values: [
+            mockCycleRow({ id: 0, resolution: 'open', hardDeadline: '2025-02-04T14:00:00.000Z' }),
+            mockCycleRow({ id: 3, resolution: 'done', hardDeadline: '2025-02-03T14:00:00.000Z' }),
+            mockCycleRow({ id: 2, resolution: 'lapsed', hardDeadline: '2025-02-02T14:00:00.000Z' }),
+            mockCycleRow({ id: 1, resolution: 'skipped', hardDeadline: '2025-02-01T14:00:00.000Z' }),
+          ],
+        })
+      );
+      const cycles = await service.getResolvedCycles(1, 10, 0);
+      expect(cycles.length).toBe(3);
+      expect(cycles[0].resolution).toBe('done');
+      expect(cycles[1].resolution).toBe('lapsed');
+      expect(cycles[2].resolution).toBe('skipped');
+      const sql = dbExecuteQuerySpy.calls.mostRecent().args[0];
+      expect(sql).toContain('taskId = ?');
+      expect(sql).toContain('ORDER BY cycleStartDate DESC');
+    });
+
+    it('should respect limit and offset', async () => {
+      dbExecuteQuerySpy.and.returnValue(
+        Promise.resolve({
+          values: [
+            mockCycleRow({ id: 1, resolution: 'done', hardDeadline: '2025-02-01T14:00:00.000Z' }),
+            mockCycleRow({ id: 2, resolution: 'done', hardDeadline: '2025-02-02T14:00:00.000Z' }),
+            mockCycleRow({ id: 3, resolution: 'skipped', hardDeadline: '2025-02-03T14:00:00.000Z' }),
+          ],
+        })
+      );
+      const cycles = await service.getResolvedCycles(1, 1, 1);
+      expect(cycles.length).toBe(1);
+      expect(cycles[0].id).toBe(2);
+      expect(dbExecuteQuerySpy.calls.mostRecent().args[1]).toEqual([1]);
+    });
+
+    it('should return empty array when no resolved cycles', async () => {
+      dbExecuteQuerySpy.and.returnValue(Promise.resolve({ values: [] }));
+      const cycles = await service.getResolvedCycles(1);
+      expect(cycles).toEqual([]);
+    });
+  });
+
   describe('Phase 10: one-time task auto-archive (T042)', () => {
     it('createNextCycle for frequency once should set task state to archived', async () => {
       const onceTask = {

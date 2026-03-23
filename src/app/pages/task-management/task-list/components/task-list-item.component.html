@@ -1,4 +1,4 @@
-<ion-item [class.overdue]="taskItem.isOverdue" class="task-item" (click)="navigateToTaskDetail()" [button]="true" [routerDirection]="'forward'">
+<ion-item [class.overdue]="taskItem.isOverdue" [class.missed]="taskItem.displayStatus === 'missed'" class="task-item" (click)="navigateToTaskDetail()" [button]="true" [routerDirection]="'forward'">
   <!-- Status Icon -->
   <div slot="start" class="status-indicator" [class]="'status-' + (taskItem.displayStatus || 'upcoming')">
     <ion-icon
@@ -41,7 +41,7 @@
     </ion-chip>
 
     <!-- Quick complete -->
-    <ion-button
+    <!-- <ion-button
       *ngIf="canQuickComplete"
       fill="clear"
       size="small"
@@ -49,7 +49,7 @@
       (click)="onQuickComplete($event)"
       class="quick-complete-btn">
       <ion-icon slot="icon-only" name="checkmark-circle-outline"></ion-icon>
-    </ion-button>
+    </ion-button> -->
   </div>
 
   <!-- Options Button -->

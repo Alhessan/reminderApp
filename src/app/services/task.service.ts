@@ -145,29 +145,23 @@ export class TaskService {
 
   async getTaskById(id: number): Promise<Task | null> {
     try {
-      console.log('Getting task by ID:', id);
+      console.log('[TaskService] getTaskById', { id });
       const result = await this.dbService.executeQuery(
         'SELECT * FROM tasks WHERE id = ?',
         [id]
       );
-      
-      console.log('Database result:', result);
-      
+
       if (!result?.values || !Array.isArray(result.values) || result.values.length === 0) {
-        console.log('No task found with ID:', id);
+        console.warn('[TaskService] getTaskById no row', { id });
         return null;
       }
 
       const taskData = result.values[0];
-      console.log('Raw task data:', taskData);
-      
-      // Ensure we return a properly typed Task object
       const task = this.mapRowToTask(taskData);
-
-      console.log('Returning task:', task);
+      console.log('[TaskService] getTaskById ok', { id, title: task?.title });
       return task;
     } catch (error) {
-      console.error('Error getting task by ID:', error);
+      console.error('[TaskService] getTaskById failed', { id, error });
       throw error;
     }
   }

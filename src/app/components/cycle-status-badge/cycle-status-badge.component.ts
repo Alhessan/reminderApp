@@ -9,7 +9,7 @@ import { CycleDisplayStatus, STATUS_CONFIG } from '../../models/cycle-display.mo
   imports: [CommonModule, IonicModule],
   template: `
     <span *ngIf="config" class="cycle-status-badge" [attr.data-status]="status">
-      <ion-icon [name]="config.icon" [color]="config.color"></ion-icon>
+      <!-- <ion-icon [name]="config.icon" ></ion-icon> -->
       <span class="label">{{ config.label }}</span>
     </span>
   `,
@@ -23,6 +23,13 @@ import { CycleDisplayStatus, STATUS_CONFIG } from '../../models/cycle-display.mo
     }
     .cycle-status-badge ion-icon {
       font-size: 18px;
+    }
+    .cycle-status-badge[data-status="missed"] {
+      background: var(--ion-color-missed-surface, #fff);
+      padding: 4px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--ion-color-light-shade);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
   `],
 })

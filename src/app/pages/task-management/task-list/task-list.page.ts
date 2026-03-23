@@ -39,6 +39,7 @@ export class TaskListPage implements OnInit {
   customerIdFilter?: number;
   customerNameFilter?: string;
   private taskListSubscription?: Subscription;
+  private routeParamSubscription?: Subscription;
   @ViewChild(IonContent) content?: IonContent;
 
   constructor(
@@ -63,18 +64,21 @@ export class TaskListPage implements OnInit {
 
   async ngOnInit() {
     await this.databaseService.initializeDatabase();
-    await this.loadCustomers(); // Load customers for filtering and display
-    this.route.paramMap.subscribe(async params => {
+    await this.loadCustomers();
+
+    this.routeParamSubscription = this.route.paramMap.subscribe(async params => {
       const id = params.get('customerId');
       if (id) {
         this.customerIdFilter = +id;
         const customer = await this.customerService.getCustomerById(this.customerIdFilter);
-        this.customerNameFilter = customer?.name;
+        this.customerNameFilter = customer?.name ?? undefined;
+      } else {
+        this.customerIdFilter = undefined;
+        this.customerNameFilter = undefined;
       }
       await this.loadTasks();
     });
 
-    // Subscribe to task list updates (Phase 8: filter by customer when customerIdFilter set)
     this.taskListSubscription = this.taskCycleService.taskList$.subscribe({
       next: (tasks) => {
         this.filteredTasks = this.customerIdFilter != null
@@ -90,25 +94,13 @@ export class TaskListPage implements OnInit {
   }
 
   ngOnDestroy() {
-    if (this.taskListSubscription) {
-      this.taskListSubscription.unsubscribe();
-    }
+    this.taskListSubscription?.unsubscribe();
+    this.routeParamSubscription?.unsubscribe();
   }
 
   async ionViewWillEnter() {
-    // Check for customerIdFilter again in case of navigation changes
-    this.route.paramMap.subscribe(async params => {
-      const id = params.get('customerId');
-      if (id) {
-        this.customerIdFilter = +id;
-        const customer = await this.customerService.getCustomerById(this.customerIdFilter);
-        this.customerNameFilter = customer?.name;
-      } else {
-        this.customerIdFilter = undefined;
-        this.customerNameFilter = undefined;
-      }
-      await this.loadTasks();
-    });
+    // Refresh list when returning to page (e.g. from detail); route params already handled by ngOnInit subscription
+    await this.loadTasks();
   }
 
   ionViewDidEnter() {

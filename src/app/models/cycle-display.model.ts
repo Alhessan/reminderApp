@@ -34,6 +34,7 @@ export function deriveDisplayState(
   task: Task,
   now: Date = new Date()
 ): CycleDisplayStatus {
+  if (!cycle) return 'upcoming';
   if (cycle.resolution === 'done') return 'completed';
   if (cycle.resolution === 'lapsed') return 'missed';
   if (cycle.resolution === 'skipped') return 'skipped';
