@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">RoutineLoop</string>
-    <string name="title_activity_main">RoutineLoop</string>
+    <string name="app_name">Routine Loop</string>
+    <string name="title_activity_main">Routine Loop</string>
     <string name="package_name">io.ionic.routineloop</string>
     <string name="custom_url_scheme">io.ionic.routineloop</string>
 </resources>

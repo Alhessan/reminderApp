@@ -3,10 +3,11 @@
 // ===========================================
 
 :root {
-  // Primary Brand Colors (aligned with Ionic --ion-color-primary)
-  --app-primary: #7c4dff;
-  --app-primary-shade: #6d44e0;
-  --app-primary-tint: #8960ff;
+  // Primary Brand Colors — teal/green palette from logo (#2CB996, #1EABAB, #21B0A5)
+  --app-primary: #2CB996;
+  --app-primary-shade: #1EABAB;
+  --app-primary-tint: #5DD9BE;
+  --app-primary-light: #A8E6D4;
 
   // Neutral Colors
   --app-neutral-100: #ffffff;

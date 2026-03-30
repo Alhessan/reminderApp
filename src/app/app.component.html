@@ -2,8 +2,8 @@
   <ion-split-pane contentId="main-content">
     <ion-menu contentId="main-content" type="overlay">
       <ion-header>
-        <ion-toolbar>
-          <ion-title>Menu</ion-title>
+        <ion-toolbar class="menu-header">
+          <img [src]="currentLogo" alt="RoutineLoop" class="app-logo">
         </ion-toolbar>
       </ion-header>
       <ion-content>
@@ -33,6 +33,9 @@
           </ion-item>
         </ion-list>
       </ion-content>
+      <ion-footer>
+      
+      </ion-footer>
     </ion-menu>
     
     <!-- This is the crucial part - make sure you have this router outlet -->

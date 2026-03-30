@@ -71,6 +71,21 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   private notificationTypes: NotificationType[] = [];
   private notificationTypesSubscription?: Subscription;
 
+  private parseDateInput(input: string): Date {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+      const [y, m, d] = input.split('-').map(Number);
+      return new Date(y, (m ?? 1) - 1, d ?? 1);
+    }
+    return new Date(input);
+  }
+
+  private formatLocalDate(date: Date): string {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   constructor(
     private taskTypeService: TaskTypeService,
     private notificationTypeService: NotificationTypeService,
@@ -115,9 +130,9 @@ export class TaskFormComponent implements OnInit, OnDestroy {
       type: ['Custom', Validators.required],
       customerId: [null],
       frequency: ['daily', Validators.required],
-      startDate: [new Date().toISOString().split('T')[0], Validators.required],
+      startDate: [this.formatLocalDate(new Date()), Validators.required],
       notificationTime: ['09:00', Validators.required],
-      notificationType: ['push'],
+      notificationType: 'push',
       notificationValue: [''],
       notes: ['']
     });
@@ -428,7 +443,7 @@ export class TaskFormComponent implements OnInit, OnDestroy {
 
   formatDate(dateString: string): string {
     if (!dateString) return 'Not set';
-    const date = new Date(dateString);
+    const date = this.parseDateInput(dateString);
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
       year: 'numeric',
@@ -439,21 +454,21 @@ export class TaskFormComponent implements OnInit, OnDestroy {
 
   formatDateYearly(dateString: string): string {
     if (!dateString) return 'Not set';
-    const date = new Date(dateString);
+    const date = this.parseDateInput(dateString);
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
   }
 
   getReminderDayOfWeek(): string {
     const v = this.taskForm.get('startDate')?.value;
     if (!v) return '1';
-    const d = new Date(v);
+    const d = this.parseDateInput(v);
     return String(d.getDay());
   }
 
   onReminderDayOfWeekChange(event: any): void {
     const day = Number(event.detail?.value ?? 1);
     const next = this.getNextWeekday(day);
-    this.taskForm.patchValue({ startDate: next.toISOString().split('T')[0] });
+    this.taskForm.patchValue({ startDate: this.formatLocalDate(next) });
   }
 
   private getNextWeekday(dayOfWeek: number): Date {
@@ -470,13 +485,13 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   getReminderDayOfMonth(): number {
     const v = this.taskForm.get('startDate')?.value;
     if (!v) return 1;
-    return new Date(v).getDate() || 1;
+    return this.parseDateInput(v).getDate() || 1;
   }
 
   onReminderDayOfMonthChange(event: any): void {
     const day = Math.min(31, Math.max(1, Number(event.detail?.value ?? 1)));
     const next = this.getNextDayOfMonth(day);
-    this.taskForm.patchValue({ startDate: next.toISOString().split('T')[0] });
+    this.taskForm.patchValue({ startDate: this.formatLocalDate(next) });
   }
 
   private getNextDayOfMonth(day: number): Date {

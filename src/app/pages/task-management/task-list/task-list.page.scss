@@ -131,8 +131,8 @@ ion-toolbar {
   --background: transparent;
   --color: white;
   --padding-top: var(--app-safe-area-top, 0px);
-  --min-height: 56px;
-  min-height: calc(56px + var(--app-safe-area-top, 0px));
+  --min-height: 60px;
+  min-height: calc(60px + var(--app-safe-area-top, 0px));
   padding-top: var(--app-safe-area-top, 0px);
   --border-color: transparent;
 

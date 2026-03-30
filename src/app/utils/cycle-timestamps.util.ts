@@ -1,5 +1,24 @@
 import { Frequency } from '../models/task.model';
 
+function parseDateInput(input: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    const [y, m, d] = input.split('-').map(Number);
+    return new Date(y, (m ?? 1) - 1, d ?? 1);
+  }
+  return new Date(input);
+}
+
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function toUtcMidnightIsoFromLocalDate(date: Date): string {
+  return `${formatLocalDate(date)}T00:00:00.000Z`;
+}
+
 /** Buffer (minutes) from due time before showing "Overdue". Configurable per frequency. */
 export const BUFFER_MINUTES: Record<string, number> = {
   daily: 30,
@@ -23,7 +42,7 @@ export const GRACE_HOURS: Record<string, number> = {
  * Returns ISO string.
  */
 export function calculateDueAt(cycleStartDate: string, notificationTime: string): string {
-  const d = new Date(cycleStartDate);
+  const d = parseDateInput(cycleStartDate);
   if (isNaN(d.getTime())) return cycleStartDate;
   const parts = (notificationTime || '00:00').split(':').map(Number);
   const h = parts[0] ?? 0;
@@ -62,14 +81,14 @@ export function getFirstCycleStartDate(
   notificationTime: string,
   frequency: Frequency
 ): string {
-  const start = new Date(startDate);
+  const start = parseDateInput(startDate);
   if (isNaN(start.getTime())) return new Date().toISOString();
   const [h, m] = (notificationTime || '00:00').split(':').map(Number);
   const setDue = (d: Date) => d.setHours(h ?? 0, m ?? 0, 0, 0);
   const now = new Date();
   let due = new Date(start);
   setDue(due);
-  if (due.getTime() >= now.getTime()) return start.toISOString().split('T')[0] + 'T00:00:00.000Z';
+  if (due.getTime() >= now.getTime()) return toUtcMidnightIsoFromLocalDate(start);
   const maxIter = 1000;
   let iter = 0;
   while (due.getTime() < now.getTime() && iter++ < maxIter) {
@@ -92,7 +111,7 @@ export function getFirstCycleStartDate(
     due = new Date(start);
     setDue(due);
   }
-  return start.toISOString();
+  return toUtcMidnightIsoFromLocalDate(start);
 }
 
 /**

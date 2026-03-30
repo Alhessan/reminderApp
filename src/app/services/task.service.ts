@@ -17,6 +17,8 @@ import {
 })
 export class TaskService {
 
+  private static readonly LOCAL_NOTIFICATION_TYPES = new Set(['push', 'alarm']);
+
   private tasks = new BehaviorSubject<Task[]>([]);
   tasks$ = this.tasks.asObservable();
 
@@ -63,14 +65,16 @@ export class TaskService {
 
   async createTask(taskData: CreateTaskDTO): Promise<number> {
     const state = taskData.state || 'active';
+    const normalizedStartDate = (taskData.startDate || '').trim();
+    const normalizedNotificationTime = (taskData.notificationTime || '00:00').trim();
     const values = [
       taskData.title?.trim() || null,
       taskData.type?.trim() || null,
       taskData.customerId || null,
       taskData.frequency?.trim() || null,
-      taskData.startDate || null,
+      normalizedStartDate || null,
       taskData.notificationType?.trim() || null,
-      taskData.notificationTime?.trim() || null,
+      normalizedNotificationTime || null,
       taskData.notificationValue?.trim() || null,
       taskData.notes?.trim() || null,
       state === 'archived' ? 1 : 0,
@@ -84,8 +88,8 @@ export class TaskService {
     const taskId = result.changes?.lastId;
     if (!taskId) throw new Error('Failed to get inserted task ID');
 
-    const firstStart = getFirstCycleStartDate(taskData.startDate, taskData.notificationTime || '00:00', taskData.frequency);
-    const dueAt = calculateDueAt(firstStart, taskData.notificationTime || '00:00');
+    const firstStart = getFirstCycleStartDate(normalizedStartDate, normalizedNotificationTime, taskData.frequency);
+    const dueAt = calculateDueAt(firstStart, normalizedNotificationTime);
     const softDeadline = calculateSoftDeadline(dueAt, taskData.frequency);
     const hardDeadline = calculateHardDeadline(dueAt, taskData.frequency);
     await this.dbService.executeQuery(
@@ -95,7 +99,7 @@ export class TaskService {
     );
 
     const task = await this.getTaskById(taskId);
-    if (task && task.state === 'active' && task.notificationType === 'push') {
+    if (task && this.shouldScheduleLocalNotification(task)) {
       this.scheduleTaskNotification(task).catch(err =>
         console.warn('TaskService: Could not schedule notification for new task', err)
       );
@@ -103,16 +107,31 @@ export class TaskService {
     return taskId;
   }
 
+
   async pauseTask(id: number): Promise<void> {
-    await this.dbService.executeQuery("UPDATE tasks SET state = 'paused' WHERE id = ?", [id]);
-    await this.addHistoryEntry(id, 'paused');
+    try {
+      // Use parameterized ? for the SET value so handleWebUpdate can extract it correctly
+      const result = await this.dbService.executeQuery("UPDATE tasks SET state = ? WHERE id = ?", ['paused', id]);
+      // History is non-critical; don't block the operation if it fails
+      this.addHistoryEntry(id, 'paused').catch(err => console.warn('[TaskService] pauseTask history:', err));
+    } catch (err) {
+      console.error('[TaskService] pauseTask FAILED:', err);
+      throw err;
+    }
   }
 
   async resumeTask(id: number): Promise<void> {
-    await this.dbService.executeQuery("UPDATE tasks SET state = 'active' WHERE id = ?", [id]);
-    await this.addHistoryEntry(id, 'resumed');
-    const task = await this.getTaskById(id);
-    if (task) await this.taskCycleService.createNextCycle(task);
+    try {
+      // Use parameterized ? for the SET value so handleWebUpdate can extract it correctly
+      const result = await this.dbService.executeQuery("UPDATE tasks SET state = ? WHERE id = ?", ['active', id]);
+      // History is non-critical; don't block the operation if it fails
+      this.addHistoryEntry(id, 'resumed').catch(err => console.warn('[TaskService] resumeTask history:', err));
+      const task = await this.getTaskById(id);
+      if (task) await this.taskCycleService.createNextCycle(task);
+    } catch (err) {
+      console.error('[TaskService] resumeTask FAILED:', err);
+      throw err;
+    }
   }
 
   async sendTaskNotification(task: Task): Promise<void> {
@@ -145,7 +164,6 @@ export class TaskService {
 
   async getTaskById(id: number): Promise<Task | null> {
     try {
-      console.log('[TaskService] getTaskById', { id });
       const result = await this.dbService.executeQuery(
         'SELECT * FROM tasks WHERE id = ?',
         [id]
@@ -158,7 +176,6 @@ export class TaskService {
 
       const taskData = result.values[0];
       const task = this.mapRowToTask(taskData);
-      console.log('[TaskService] getTaskById ok', { id, title: task?.title });
       return task;
     } catch (error) {
       console.error('[TaskService] getTaskById failed', { id, error });
@@ -166,23 +183,28 @@ export class TaskService {
     }
   }
 
-  /** Returns active tasks that use push notifications (Phase 9: only state='active'). */
-  async getTasksWithPushNotifications(): Promise<Task[]> {
+  /** Returns active tasks that use local notifications (push/alarm). */
+  async getTasksWithLocalNotifications(): Promise<Task[]> {
     const result = await this.dbService.executeQuery(
-      "SELECT * FROM tasks WHERE (state = 'active' OR (state IS NULL AND (isArchived = 0 OR isArchived IS NULL))) AND notificationType = ?",
-      ['push']
+      "SELECT * FROM tasks WHERE (state = 'active' OR (state IS NULL AND (isArchived = 0 OR isArchived IS NULL))) AND notificationType IN (?, ?)",
+      ['push', 'alarm']
     );
     const tasks = ((result.values || []) as any[]).map((row: any) => this.mapRowToTask(row));
     return tasks.filter(t => t.state === 'active');
   }
 
+  /** Backward-compatible alias kept for existing callers/tests. */
+  async getTasksWithPushNotifications(): Promise<Task[]> {
+    return this.getTasksWithLocalNotifications();
+  }
+
   /**
-   * Reschedule all push notifications (e.g. after app launch or device restart). Non-blocking; logs per-task errors.
+   * Reschedule all local notifications (e.g. after app launch or device restart). Non-blocking; logs per-task errors.
    */
-  /** Reschedule push notifications for active tasks using current cycle dueAt (Phase 9). */
+  /** Reschedule local notifications for active tasks using current cycle dueAt (Phase 9). */
   async rescheduleAllPendingNotifications(): Promise<void> {
     try {
-      const tasks = await this.getTasksWithPushNotifications();
+      const tasks = await this.getTasksWithLocalNotifications();
       for (const task of tasks) {
         if (task.state !== 'active') continue;
         try {
@@ -224,8 +246,12 @@ export class TaskService {
         taskData.id,
       ]
     );
+
+    // Prevent stale pending local notifications after edits (time/type/state changes).
+    await this.notificationService.cancelNotification(taskData.id);
+
     const task = await this.getTaskById(taskData.id);
-    if (task && task.state === 'active' && task.notificationType === 'push') {
+    if (task && this.shouldScheduleLocalNotification(task)) {
       this.scheduleTaskNotification(task).catch(err =>
         console.warn('TaskService: Could not schedule notification for updated task', err)
       );
@@ -234,19 +260,15 @@ export class TaskService {
 
   private async scheduleTaskNotification(task: Task): Promise<void> {
     if (task.state === 'paused' || task.state === 'archived') return;
-    console.log('TaskService: Starting scheduleTaskNotification for task:', task);
     try {
       let scheduledAt: Date | undefined;
       const cycle = await this.taskCycleService.getCurrentCycle(task.id!);
       if (cycle?.resolution === 'open' && cycle.dueAt) scheduledAt = new Date(cycle.dueAt);
-      if (task.notificationType === 'push' && this.platform.is('capacitor')) {
-        console.log('TaskService: Scheduling local push notification');
+      if (this.isLocalNotificationType(task.notificationType) && this.platform.is('capacitor')) {
         await this.notificationService.scheduleNotification(task, false, scheduledAt);
-      } else if (task.notificationType === 'push') {
-        console.log('TaskService: Scheduling web push notification');
+      } else if (this.isLocalNotificationType(task.notificationType)) {
         await this.notificationService.scheduleNotification(task, false, scheduledAt);
       } else if (task.notificationType !== 'silent') {
-        console.log('TaskService: Sending notification through API');
         // Send other types of notifications through the API
         const payload = {
           title: task.title,
@@ -257,13 +279,19 @@ export class TaskService {
           receiver: task.notificationValue
         };
         await this.notificationService.sendNotification(payload);
-      } else {
-        console.log('TaskService: Silent notification type, no notification scheduled');
       }
     } catch (error) {
       console.error('TaskService: Error scheduling notification:', error);
       throw error;
     }
+  }
+
+  private isLocalNotificationType(notificationType?: string | null): boolean {
+    return !!notificationType && TaskService.LOCAL_NOTIFICATION_TYPES.has(notificationType);
+  }
+
+  private shouldScheduleLocalNotification(task: Task): boolean {
+    return task.state === 'active' && this.isLocalNotificationType(task.notificationType);
   }
 
   async deleteTask(id: number): Promise<number | undefined> {

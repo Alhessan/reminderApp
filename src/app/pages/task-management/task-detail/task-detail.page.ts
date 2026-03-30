@@ -1,6 +1,8 @@
 import { ChangeDetectorRef, Component, OnInit } from "@angular/core";
 import { ActivatedRoute, Router, RouterModule } from "@angular/router";
 import { AlertController, NavController, IonicModule } from "@ionic/angular";
+import { addIcons } from "ionicons";
+import { stopCircleOutline, stopCircle } from "ionicons/icons";
 import { trigger, state, style, transition, animate } from "@angular/animations";
 import { Task, TaskHistoryEntry } from "../../../models/task.model";
 import { TaskService } from "../../../services/task.service";
@@ -16,6 +18,7 @@ import { CycleStatusBadgeComponent } from "../../../components/cycle-status-badg
 import { SituationalMessageService } from "../../../services/situational-message.service";
 import { Cycle } from "../../../models/task-cycle.model";
 import { deriveDisplayState, STATUS_CONFIG, CycleDisplayStatus } from "../../../models/cycle-display.model";
+import { AlarmService } from "../../../services/alarm.service";
 
 @Component({
   selector: "app-task-detail",
@@ -97,8 +100,11 @@ get missedCount(): number {
     private navController: NavController,
     private databaseService: DatabaseService,
     private datePipe: DatePipe,
-    private cdr: ChangeDetectorRef
-  ) { }
+    private cdr: ChangeDetectorRef,
+    private alarmService: AlarmService
+  ) {
+    addIcons({ stopCircleOutline, stopCircle });
+  }
 
   async ngOnInit() {
     try {
@@ -110,7 +116,7 @@ get missedCount(): number {
     }
     this.route.paramMap.subscribe((params) => {
       const id = params.get("id");
-      console.log("[TaskDetail] paramMap", { id, hasId: !!id });
+
       if (id) {
         this.taskId = +id;
         this.loadTaskDetails(+id).catch((err) => {
@@ -135,16 +141,13 @@ get missedCount(): number {
   }
 
   async loadTaskDetails(id: number) {
-    const log = (msg: string, ...args: unknown[]) => console.log('[TaskDetail]', msg, ...args);
     this.isLoading = true;
 
     // ── Core phase (blocking) ──────────────────────────────────────────────
     // If this fails, navigate away. Core = task, cycle, status, history.
     try {
-      log('loadTaskDetails start', { id });
       const taskData = await this.taskService.getTaskById(id);
       if (!taskData) {
-        log('getTaskById returned null/undefined', { id });
         this.task = null;
         this.currentCycle = null;
         this.mostRecentLapsedCycle = null;
@@ -153,25 +156,19 @@ get missedCount(): number {
         this.navController.navigateBack("/tasks");
         return;
       }
-      log('getTaskById ok', { title: taskData.title });
       this.task = taskData;
 
       this.currentCycle = await this.taskCycleService.getCurrentCycle(id);
-      log('getCurrentCycle ok', this.currentCycle ? { id: this.currentCycle.id, resolution: this.currentCycle.resolution } : 'null');
 
       this.mostRecentLapsedCycle = await this.taskCycleService.getMostRecentLapsedCycle(id);
-      log('getMostRecentLapsedCycle ok', this.mostRecentLapsedCycle ? { id: this.mostRecentLapsedCycle.id } : 'null');
 
       this.displayStatus = this.task && this.currentCycle
         ? deriveDisplayState(this.currentCycle, this.task)
         : '';
-      log('displayStatus', this.displayStatus);
 
       this.taskHistory = await this.taskService.getTaskHistory(id);
-      log('getTaskHistory ok', { count: this.taskHistory?.length ?? 0 });
 
       this.hasLoadedDetailOnce = true;
-      log('loadTaskDetails core complete');
     } catch (error) {
       console.error('[TaskDetail] loadTaskDetails failed', error);
       console.error('[TaskDetail] error stack', error instanceof Error ? error.stack : 'no stack');
@@ -185,7 +182,6 @@ get missedCount(): number {
     } finally {
       this.isLoading = false;
       this.cdr.detectChanges();
-      console.log('[TaskDetail] isLoading = false (core done)');
     }
 
     // ── Secondary phase (non-blocking) ────────────────────────────────────
@@ -258,7 +254,6 @@ get missedCount(): number {
         this.taskCycleService.getResolvedCycles(this.taskId, this.timelineLimit, 0),
         this.taskCycleService.getResolvedCyclesCount(this.taskId),
       ]);
-      console.log('[TaskDetail] loadTimelineSlice resolved', { count: resolved?.length ?? 0, totalCount });
       this.timelineHasMore = totalCount > this.timelineLimit;
       this.timelineTotalCount = totalCount;
       this.timelineCycles = resolved.map((c) => ({
@@ -266,7 +261,6 @@ get missedCount(): number {
         displayStatus: (c.resolution === "done" ? "completed" : c.resolution === "lapsed" ? "missed" : "skipped") as CycleDisplayStatus,
       }));
       this.timelineUpcomingCycle = this.currentCycle?.resolution === "open" ? this.currentCycle : null;
-      console.log('[TaskDetail] loadTimelineSlice done');
     } catch (err) {
       console.error('[TaskDetail] loadTimelineSlice failed', err);
     }
@@ -277,14 +271,12 @@ get missedCount(): number {
     if (!this.taskId) return;
     try {
       const resolved = await this.taskCycleService.getResolvedCycles(this.taskId, 3, 0);
-      console.log('[TaskDetail] loadHeroMessage resolved(3)', { count: resolved?.length ?? 0 });
       if (resolved.length < 3) {
         this.heroMessage = '';
         return;
       }
       const result = await this.situationalMessageService.getLevel(this.taskId);
       this.heroMessage = result.message;
-      console.log('[TaskDetail] loadHeroMessage ok', { messageLength: this.heroMessage?.length ?? 0 });
     } catch (err) {
       console.error('[TaskDetail] loadHeroMessage failed', err);
       this.heroMessage = '';
@@ -307,13 +299,9 @@ get missedCount(): number {
     this.timelineTotalCount = totalCount;
   }
 
-  /** One-tap complete: show when current cycle is open. */
-  get canMarkComplete(): boolean {
-    return !!this.currentCycle?.id && this.currentCycle.resolution === 'open';
-  }
-
   get canSkip(): boolean {
-    return !!this.currentCycle?.id && this.currentCycle.resolution === 'open';
+    // Block when paused — no cycle actions while task is on hold
+    return !!this.currentCycle?.id && this.currentCycle.resolution === 'open' && this.task?.state !== 'paused';
   }
 
   get canPause(): boolean {
@@ -327,6 +315,38 @@ get missedCount(): number {
   /** Show "I actually did this" when the most recent resolved cycle is lapsed (Phase 6 US4). */
   get canShowRetroactiveComplete(): boolean {
     return !!this.mostRecentLapsedCycle?.id && !this.actionInProgress;
+  }
+
+  /** Dynamic button label with cycle date — shows which specific cycle is being corrected. */
+  get retroactiveButtonLabel(): string {
+    if (!this.mostRecentLapsedCycle?.dueAt) return 'I actually did this';
+    const dueDate = new Date(this.mostRecentLapsedCycle.dueAt);
+    const formatted = this.datePipe.transform(dueDate, 'EEE, MMM d') ?? '';
+    const freq = this.task?.frequency;
+    if (freq === 'daily') return `I did ${formatted}`;
+    if (freq === 'weekly') return `I did ${formatted}`;
+    if (freq === 'monthly') return `I did ${formatted}`;
+    return `I did ${formatted}`;
+  }
+
+  /** Check if early completion is blocked by grace period (soft deadline in future). */
+  get isBlockedByGracePeriod(): boolean {
+    if (!this.currentCycle?.softDeadline) return false;
+    return new Date(this.currentCycle.softDeadline).getTime() > Date.now();
+  }
+
+  /** Allow completion when cycle is open and due time (or soft deadline if set) has passed. */
+  get canMarkComplete(): boolean {
+    // Block when paused — no cycle actions while task is on hold
+    if (!this.currentCycle?.id || this.currentCycle.resolution !== 'open' || this.task?.state === 'paused') return false;
+    const soft = this.currentCycle.softDeadline;
+    const due = new Date(this.currentCycle.dueAt).getTime();
+    const now = Date.now();
+    // No soft deadline (grace period = 0) — allow at or after due time
+    if (soft === null || soft === undefined) return due <= now;
+    // Soft deadline set — allow only after soft deadline
+    const softMs = new Date(soft).getTime();
+    return softMs <= now;
   }
 
   async pauseTask() {
@@ -358,16 +378,23 @@ get missedCount(): number {
   }
 
   async markComplete() {
-    if (!this.currentCycle?.id || !this.taskId || this.actionInProgress) return;
+    if (!this.currentCycle?.id || !this.taskId || this.actionInProgress) {
+      console.warn('[TaskDetail] markComplete early return - missing data', {
+        hasCycleId: !!this.currentCycle?.id,
+        hasTaskId: !!this.taskId,
+        actionInProgress: this.actionInProgress
+      });
+      return;
+    }
     this.actionInProgress = true;
     try {
       await this.taskCycleService.resolveCycle(this.currentCycle.id, 'done');
       this.cycleTransitionState = "out";
       await new Promise((r) => setTimeout(r, 250));
-      await this.loadTaskDetails(this.taskId);
+      await this.loadTaskDetails(this.taskId!);
       this.cycleTransitionState = "in";
     } catch (e) {
-      console.error("Mark complete failed", e);
+      console.error("[TaskDetail] Mark complete failed", e);
       await this.presentErrorAlert("Could not mark complete. Try again.");
       this.cycleTransitionState = "in";
     } finally {
@@ -376,14 +403,17 @@ get missedCount(): number {
   }
 
   async markRetroactiveComplete() {
-    if (!this.mostRecentLapsedCycle?.id || !this.taskId || this.actionInProgress) return;
+    if (!this.mostRecentLapsedCycle?.id || !this.taskId || this.actionInProgress) {
+      console.warn('[TaskDetail] markRetroactiveComplete early return - missing data');
+      return;
+    }
     this.actionInProgress = true;
     try {
       await this.taskCycleService.resolveCycle(this.mostRecentLapsedCycle.id!, 'done');
-      await this.loadTaskDetails(this.taskId);
+      await this.loadTaskDetails(this.taskId!);
     } catch (e) {
-      console.error('Retroactive complete failed', e);
-      await this.presentErrorAlert('Could not mark as done. Try again.');
+      console.error('[TaskDetail] Retroactive complete FAILED:', e);
+      await this.presentErrorAlert('Could not mark as done. Please try again.');
     } finally {
       this.actionInProgress = false;
     }
@@ -443,6 +473,20 @@ get missedCount(): number {
     const d = new Date(value);
     if (isNaN(d.getTime())) return '—';
     return this.datePipe.transform(d, format) ?? '—';
+  }
+
+  /** Check if alarm is currently playing for this task. */
+  get isAlarmActive(): boolean {
+    return this.taskId ? this.alarmService.isPlayingFor(this.taskId) : false;
+  }
+
+  /** Stop the currently playing alarm for this task. */
+  async stopAlarm() {
+    if (!this.taskId) return;
+    this.alarmService.stopAlarm();
+    // Optionally dismiss the notification as well
+    await this.alarmService.dismissAlarm(this.taskId);
+    this.cdr.detectChanges(); // Force UI update
   }
 
 }

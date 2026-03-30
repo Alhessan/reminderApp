@@ -9,6 +9,13 @@ import {
 } from './cycle-timestamps.util';
 import { Frequency } from '../models/task.model';
 
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 describe('cycle-timestamps.util (Phase 1: timestamp calculations)', () => {
   describe('calculateDueAt', () => {
     it('should set due time from cycle start date and notification time (local time)', () => {
@@ -112,6 +119,22 @@ describe('cycle-timestamps.util (Phase 1: timestamp calculations)', () => {
       const notifTime = '09:00';
       const result = getFirstCycleStartDate(startDate, notifTime, 'daily');
       expect(result).toContain(future.toISOString().split('T')[0]);
+    });
+
+    it('should keep first cycle on today when notification time is still in the future', () => {
+      jasmine.clock().install();
+      try {
+        const now = new Date(2026, 2, 29, 10, 0, 0, 0);
+        jasmine.clock().mockDate(now);
+
+        const startDate = formatLocalDate(now);
+        const notifTime = '11:00';
+
+        const result = getFirstCycleStartDate(startDate, notifTime, 'daily');
+        expect(result).toBe(`${formatLocalDate(now)}T00:00:00.000Z`);
+      } finally {
+        jasmine.clock().uninstall();
+      }
     });
 
     it('should advance past today when due is in the past for daily', () => {

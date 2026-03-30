@@ -172,7 +172,7 @@ export class TaskCycleService {
     }
   }
 
-  async loadTaskList(view: 'all' | 'overdue' | 'due' | 'upcoming' = 'all'): Promise<void> {
+  async loadTaskList(view: 'all' | 'overdue' | 'due' | 'upcoming' | 'paused' = 'all'): Promise<void> {
     try {
       await this.closeLapsedCycles();
       const now = new Date();
@@ -234,10 +234,12 @@ export class TaskCycleService {
             : undefined,
           lastMissedDate,
         };
-        if (view === 'all') taskList.push(item);
-        else if (view === 'due' && displayStatus === 'due') taskList.push(item);
-        else if (view === 'upcoming' && displayStatus === 'upcoming') taskList.push(item);
-        else if (view === 'overdue' && displayStatus === 'overdue') taskList.push(item);
+        // FR-006: paused tasks are hidden from main views (all, due, upcoming, overdue) — only shown in 'paused' tab
+        if (view === 'all' && task.state !== 'paused') taskList.push(item);
+        else if (view === 'due' && displayStatus === 'due' && task.state !== 'paused') taskList.push(item);
+        else if (view === 'upcoming' && displayStatus === 'upcoming' && task.state !== 'paused') taskList.push(item);
+        else if (view === 'overdue' && displayStatus === 'overdue' && task.state !== 'paused') taskList.push(item);
+        else if (view === 'paused' && task.state === 'paused') taskList.push(item);
       }
 
       taskList.sort((a, b) => {
@@ -276,11 +278,17 @@ export class TaskCycleService {
   /** Resolve a cycle (done or skipped). For lapsed cycles, only 'done' is allowed (retroactive). */
   async resolveCycle(cycleId: number, resolution: 'done' | 'skipped'): Promise<void> {
     const res = await this.db.executeQuery('SELECT * FROM task_cycles WHERE id = ?', [cycleId]);
-    if (!res.values?.length) throw new Error('Cycle not found');
+    if (!res.values?.length) {
+      console.error('[TaskCycleService] resolveCycle: cycle not found', cycleId);
+      throw new Error('Cycle not found');
+    }
     const row = res.values[0] as any;
     const cycle = this.mapRowToCycle(row);
     const task = await this.getTask(cycle.taskId);
-    if (!task) throw new Error('Task not found');
+    if (!task) {
+      console.error('[TaskCycleService] resolveCycle: task not found', cycle.taskId);
+      throw new Error('Task not found');
+    }
 
     const now = new Date().toISOString();
     if (resolution === 'done') {
@@ -309,13 +317,21 @@ export class TaskCycleService {
     else if (status === 'skipped') await this.resolveCycle(cycleId, 'skipped');
   }
 
+  /** Mark a specific cycle as lapsed (used for retroactive correction + sample data). */
+  async markCycleLapsed(cycleId: number): Promise<void> {
+    await this.db.executeQuery(
+      'UPDATE task_cycles SET resolution = ?, completedAt = NULL WHERE id = ?',
+      ['lapsed', cycleId]
+    );
+  }
+
   async createNextCycle(task: Task, previousCycle?: Cycle, skipReload?: boolean): Promise<number> {
     if (!task.id) throw new Error('Task ID is required to create cycle');
 
     if (task.frequency === 'once') {
       await this.db.executeQuery(
-        "UPDATE tasks SET state = 'archived', isArchived = 1 WHERE id = ?",
-        [task.id]
+        "UPDATE tasks SET state = ?, isArchived = ? WHERE id = ?",
+        ['archived', 1, task.id]
       );
       if (!skipReload) await this.loadTaskList();
       return 0;
@@ -494,7 +510,8 @@ export class TaskCycleService {
     return this.mapRowToCycle(result.values[0]);
   }
 
-  /** Most recent cycle with resolution=lapsed for this task (for retroactive "I actually did this"). */
+  /** Most recent cycle with resolution=lapsed for this task (for retroactive "I actually did this").
+   * Returns the most recent missed cycle ordered by hardDeadline DESC. */
   async getMostRecentLapsedCycle(taskId: number): Promise<Cycle | null> {
     const result = await this.db.executeQuery(
       `SELECT * FROM task_cycles WHERE taskId = ? AND resolution = 'lapsed' ORDER BY hardDeadline DESC LIMIT 1`,
@@ -532,7 +549,7 @@ export class TaskCycleService {
   async archiveTask(taskId: number): Promise<void> {
     const check = await this.db.executeQuery('SELECT id FROM tasks WHERE id = ?', [taskId]);
     if (!check.values?.length) throw new Error(`Task ${taskId} not found`);
-    await this.db.executeQuery("UPDATE tasks SET state = 'archived', isArchived = 1 WHERE id = ?", [taskId]);
+    await this.db.executeQuery("UPDATE tasks SET state = ?, isArchived = ? WHERE id = ?", ['archived', 1, taskId]);
     await this.loadTaskList();
   }
 
@@ -541,7 +558,7 @@ export class TaskCycleService {
     if (!taskResult.values?.length) throw new Error(`Task ${taskId} not found`);
     const row = taskResult.values[0] as any;
     if (row.state !== 'archived' && normalizeIsArchived(row.isArchived) === 0) return;
-    await this.db.executeQuery("UPDATE tasks SET state = 'active', isArchived = 0 WHERE id = ?", [taskId]);
+    await this.db.executeQuery("UPDATE tasks SET state = ?, isArchived = ? WHERE id = ?", ['active', 0, taskId]);
     await this.loadTaskList();
   }
 
@@ -611,5 +628,10 @@ export class TaskCycleService {
     await this.db.executeQuery('DELETE FROM task_cycles WHERE 1=1');
     await this.db.executeQuery('DELETE FROM task_history WHERE 1=1');
     await this.db.executeQuery('DELETE FROM tasks WHERE 1=1');
+  }
+
+  /** Delete all cycles for a specific task (used by sample data generation) */
+  async deleteCyclesForTask(taskId: number): Promise<void> {
+    await this.db.executeQuery('DELETE FROM task_cycles WHERE taskId = ?', [taskId]);
   }
 }
