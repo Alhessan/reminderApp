@@ -5,9 +5,16 @@ const config: CapacitorConfig = {
   appName: 'RoutineLoop',
   webDir: 'www',
   plugins: {
+    SplashScreen: {
+      launchShowDuration: 3000, // Give it time to show
+      launchAutoHide: true,
+      showSpinner: false,
+      androidScaleType: 'CENTER_CROP', // Use CENTER_CROP to fill the screen
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
     LocalNotifications: {
       smallIcon: 'ic_launcher_foreground',
-      iconColor: '#667eea',
     },
     CapacitorSQLite: {
       androidIsEncryption: false,
