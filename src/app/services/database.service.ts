@@ -5,6 +5,16 @@ import { BehaviorSubject } from 'rxjs';
 
 const DEFAULT_NOTIFICATION_TYPES = [
   {
+    key: 'alarm',
+    name: 'Alarm',
+    description: 'High-priority alarm that rings until you respond',
+    icon: 'alarm-outline',
+    color: '#ff3b30',
+    isEnabled: true,
+    requiresValue: false,
+    order: 0
+  },
+  {
     key: 'silent',
     name: 'Silent',
     description: 'Notifications without sound or alerts',
@@ -129,7 +139,7 @@ interface TableSchemas {
 export class DatabaseService {
   private sqlite: SQLiteConnection;
   private db!: SQLiteDBConnection;
-  private readonly dbName = 'reminder_app.db';
+  private readonly dbName = 'routineloop.db';
   private isNative: boolean;
   private webStore: { [key: string]: any[] } = {}; // Simple in-memory store for web
   private readonly STORAGE_KEY = 'reminderApp_webDatabase';
@@ -265,14 +275,13 @@ export class DatabaseService {
   private async initializeNativeDatabase(): Promise<void> {
     try {
       const platform = Capacitor.getPlatform();
-      const dbName = 'routineloop.db';
 
       if (platform === 'web') {
         await this.sqlite.initWebStore();
       }
       
       this.db = await this.sqlite.createConnection(
-        dbName,
+        this.dbName,
         false,
         'no-encryption',
         1,
@@ -576,24 +585,40 @@ export class DatabaseService {
 
   private async runMigrations() {
     const currentVersion = await this.getCurrentVersion();
-    console.log('Current database version:', currentVersion);
+    console.log('[DB] Current version:', currentVersion, 'Latest:', this.currentVersion);
 
+    // Migration versions:
+    // v1: Initial schema - creates all tables with full schema (consolidated)
+    // v2: (legacy - columns already in v1, kept for older DBs)
+    // v3-v5: (legacy - no longer needed)
+    // v6: Task cycle redesign - adds state column, rebuilds task_cycles
+    
     if (currentVersion < 1) {
+      console.log('[DB] Running migration v1: Initial schema');
       await this.consolidatedMigration();
       await this.setVersion(1);
     }
+
     if (currentVersion < 2) {
+      console.log('[DB] Running migration v2: Add completion columns');
       await this.migrateAddTaskCompletionColumns();
       await this.setVersion(2);
     }
+
     if (currentVersion < 6) {
+      console.log('[DB] Running migration v6: Task cycle redesign');
       await this.migrateTaskCycleRedesign();
       await this.setVersion(6);
     }
+
+    if (currentVersion < this.currentVersion) {
+      console.log('[DB] All migrations complete at version', this.currentVersion);
+    }
   }
 
-  /** Redesign: add task state, wipe task_cycles and recreate with resolution + dueAt/softDeadline/hardDeadline. */
+  /** Migration v6: Task cycle redesign - adds state column, rebuilds task_cycles table */
   private async migrateTaskCycleRedesign(): Promise<void> {
+    console.log('[DB] Migration v6: Adding state column to tasks');
     const isDuplicateColumn = (e: any) =>
       (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
     try {
@@ -603,15 +628,19 @@ export class DatabaseService {
       );
     } catch (e: any) {
       if (isDuplicateColumn(e)) {
-        // already has state
+        console.log('[DB] Migration v6: state column already exists, skipping');
       } else {
         throw e;
       }
     }
+    
+    console.log('[DB] Migration v6: Syncing isArchived to state');
     await this.executeQuery(
       "UPDATE tasks SET state = 'archived' WHERE isArchived = 1 OR isArchived = '1'",
       []
     );
+    
+    console.log('[DB] Migration v6: Rebuilding task_cycles table');
     await this.executeQuery('DROP TABLE IF EXISTS task_cycles', []);
     await this.executeQuery(
       `CREATE TABLE task_cycles (
@@ -631,8 +660,9 @@ export class DatabaseService {
     );
   }
 
-  /** Add isCompleted and lastCompletedDate to tasks (for DBs created before these columns existed). */
+  /** Migration v2: Add isCompleted and lastCompletedDate columns (legacy - columns already in v1 schema) */
   private async migrateAddTaskCompletionColumns(): Promise<void> {
+    console.log('[DB] Migration v2: Adding completion columns');
     const isDuplicateColumn = (e: any) =>
       (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
     try {
@@ -641,8 +671,11 @@ export class DatabaseService {
         []
       );
     } catch (e: any) {
-      if (isDuplicateColumn(e)) return;
-      throw e;
+      if (isDuplicateColumn(e)) {
+        console.log('[DB] Migration v2: isCompleted already exists, skipping');
+      } else {
+        throw e;
+      }
     }
     try {
       await this.executeQuery(
@@ -650,11 +683,16 @@ export class DatabaseService {
         []
       );
     } catch (e: any) {
-      if (isDuplicateColumn(e)) return;
-      throw e;
+      if (isDuplicateColumn(e)) {
+        console.log('[DB] Migration v2: lastCompletedDate already exists, skipping');
+      } else {
+        throw e;
+      }
     }
+    console.log('[DB] Migration v2: Complete');
   }
 
+  /** Migration v1: Create all tables with full schema */
   private async consolidatedMigration() {
     console.log('Running consolidated migration');
     
@@ -669,7 +707,7 @@ export class DatabaseService {
           notes TEXT,
           createdAt TEXT DEFAULT CURRENT_TIMESTAMP
         )`,
-        `CREATE TABLE IF NOT EXISTS tasks (
+      `CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -683,6 +721,7 @@ export class DatabaseService {
         isArchived INTEGER DEFAULT 0,
         isCompleted INTEGER DEFAULT 0,
         lastCompletedDate TEXT,
+        state TEXT DEFAULT 'active',
         createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (customerId) REFERENCES customers(id) ON DELETE SET NULL
       )`,
@@ -823,13 +862,6 @@ export class DatabaseService {
       throw error;
     }
   }
-
-  // Remove old migrations as they're no longer needed
-  private async migration1() { }
-  private async migration2() { }
-  private async migration3() { }
-  private async migration4() { }
-  private async migration5() { }
 
   async executeQuery(statement: string, values?: any[]): Promise<any> {
     if (this.isNative) {
@@ -1262,22 +1294,56 @@ export class DatabaseService {
       if (this.isNative) {
         // Native platform - use SQLite
         if (this.db) {
-          await this.db.close();
-          await this.sqlite.deleteOldDatabases();
-          
-          // Reinitialize database
-          this.db = await this.sqlite.createConnection(
-            this.dbName,
-            false,
-            'no-encryption',
-            1,
-            false
-          );
-          
-          await this.db.open();
-          await this.createSchema();
-          await this.consolidatedMigration();
+          try {
+            await this.db.close();
+          } catch {
+            // ignore if already closed
+          }
+
+          // Delete through the SQLiteDBConnection instance (most reliable path)
+          try {
+            await this.db.delete();
+          } catch (err) {
+            console.warn('[DB] Direct db.delete() failed, trying connection delete fallback:', err);
+            // Fallback: recreate a RW connection and delete
+            const tmp = await this.sqlite.createConnection(
+              this.dbName,
+              false,
+              'no-encryption',
+              1,
+              false
+            );
+            try {
+              await tmp.close();
+            } catch {
+              // ignore if not opened
+            }
+            await tmp.delete();
+          }
         }
+
+        // Ensure connection dictionary is clean before recreating
+        try {
+          await this.sqlite.closeConnection(this.dbName, false);
+        } catch {
+          // ignore when connection wasn't registered
+        }
+
+        // Keep legacy cleanup as best-effort
+        await this.sqlite.deleteOldDatabases();
+
+        // Reinitialize fresh database with the same canonical name
+        this.db = await this.sqlite.createConnection(
+          this.dbName,
+          false,
+          'no-encryption',
+          1,
+          false
+        );
+
+        await this.db.open();
+        await this.createSchema();
+        await this.runMigrations();
       } else {
         // Web platform - clear localStorage and reinitialize
         localStorage.removeItem(this.STORAGE_KEY);

@@ -11,6 +11,8 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
   let dbExecuteQuerySpy: jasmine.Spy;
   let taskCycleServiceSpy: jasmine.SpyObj<Pick<TaskCycleService, 'getCurrentCycle' | 'resolveCycle' | 'createNextCycle'>>;
   let scheduleNotificationSpy: jasmine.Spy;
+  let sendNotificationSpy: jasmine.Spy;
+  let cancelNotificationSpy: jasmine.Spy;
 
   const mockTask: Task = {
     id: 1,
@@ -36,9 +38,12 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
 
     const platformStub = { is: () => false };
     scheduleNotificationSpy = jasmine.createSpy('scheduleNotification').and.returnValue(Promise.resolve());
+    sendNotificationSpy = jasmine.createSpy('sendNotification').and.returnValue(Promise.resolve());
+    cancelNotificationSpy = jasmine.createSpy('cancelNotification').and.returnValue(Promise.resolve());
     const notificationMock = {
       scheduleNotification: scheduleNotificationSpy,
-      sendNotification: jasmine.createSpy('sendNotification').and.returnValue(Promise.resolve()),
+      sendNotification: sendNotificationSpy,
+      cancelNotification: cancelNotificationSpy,
     };
 
     TestBed.configureTestingModule({
@@ -97,12 +102,12 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
   });
 
   describe('pauseTask (Phase 4)', () => {
-    it('should call executeQuery with UPDATE state to paused', async () => {
+    it('should call executeQuery with parameterized UPDATE state to paused', async () => {
       dbExecuteQuerySpy.and.returnValue(Promise.resolve({ changes: {} }));
       await service.pauseTask(1);
       expect(dbExecuteQuerySpy).toHaveBeenCalledWith(
-        "UPDATE tasks SET state = 'paused' WHERE id = ?",
-        [1]
+        "UPDATE tasks SET state = ? WHERE id = ?",
+        ['paused', 1]
       );
     });
   });
@@ -116,8 +121,8 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
       );
       await service.resumeTask(1);
       expect(dbExecuteQuerySpy).toHaveBeenCalledWith(
-        "UPDATE tasks SET state = 'active' WHERE id = ?",
-        [1]
+        "UPDATE tasks SET state = ? WHERE id = ?",
+        ['active', 1]
       );
       expect(taskCycleServiceSpy.createNextCycle).toHaveBeenCalledWith(jasmine.objectContaining({ id: 1, state: 'active' }));
     });
@@ -167,20 +172,22 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
   });
 
   describe('Phase 9 US7: notifications with lifecycle', () => {
-    it('getTasksWithPushNotifications should return only tasks with state active (T039)', async () => {
+    it('getTasksWithPushNotifications should return only active tasks for local types (push/alarm)', async () => {
       dbExecuteQuerySpy.and.returnValue(
         Promise.resolve({
           values: [
             { id: 1, title: 'T1', type: 'Custom', frequency: 'daily', startDate: '2025-01-01', notificationTime: '09:00', notificationType: 'push', state: 'active', isArchived: 0 },
-            { id: 2, title: 'T2', type: 'Custom', frequency: 'daily', startDate: '2025-01-01', notificationTime: '09:00', notificationType: 'push', state: 'paused', isArchived: 0 },
-            { id: 3, title: 'T3', type: 'Custom', frequency: 'daily', startDate: '2025-01-01', notificationTime: '09:00', notificationType: 'push', state: null, isArchived: 1 },
+            { id: 2, title: 'T2', type: 'Custom', frequency: 'daily', startDate: '2025-01-01', notificationTime: '09:00', notificationType: 'alarm', state: 'active', isArchived: 0 },
+            { id: 3, title: 'T3', type: 'Custom', frequency: 'daily', startDate: '2025-01-01', notificationTime: '09:00', notificationType: 'push', state: 'paused', isArchived: 0 },
+            { id: 4, title: 'T4', type: 'Custom', frequency: 'daily', startDate: '2025-01-01', notificationTime: '09:00', notificationType: 'alarm', state: null, isArchived: 1 },
           ],
         })
       );
       const tasks = await service.getTasksWithPushNotifications();
-      expect(tasks.length).toBe(1);
+      expect(tasks.length).toBe(2);
       expect(tasks[0].state).toBe('active');
       expect(tasks[0].id).toBe(1);
+      expect(tasks[1].id).toBe(2);
     });
 
     it('rescheduleAllPendingNotifications should call scheduleNotification with dueAt when cycle is open', async () => {
@@ -207,6 +214,99 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
       expect(scheduleNotificationSpy).toHaveBeenCalledWith(jasmine.anything(), false, jasmine.any(Date));
       const scheduledAt = scheduleNotificationSpy.calls.mostRecent().args[2] as Date;
       expect(scheduledAt.toISOString()).toBe(dueAt);
+    });
+
+    it('scheduleTaskNotification should treat alarm as local scheduling path', async () => {
+      scheduleNotificationSpy.calls.reset();
+      sendNotificationSpy.calls.reset();
+      taskCycleServiceSpy.getCurrentCycle.and.returnValue(Promise.resolve(null));
+
+      const alarmTask: Task = {
+        ...mockTask,
+        id: 22,
+        notificationType: 'alarm',
+        state: 'active',
+      };
+
+      await (service as any).scheduleTaskNotification(alarmTask);
+
+      expect(scheduleNotificationSpy).toHaveBeenCalledTimes(1);
+      expect(scheduleNotificationSpy.calls.mostRecent().args[0].notificationType).toBe('alarm');
+      expect(sendNotificationSpy).not.toHaveBeenCalled();
+    });
+
+    it('updateTask should cancel existing local notification and reschedule when switching push <-> alarm', async () => {
+      scheduleNotificationSpy.calls.reset();
+      cancelNotificationSpy.calls.reset();
+
+      let currentType: 'push' | 'alarm' = 'alarm';
+      dbExecuteQuerySpy.and.callFake((query: string) => {
+        if (query.startsWith('UPDATE tasks SET')) {
+          return Promise.resolve({ changes: { changes: 1 } });
+        }
+
+        if (query === 'SELECT * FROM tasks WHERE id = ?') {
+          return Promise.resolve({
+            values: [{
+              id: 1,
+              title: 'T',
+              type: 'Custom',
+              frequency: 'daily',
+              startDate: '2025-01-01',
+              notificationTime: '09:00',
+              notificationType: currentType,
+              state: 'active',
+              isArchived: 0,
+            }],
+          });
+        }
+
+        return Promise.resolve({ values: [], changes: {} });
+      });
+
+      await service.updateTask({ ...mockTask, id: 1, notificationType: 'alarm', state: 'active' });
+      expect(cancelNotificationSpy).toHaveBeenCalledWith(1);
+      expect(scheduleNotificationSpy.calls.mostRecent().args[0].notificationType).toBe('alarm');
+
+      currentType = 'push';
+      await service.updateTask({ ...mockTask, id: 1, notificationType: 'push', state: 'active' });
+      expect(cancelNotificationSpy).toHaveBeenCalledTimes(2);
+      expect(scheduleNotificationSpy.calls.count()).toBe(2);
+      expect(scheduleNotificationSpy.calls.mostRecent().args[0].notificationType).toBe('push');
+    });
+
+    it('updateTask should cancel local pending notification and not reschedule when updated to silent', async () => {
+      scheduleNotificationSpy.calls.reset();
+      cancelNotificationSpy.calls.reset();
+
+      dbExecuteQuerySpy.and.callFake((query: string) => {
+        if (query.startsWith('UPDATE tasks SET')) {
+          return Promise.resolve({ changes: { changes: 1 } });
+        }
+
+        if (query === 'SELECT * FROM tasks WHERE id = ?') {
+          return Promise.resolve({
+            values: [{
+              id: 1,
+              title: 'T',
+              type: 'Custom',
+              frequency: 'daily',
+              startDate: '2025-01-01',
+              notificationTime: '09:00',
+              notificationType: 'silent',
+              state: 'active',
+              isArchived: 0,
+            }],
+          });
+        }
+
+        return Promise.resolve({ values: [], changes: {} });
+      });
+
+      await service.updateTask({ ...mockTask, id: 1, notificationType: 'silent', state: 'active' });
+
+      expect(cancelNotificationSpy).toHaveBeenCalledWith(1);
+      expect(scheduleNotificationSpy).not.toHaveBeenCalled();
     });
   });
 });

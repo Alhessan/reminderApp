@@ -5,9 +5,14 @@ const config: CapacitorConfig = {
   appName: 'RoutineLoop',
   webDir: 'www',
   plugins: {
+    SplashScreen: {
+      launchShowDuration: 0,
+      launchAutoHide: true,
+      showSpinner: false,
+    },
     LocalNotifications: {
       smallIcon: 'ic_launcher_foreground',
-      iconColor: '#667eea',
+      iconColor: '#2CB996',
     },
     CapacitorSQLite: {
       androidIsEncryption: false,

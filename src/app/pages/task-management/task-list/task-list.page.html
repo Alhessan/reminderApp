@@ -29,8 +29,8 @@
     </ion-buttons>
   </ion-toolbar>
 
-  <ion-toolbar class="full-width  tabs-toolbar">
-    <ion-segment [(ngModel)]="filterSegment" (ionChange)="segmentChanged($event)" value="all" class="full-width">
+  <ion-toolbar class="full-width tabs-toolbar">
+    <ion-segment [(ngModel)]="filterSegment" (ionChange)="segmentChanged($event)" value="all" scrollable="true" class="full-width">
       <ion-segment-button value="all">
         <ion-label>All</ion-label>
       </ion-segment-button>
@@ -42,6 +42,9 @@
       </ion-segment-button>
       <ion-segment-button value="overdue">
         <ion-label>Overdue</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="paused">
+        <ion-label>Paused</ion-label>
       </ion-segment-button>
     </ion-segment>
   </ion-toolbar>
@@ -57,9 +60,10 @@
     <div *ngIf="!isLoading && (!filteredTasks || filteredTasks.length === 0)" class="empty-state">
       <ion-icon name="calendar-outline" color="medium"></ion-icon>
       <h3>No Routines Found</h3>
-      <p *ngIf="!customerNameFilter">Add your first routine to get started.</p>
-      <p *ngIf="customerNameFilter">No routines found for this contact.</p>
-      <ion-button *ngIf="!customerNameFilter" (click)="navigateAddTask()" expand="block" fill="clear">
+      <p *ngIf="filterSegment !== 'paused' && !customerNameFilter">Add your first routine to get started.</p>
+      <p *ngIf="filterSegment !== 'paused' && customerNameFilter">No routines found for this contact.</p>
+      <p *ngIf="filterSegment === 'paused'">No paused routines. Pause a routine from its detail page.</p>
+      <ion-button *ngIf="filterSegment !== 'paused' && !customerNameFilter" (click)="navigateAddTask()" expand="block" fill="clear">
         Add Routine
       </ion-button>
     </div>

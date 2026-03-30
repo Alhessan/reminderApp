@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
 import { LocalNotifications, ScheduleOptions, ScheduleResult, PendingResult, PermissionStatus as LocalNotificationPermissionStatus, LocalNotificationDescriptor } from '@capacitor/local-notifications'; // Use alias for PermissionStatus from local-notifications, Import LocalNotificationDescriptor
 import { Task, NotificationPayload } from '../models/task.model';
 import { Platform } from '@ionic/angular';
@@ -7,6 +7,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
 import { from, Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
+import { AlarmService } from './alarm.service';
 
 /** Android notification channel ID for task reminders (must exist or notifications won't show on real devices) */
 const REMINDERS_CHANNEL_ID = 'reminders';
@@ -17,8 +18,13 @@ const REMINDERS_CHANNEL_ID = 'reminders';
 export class NotificationService {
   private readonly API_URL = environment.apiUrl + '/notifications/send';
   private channelCreated = false;
+  private alarmChannelCreated = false;
 
-  constructor(private platform: Platform, private http: HttpClient) { }
+  constructor(
+    private platform: Platform,
+    private http: HttpClient,
+    private injector: Injector
+  ) { }
 
   /**
    * Create the reminders notification channel on Android (required for notifications to show on real devices).
@@ -40,15 +46,30 @@ export class NotificationService {
     }
   }
 
+  private async ensureAlarmChannel(): Promise<void> {
+    if (!this.platform.is('capacitor') || this.alarmChannelCreated) return;
+    try {
+      await LocalNotifications.createChannel({
+        id: 'alarm',
+        name: 'Alarm Reminders',
+        description: 'High-priority alarm notifications',
+        importance: 5, // IMPORTANCE_HIGH = 4, IMPORTANCE_MAX = 5
+        vibration: true,
+        sound: 'alarm'  // references res/raw/alarm.mp3 without extension
+      });
+      this.alarmChannelCreated = true;
+    } catch (e) {
+      console.warn('NotificationService: Could not create alarm channel', e);
+    }
+  }
+
   async hasNotificationPermissions(): Promise<boolean> {
     if (this.platform.is('capacitor')) {
       const status = await LocalNotifications.checkPermissions();
-      console.log('Capacitor notification permission status:', status);
       return status.display === 'granted';
     } else {
       const supported = 'Notification' in window;
       const permission = supported ? Notification.permission : 'denied';
-      console.log('Browser notification support:', { supported, permission });
       return supported && permission === 'granted';
     }
   }
@@ -56,24 +77,18 @@ export class NotificationService {
   async requestNotificationPermissions(): Promise<boolean> {
     if (this.platform.is('capacitor')) {
       const status = await LocalNotifications.requestPermissions();
-      console.log('Capacitor permission request result:', status);
       return status.display === 'granted';
     } else if ('Notification' in window) {
       const permission = await Notification.requestPermission();
-      console.log('Browser permission request result:', permission);
       return permission === 'granted';
-  }
-    console.log('Notifications not supported in this environment');
-      return false;
+    }
+    return false;
   }
 
   private async showBrowserNotification(title: string, options: NotificationOptions) {
-    console.log('NotificationService: Attempting to show browser notification');
-    
     try {
       // Try ServiceWorker notification first if available
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        console.log('NotificationService: Using ServiceWorker for notification');
         const registration = await navigator.serviceWorker.ready;
         await registration.showNotification(title, {
           ...options,
@@ -85,7 +100,6 @@ export class NotificationService {
       }
 
       // Fallback to regular Notification API
-      console.log('NotificationService: Using regular Notification API');
       const notification = new Notification(title, {
         ...options,
         requireInteraction: true,
@@ -94,13 +108,11 @@ export class NotificationService {
 
       // Add event handlers
       notification.onclick = () => {
-        console.log('NotificationService: Notification clicked');
         window.focus();
         notification.close();
       };
 
       notification.onshow = () => {
-        console.log('NotificationService: Notification shown');
       };
 
       notification.onerror = (error) => {
@@ -118,8 +130,12 @@ export class NotificationService {
 
   /** When scheduledAt is provided (e.g. cycle.dueAt), use it instead of computing from task.startDate+notificationTime. */
   async scheduleNotification(task: Task, isTestMode: boolean = false, scheduledAt?: Date): Promise<void> {
+    // Do not schedule notifications for paused tasks
+    if (task.state === 'paused') {
+      return;
+    }
+
     try {
-      console.log('NotificationService: Starting notification scheduling for task:', task);
 
       if (this.platform.is('capacitor')) {
         const hasPermission = await this.hasNotificationPermissions();
@@ -131,20 +147,16 @@ export class NotificationService {
       // Check browser notification support and permissions first
       if (!this.platform.is('capacitor')) {
         if (!('Notification' in window)) {
-          console.log('NotificationService: Browser does not support notifications');
           return;
         }
 
         // Request permission if not granted
         if (Notification.permission !== 'granted') {
-          console.log('NotificationService: Requesting notification permission');
           const permission = await Notification.requestPermission();
           if (permission !== 'granted') {
-            console.log('NotificationService: Notification permission denied');
             return;
           }
         }
-        console.log('NotificationService: Notification permission granted');
       }
 
       const now = new Date();
@@ -159,17 +171,11 @@ export class NotificationService {
         if (task.frequency === 'daily') {
           repeatInterval = 60000; // 1 minute
         }
-        console.log('NotificationService: Test Mode -', {
-          firstNotification: notificationDate.toLocaleString(),
-          repeating: !!repeatInterval,
-          repeatInterval: repeatInterval ? 'every minute' : 'none'
-        });
       } else {
         // Normal mode - use cycle dueAt when provided, else task's scheduled time
         if (scheduledAt) {
           notificationDate = new Date(scheduledAt);
           if (notificationDate < now) {
-            console.log('NotificationService: scheduledAt is in the past, skipping');
             return;
           }
         } else {
@@ -182,7 +188,6 @@ export class NotificationService {
               notificationDate.setHours(hours, minutes, 0, 0);
               if (notificationDate < now) notificationDate.setDate(notificationDate.getDate() + 1);
             } else {
-              console.log('NotificationService: Non-daily notification time is in the past, skipping');
               return;
             }
           }
@@ -192,7 +197,6 @@ export class NotificationService {
       if (!this.platform.is('capacitor')) {
         // Handle web browser notifications
         const scheduleNextNotification = async () => {
-          console.log('NotificationService: Creating notification now at:', new Date().toLocaleString());
           try {
             await this.showBrowserNotification(task.title, {
               body: task.notes || 'Task reminder',
@@ -204,14 +208,12 @@ export class NotificationService {
                 customerId: task.customerId
               }
             });
-            console.log('NotificationService: Browser notification created successfully');
             
             // Schedule next notification based on mode and frequency
             if (task.frequency === 'daily') {
               if (isTestMode && repeatInterval) {
                 // In test mode, schedule next notification after the repeat interval
                 const nextNotification = new Date(Date.now() + repeatInterval);
-                console.log('NotificationService: Test Mode - Scheduling next notification for:', nextNotification.toLocaleString());
                 const timeoutId = setTimeout(scheduleNextNotification, repeatInterval);
                 this.notificationTimeouts.set(task.id!, timeoutId);
               } else {
@@ -229,21 +231,12 @@ export class NotificationService {
 
         // Calculate initial timeout
         const timeoutMs = notificationDate.getTime() - now.getTime();
-        
-        console.log('NotificationService: Scheduling notification:', {
-          mode: isTestMode ? 'TEST' : 'NORMAL',
-          timeoutMs,
-          scheduledTime: notificationDate.toLocaleString(),
-          currentTime: now.toLocaleString(),
-          repeating: !!repeatInterval
-        });
 
         // Clear any existing timeout for this task
         const existingTimeoutId = this.notificationTimeouts.get(task.id!);
         if (existingTimeoutId) {
           clearTimeout(existingTimeoutId);
           this.notificationTimeouts.delete(task.id!);
-          console.log('NotificationService: Cleared existing timeout for task:', task.id);
         }
 
         // Schedule the initial notification
@@ -253,26 +246,37 @@ export class NotificationService {
       }
 
       // Handle mobile notifications using Capacitor (channel + allowWhileIdle for real devices)
-      await this.ensureNotificationChannel();
-      console.log('NotificationService: Scheduling Capacitor notification for:', notificationDate.toLocaleString());
+      // Determine channel based on notificationType
+      const channelId = task.notificationType === 'alarm' ? 'alarm' : REMINDERS_CHANNEL_ID;
+
+      if (task.notificationType === 'alarm') {
+        await this.ensureAlarmChannel();
+      } else {
+        await this.ensureNotificationChannel();
+      }
+
       await LocalNotifications.schedule({
         notifications: [{
           id: task.id!,
           title: task.title,
-          body: task.notes || 'Task reminder',
-          channelId: REMINDERS_CHANNEL_ID,
+          body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
+          channelId: channelId,
           schedule: {
             at: notificationDate,
             allowWhileIdle: true
           },
           extra: {
             taskId: task.id,
-            customerId: task.customerId
+            customerId: task.customerId,
+            notificationType: task.notificationType
           }
         }]
       });
 
-      console.log('NotificationService: Successfully scheduled notification');
+      // Store alarm task for when notification fires
+      if (task.notificationType === 'alarm') {
+        this.injector.get(AlarmService).storeAlarmTask(task);
+      }
     } catch (error) {
       console.error('NotificationService: Error scheduling notification:', error);
       throw error;
@@ -294,7 +298,6 @@ export class NotificationService {
         if (timeoutId) {
           clearTimeout(timeoutId);
           this.notificationTimeouts.delete(taskId);
-          console.log('NotificationService: Cancelled pending web notification for task:', taskId);
         }
       }
     } catch (error) {
@@ -318,12 +321,7 @@ export class NotificationService {
 
         if (notificationsToCancel.length > 0) {
             await LocalNotifications.cancel({ notifications: notificationsToCancel });
-            console.log('All valid pending notifications cancelled.');
-        } else {
-            console.log('No valid pending notifications to cancel after parsing IDs.');
         }
-      } else {
-        console.log('No pending notifications to cancel.');
       }
     } catch (error) {
       console.error('Error cancelling all notifications:', error);
@@ -335,15 +333,27 @@ export class NotificationService {
 
     await this.ensureNotificationChannel();
 
-    LocalNotifications.addListener('localNotificationReceived', (notification) => {
-      console.log('Local notification received:', notification);
+    LocalNotifications.addListener('localNotificationReceived', async (notification) => {
+      const extra = notification.extra as any;
+      if (extra?.notificationType === 'alarm') {
+        // Get the stored alarm task
+        const task = this.injector.get(AlarmService).getPendingAlarmTask();
+        if (task) {
+          await this.injector.get(AlarmService).onAlarmNotificationFired(task);
+        }
+      }
     });
 
-    LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
-      console.log('Local notification action performed:', notificationAction);
-      const taskId = notificationAction.notification.extra?.taskId;
+    LocalNotifications.addListener('localNotificationActionPerformed', async (notificationAction) => {
+      const extra = notificationAction.notification.extra as any;
+      const taskId = extra?.taskId;
+      const notificationType = extra?.notificationType;
+
       if (taskId) {
-        console.log('Navigate to task:', taskId);
+        // For alarm notifications, stop the alarm when user taps
+        if (notificationType === 'alarm') {
+          await this.injector.get(AlarmService).dismissAlarm(taskId);
+        }
       }
     });
   }

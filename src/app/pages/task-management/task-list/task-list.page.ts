@@ -81,9 +81,14 @@ export class TaskListPage implements OnInit {
 
     this.taskListSubscription = this.taskCycleService.taskList$.subscribe({
       next: (tasks) => {
-        this.filteredTasks = this.customerIdFilter != null
+        let filtered = this.customerIdFilter != null
           ? tasks.filter(t => t.task.customerId === this.customerIdFilter)
           : tasks;
+        // Filter by status tab
+        if (this.filterSegment === 'paused') {
+          filtered = filtered.filter(t => t.task.state === 'paused');
+        }
+        this.filteredTasks = filtered;
         this.isLoading = false;
       },
       error: (error) => {
@@ -121,11 +126,8 @@ export class TaskListPage implements OnInit {
 
   async loadTasks() {
     this.isLoading = true;
-    console.log('TaskListPage: Loading tasks with filter:', this.filterSegment);
     try {
       await this.taskCycleService.loadTaskList(this.filterSegment as 'all' | 'due' | 'upcoming' | 'overdue');
-      console.log('TaskListPage: Task list loaded successfully');
-      console.log('TaskListPage: Current filtered tasks:', this.filteredTasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
       this.presentErrorAlert('Failed to load tasks. Please try again.');
@@ -134,7 +136,7 @@ export class TaskListPage implements OnInit {
 
   async segmentChanged(event: any) {
     this.filterSegment = event.detail.value;
-    const view = this.filterSegment as 'all' | 'due' | 'upcoming' | 'overdue';
+    const view = this.filterSegment as 'all' | 'due' | 'upcoming' | 'overdue' | 'paused';
     await this.taskCycleService.loadTaskList(view);
   }
 
@@ -193,20 +195,8 @@ export class TaskListPage implements OnInit {
     this.loadTasks();
   }
 
-  // Add this method to debug navigation issues
-debugNavigation() {
-  console.log('Current route:', this.router.url);
-  console.log('Route configuration:', this.router.config);
-  
-  // Test navigation with promise to catch errors
-  this.router.navigate(['/tasks/new']).then(
-    (success) => console.log('Navigation success:', success),
-    (error) => console.error('Navigation error:', error)
-  );
-}
-
-// Update your navigation methods to include error handling
-async navigateAddTask() {
+  // Update your navigation methods to include error handling
+  async navigateAddTask() {
   try {
     // Remove focus from any active element before navigation
     const activeElement = document.activeElement as HTMLElement;

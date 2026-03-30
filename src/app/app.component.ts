@@ -1,15 +1,19 @@
-import { Component } from '@angular/core';
+import { Component, NgZone } from '@angular/core';
 import { DatabaseService } from './services/database.service';
 import { Platform, IonicModule, AlertController, NavController } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
-import { RouterLink, RouterOutlet, Router } from '@angular/router'; // Add Router import
+import { RouterLink, RouterOutlet, Router } from '@angular/router';
 import { NotificationService } from './services/notification.service';
 import { environment } from '../environments/environment';
+import { SampleDataService } from './services/sample-data.service';
+import { TaskCycleService } from './services/task-cycle.service';
+import { TaskService } from './services/task.service';
+import { AlarmService } from './services/alarm.service';
 import { addIcons } from 'ionicons';
-import { 
-  peopleOutline, 
-  checkboxOutline, 
-  settingsOutline, 
+import {
+  peopleOutline,
+  checkboxOutline,
+  settingsOutline,
   notificationsOutline,
   documentTextOutline,
   informationCircleOutline,
@@ -76,9 +80,6 @@ import {
   closeCircleOutline,
   ellipseOutline
 } from 'ionicons/icons';
-import { SampleDataService } from './services/sample-data.service';
-import { TaskCycleService } from './services/task-cycle.service';
-import { TaskService } from './services/task.service';
 
 @Component({
   selector: 'app-root',
@@ -100,18 +101,32 @@ export class AppComponent {
     { title: 'Notification Methods', url: '/settings/notification-types', icon: 'notifications-outline' }
   ];
 
+  // Logo images for branding — switches between dark/light mode (Phase 6 US4)
+  logoLight = '/assets/logo/text-logo-light.png';
+  logoDark = '/assets/logo/text-logo-dark.png';
+
+  /** Returns the logo path based on current color scheme. */
+  get currentLogo(): string {
+    return this.isDarkMode ? this.logoDark : this.logoLight;
+  }
+
+  private isDarkMode = false;
+  private darkModeListener: MediaQueryList | null = null;
+
   constructor(
     private platform: Platform,
     private databaseService: DatabaseService,
     private notificationService: NotificationService,
+    private alarmService: AlarmService,
     private alertController: AlertController,
     private sampleDataService: SampleDataService,
     public router: Router,
     private navController: NavController,
     private taskCycleService: TaskCycleService,
-    private taskService: TaskService
+    private taskService: TaskService,
+    private ngZone: NgZone
   ) {
-    // Register Ionic icons first (synchronous operation)
+    // Register Ionic icons (required for Ionic 8 - icons must be explicitly registered)
     addIcons({
       'people-outline': peopleOutline,
       'checkbox-outline': checkboxOutline,
@@ -183,7 +198,7 @@ export class AppComponent {
       'bar-chart-outline': barChartOutline,
       'reload-outline': reloadOutline
     });
-    
+
     // Initialize app (will wait for platform ready inside initializeApp)
     this.initializeApp();
     
@@ -196,6 +211,14 @@ export class AppComponent {
    * This ensures all native plugins are available before use
    */
   async initializeApp() {
+    // Detect and watch dark/light mode for logo switching
+    this.updateDarkMode();
+    this.darkModeListener = window.matchMedia('(prefers-color-scheme: dark)');
+    // Wrap in NgZone to trigger Angular change detection when system theme changes
+    this.darkModeListener.addEventListener('change', () => {
+      this.ngZone.run(() => this.updateDarkMode());
+    });
+
     // For web/browser, proceed without waiting for platform ready
     if (!this.platform.is('cordova') && !this.platform.is('capacitor')) {
       await this.performInitialization();
@@ -205,6 +228,10 @@ export class AppComponent {
     // Wait for platform to be fully ready (for native platforms)
     await this.platform.ready();
     await this.performInitialization();
+  }
+
+  private updateDarkMode(): void {
+    this.isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
   /**
@@ -263,6 +290,11 @@ export class AppComponent {
 
           // Register listeners and create Android channel before any scheduling
           await this.notificationService.registerNotificationListeners();
+
+          // Preload alarm sound for alarm notifications
+          await this.alarmService.preloadAlarm().catch(err =>
+            console.warn('[App] Preload alarm:', err)
+          );
 
           // Reschedule all push notifications (e.g. after app restart)
           await this.taskService.rescheduleAllPendingNotifications().catch(err =>

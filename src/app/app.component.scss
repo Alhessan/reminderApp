@@ -5,6 +5,22 @@
   background: var(--ion-background-color);
 }
 
+// Logo in menu header
+.menu-header {
+  --background: transparent !important;
+  --border-width: 0 !important;
+  background: transparent !important;
+
+  .app-logo {
+    display: block;
+    width: 100%;
+    max-width: 220px;
+    height: auto;
+    margin: 0 auto;
+    padding: 16px 0 12px;
+  }
+}
+
 ion-app {
   width: 100% !important;
   height: 100% !important;
