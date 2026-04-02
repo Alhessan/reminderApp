@@ -152,7 +152,7 @@ export class DatabaseService {
   private initializationPromise: Promise<void> | null = null;
   private isInitialized = false;
 
-  private currentVersion = 6; // Increment this when adding new migrations
+  private currentVersion = 7; // Increment this when adding new migrations
 
   private readonly tableSchemas: TableSchemas = {
     tasks: [
@@ -333,30 +333,55 @@ export class DatabaseService {
       }
       // Align task_cycles with current schema (resolution, dueAt, softDeadline, hardDeadline)
       this.normalizeWebStoreTaskCycles();
+
+      // Migration v7: Replace default task types
+      if (this.webStore['task_types'] && Array.isArray(this.webStore['task_types'])) {
+        const hasOldTypes = this.webStore['task_types'].some((t: any) =>
+          t.name === 'Payment' || t.name === 'Update' || t.name === 'Custom'
+        );
+        if (hasOldTypes) {
+          // Update tasks referencing old type names
+          if (this.webStore['tasks']) {
+            for (const task of this.webStore['tasks']) {
+              if (task.type === 'Payment') task.type = 'Health and Sports';
+              else if (task.type === 'Update') task.type = 'Social Activity';
+              else if (task.type === 'Custom') task.type = 'Culture and Learning';
+            }
+          }
+          // Replace task types with new defaults
+          this.webStore['task_types'] = [
+            { id: 1, name: 'Health and Sports', description: 'Health, fitness and sports activities', isDefault: 1, icon: 'fitness-outline', color: '#2dd36f' },
+            { id: 2, name: 'Social Activity', description: 'Social events and community activities', isDefault: 1, icon: 'people-outline', color: '#3880ff' },
+            { id: 3, name: 'Culture and Learning', description: 'Cultural events, learning and education', isDefault: 1, icon: 'book-outline', color: '#5260ff' }
+          ];
+          this.saveWebStoreToLocalStorage();
+        }
+      }
+
       if (!this.webStore['task_types']) {
         this.webStore['task_types'] = [
           {
             id: 1,
-            name: 'Payment',
-            description: 'Payment reminder tasks',
+            name: 'Health and Sports',
+            description: 'Health, fitness and sports activities',
             isDefault: 1,
-            icon: 'cash-outline',
+            icon: 'fitness-outline',
             color: '#2dd36f'
           },
           {
             id: 2,
-            name: 'Update',
-            description: 'General update tasks',
+            name: 'Social Activity',
+            description: 'Social events and community activities',
             isDefault: 1,
-            icon: 'refresh-outline',
+            icon: 'people-outline',
             color: '#3880ff'
           },
           {
             id: 3,
-            name: 'Custom',
-            description: 'Custom reminder tasks',
+            name: 'Culture and Learning',
+            description: 'Cultural events, learning and education',
             isDefault: 1,
-            icon: 'create-outline',
+            icon: 'book-outline',
             color: '#5260ff'
           }
         ];
@@ -399,26 +424,26 @@ export class DatabaseService {
       task_types: [
         {
           id: 1,
-          name: 'Payment',
-          description: 'Payment reminder tasks',
+          name: 'Health and Sports',
+          description: 'Health, fitness and sports activities',
           isDefault: 1,
-          icon: 'cash-outline',
+          icon: 'fitness-outline',
           color: '#2dd36f'
         },
         {
           id: 2,
-          name: 'Update',
-          description: 'General update tasks',
+          name: 'Social Activity',
+          description: 'Social events and community activities',
           isDefault: 1,
-          icon: 'refresh-outline',
+          icon: 'people-outline',
           color: '#3880ff'
         },
         {
           id: 3,
-          name: 'Custom',
-          description: 'Custom reminder tasks',
+          name: 'Culture and Learning',
+          description: 'Cultural events, learning and education',
           isDefault: 1,
-          icon: 'create-outline',
+          icon: 'book-outline',
           color: '#5260ff'
         }
       ],
@@ -611,6 +636,12 @@ export class DatabaseService {
       await this.setVersion(6);
     }
 
+    if (currentVersion < 7) {
+      console.log('[DB] Running migration v7: Replace default task types');
+      await this.migrateTaskTypesV7();
+      await this.setVersion(7);
+    }
+
     if (currentVersion < this.currentVersion) {
       console.log('[DB] All migrations complete at version', this.currentVersion);
     }
@@ -658,6 +689,30 @@ export class DatabaseService {
       )`,
       []
     );
+  }
+
+  /** Migration v7: Replace default task types (Payment/Update/Custom → Health and Sports/Social Activity/Culture and Learning) */
+  private async migrateTaskTypesV7(): Promise<void> {
+    // Update existing tasks that reference old type names
+    await this.executeQuery("UPDATE tasks SET type = 'Health and Sports' WHERE type = 'Payment'", []);
+    await this.executeQuery("UPDATE tasks SET type = 'Social Activity' WHERE type = 'Update'", []);
+    await this.executeQuery("UPDATE tasks SET type = 'Culture and Learning' WHERE type = 'Custom'", []);
+
+    // Remove old default task types
+    await this.executeQuery("DELETE FROM task_types WHERE name IN ('Payment', 'Update', 'Custom')", []);
+
+    // Insert new defaults
+    const newTypes = [
+      { name: 'Health and Sports', description: 'Health, fitness and sports activities', isDefault: 1, icon: 'fitness-outline', color: '#2dd36f' },
+      { name: 'Social Activity', description: 'Social events and community activities', isDefault: 1, icon: 'people-outline', color: '#3880ff' },
+      { name: 'Culture and Learning', description: 'Cultural events, learning and education', isDefault: 1, icon: 'book-outline', color: '#5260ff' }
+    ];
+    for (const type of newTypes) {
+      await this.executeQuery(
+        `INSERT OR IGNORE INTO task_types (name, description, isDefault, icon, color) VALUES (?, ?, ?, ?, ?)`,
+        [type.name, type.description, type.isDefault, type.icon, type.color]
+      );
+    }
   }
 
   /** Migration v2: Add isCompleted and lastCompletedDate columns (legacy - columns already in v1 schema) */
@@ -825,24 +880,24 @@ export class DatabaseService {
       // Add default task types
       const defaultTaskTypes = [
         {
-          name: 'Payment',
-          description: 'Payment reminder tasks',
+          name: 'Health and Sports',
+          description: 'Health, fitness and sports activities',
           isDefault: 1,
-          icon: 'cash-outline',
+          icon: 'fitness-outline',
           color: '#2dd36f'
         },
         {
-          name: 'Update',
-          description: 'General update tasks',
+          name: 'Social Activity',
+          description: 'Social events and community activities',
           isDefault: 1,
-          icon: 'refresh-outline',
+          icon: 'people-outline',
           color: '#3880ff'
         },
         {
-          name: 'Custom',
-          description: 'Custom reminder tasks',
+          name: 'Culture and Learning',
+          description: 'Cultural events, learning and education',
           isDefault: 1,
-          icon: 'create-outline',
+          icon: 'book-outline',
           color: '#5260ff'
         }
       ];
@@ -1226,15 +1281,18 @@ export class DatabaseService {
     }
 
     const whereMatch = statement.match(/WHERE (.*)/i);
+
+    let deletedCount: number;
     if (!whereMatch) {
-      throw new Error('DELETE statement must have a WHERE clause');
+      // DELETE FROM table (no WHERE) — truncate all rows
+      deletedCount = this.webStore[tableName].length;
+      this.webStore[tableName] = [];
+    } else {
+      const initialLength = this.webStore[tableName].length;
+      this.webStore[tableName] = this.webStore[tableName].filter((record: any) => 
+        !this.evaluateWhereCondition(record, whereMatch[1], values));
+      deletedCount = initialLength - this.webStore[tableName].length;
     }
-
-    const initialLength = this.webStore[tableName].length;
-    this.webStore[tableName] = this.webStore[tableName].filter((record: any) => 
-      !this.evaluateWhereCondition(record, whereMatch[1], values));
-
-    const deletedCount = initialLength - this.webStore[tableName].length;
     console.log(`Deleted ${deletedCount} records from ${tableName}`);
     return { changes: { changes: deletedCount } };
   }
@@ -1348,40 +1406,31 @@ export class DatabaseService {
         // Web platform - clear localStorage and reinitialize
         localStorage.removeItem(this.STORAGE_KEY);
         this.webStore = {};
-        
-        // Initialize with sample data
-      const now = new Date();
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const nextWeek = new Date(now);
-      nextWeek.setDate(nextWeek.getDate() + 7);
-      const nextMonth = new Date(now);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
 
         // Initialize task types
           this.webStore['task_types'] = [
         {
           id: 1,
-          name: 'Payment',
-          description: 'Payment reminder tasks',
+          name: 'Health and Sports',
+          description: 'Health, fitness and sports activities',
             isDefault: 1,
-          icon: 'cash-outline',
+          icon: 'fitness-outline',
           color: '#2dd36f'
         },
         {
           id: 2,
-          name: 'Update',
-          description: 'General update tasks',
+          name: 'Social Activity',
+          description: 'Social events and community activities',
             isDefault: 1,
-          icon: 'refresh-outline',
+          icon: 'people-outline',
           color: '#3880ff'
         },
         {
           id: 3,
-          name: 'Custom',
-          description: 'Custom reminder tasks',
+          name: 'Culture and Learning',
+          description: 'Cultural events, learning and education',
             isDefault: 1,
-          icon: 'create-outline',
+          icon: 'book-outline',
           color: '#5260ff'
         }
           ];
@@ -1402,78 +1451,17 @@ export class DatabaseService {
           order_num: type.order
         }));
 
-        // Sample tasks
-        const sampleTasks = [
-          {
-            id: 1,
-            title: 'Monthly Payment Review',
-            type: 'Payment',
-            frequency: 'monthly',
-            startDate: now.toISOString(),
-            notificationType: 'push',
-            notificationTime: '09:00',
-            isArchived: 0,
-            createdAt: now.toISOString()
-          },
-          {
-            id: 2,
-            title: 'Weekly Progress Update',
-            type: 'Update',
-            frequency: 'weekly',
-            startDate: now.toISOString(),
-            notificationType: 'push',
-            notificationTime: '10:00',
-            isArchived: 0,
-            createdAt: now.toISOString()
-          },
-          {
-            id: 3,
-            title: 'Daily System Check',
-            type: 'Custom',
-            frequency: 'daily',
-            startDate: now.toISOString(),
-            notificationType: 'push',
-            notificationTime: '08:00',
-            isArchived: 0,
-            createdAt: now.toISOString()
-          }
-        ];
+        // Sample tasks — handled by SampleDataService
+          this.webStore['tasks'] = [];
 
-          this.webStore['tasks'] = sampleTasks;
-
-        // Initialize task cycles (current schema: dueAt, softDeadline, hardDeadline, resolution)
-          this.webStore['task_cycles'] = sampleTasks.map((task, index) => {
-            const cycleStartDate = now.toISOString();
-            const [h, m] = (task.notificationTime || '00:00').split(':').map(Number);
-            const dueDate = new Date(cycleStartDate);
-            dueDate.setHours(h || 0, m || 0, 0, 0);
-            const dueAt = dueDate.toISOString();
-            const softDate = new Date(dueAt);
-            softDate.setMinutes(softDate.getMinutes() + 30);
-            const softDeadline = softDate.toISOString();
-            const graceHours = task.frequency === 'daily' ? 5 : task.frequency === 'weekly' ? 24 : 48;
-            const hardDate = new Date(dueAt);
-            hardDate.setTime(hardDate.getTime() + graceHours * 60 * 60 * 1000);
-            const hardDeadline = hardDate.toISOString();
-            return {
-              id: index + 1,
-              taskId: task.id,
-              cycleStartDate,
-              dueAt,
-              softDeadline,
-              hardDeadline,
-              resolution: 'open',
-              startedAt: null,
-              completedAt: null,
-              skippedAt: null
-            };
-          });
+        // Task cycles — handled by SampleDataService
+          this.webStore['task_cycles'] = [];
 
         // Initialize empty tables
           this.webStore['customers'] = [];
           this.webStore['task_history'] = [];
           this.webStore['notification_values'] = [];
-        this.webStore['database_version'] = [{ version: 1 }];
+        this.webStore['database_version'] = [{ version: this.currentVersion }];
 
         // Save changes
         this.saveWebStoreToLocalStorage();

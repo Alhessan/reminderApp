@@ -3,10 +3,6 @@
   "theme": "opencode",
   "autoupdate": true,
   "default_agent": "orchestrator",
-  "speckit": {
-      "enabled": true,
-      "specsDir": "specs"
-  },
   "instructions": [
     ".opencode/instructions/*.md"
   ]

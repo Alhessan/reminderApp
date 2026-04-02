@@ -11,18 +11,19 @@
 **Goal:** Ensure core reminders, task cycles, and local notifications are dependable on target devices.
 
 ### Checklist
-- [ ] Complete smoke tests for task create/edit/delete, cycle rules, customer links, and reminder scheduling.
-- [ ] Validate notification delivery (foreground/background/reboot) on key Android versions/devices.
-- [ ] Eliminate crash-level and data-loss bugs from critical paths.
-- [ ] Verify SQLite migration and upgrade paths on existing test data.
-- [ ] Add basic error logging/reporting workflow for production triage.
+- [x] Complete smoke tests for task create/edit/delete, cycle rules, customer links, and reminder scheduling.
+- [x] Validate notification delivery (foreground/background/reboot) on key Android versions/devices.
+- [x] Eliminate crash-level and data-loss bugs from critical paths.
+- [x] Verify SQLite migration and upgrade paths on existing test data.
+- [x] Add basic error logging/reporting workflow for production triage.
 
 ### Bug Fixes (User-Reported Issues)
-- [ ] **Delete Task confirm message** — Remove extra characters/tags from the confirmation dialog.
-- [ ] **"Due Now" state** — Ensure complete button is visible in task view when task is due.
-- [ ] **System back button** — Implement working back navigation via system/hardware back button.
-- [ ] **App Icon** — Fix icon to be properly contained within its space (no overflow/clipping).
-- [ ] **Splash screen** — Remove shadow overlay from splash screen.
+- [x] **Delete Task confirm message** — Remove extra characters/tags from the confirmation dialog.
+- [x] **"Due Now" state** — Ensure complete button is visible in task view when task is due.
+- [x] **System back button** — Implement working back navigation via system/hardware back button.
+- [x] **App Icon** — Fix icon to be properly contained within its space (no overflow/clipping).
+- [x] **Splash screen** — Remove shadow overlay from splash screen.
+- [x] **Timeline focus** — Center and emphasize current open cycle in timeline view.
 
 **Exit gate:** No Sev-1 bugs open, no data-loss issues, crash-free sessions target met (e.g., >99.5% in beta set), and all user-reported issues above resolved.
 
@@ -32,11 +33,11 @@
 **Goal:** Be submission-ready for store review and policy checks.
 
 ### Checklist
-- [ ] Finalize app metadata: title, short/long description, keywords.
-- [ ] Prepare store assets: icon, screenshots, feature graphic, promo text.
-- [ ] Publish privacy policy + support contact and link in-app.
-- [ ] Review permissions and disclosures (notifications, storage use, etc.).
-- [ ] Complete internal release checklist for versioning/signing/build reproducibility.
+- [x] Finalize app metadata: title, short/long description, keywords.
+- [x] Prepare store assets: icon, screenshots, feature graphic, promo text.
+- [x] Publish privacy policy + support contact and link in-app.
+- [x] Review permissions and disclosures (notifications, storage use, etc.).
+- [x] Complete internal release checklist for versioning/signing/build reproducibility.
 
 **Exit gate:** Full submission packet complete; compliance/privacy checklist signed off.
 

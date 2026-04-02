@@ -63,7 +63,7 @@
         <div class="profile-selection">
           <ng-container *ngIf="taskForm.get('customerId')?.value; else noProfile">
             <ion-item>
-              <ion-label position="stacked">Assigned to</ion-label>
+              <ion-label position="stacked">Connect to</ion-label>
               <ion-select 
                 formControlName="customerId"
                 [attr.aria-label]="'Assign to contact'">

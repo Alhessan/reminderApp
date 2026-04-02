@@ -40,7 +40,7 @@ export interface TimelineCycleItem {
             <div class="line-bg"></div>
 
             <div class="items-flex">
-              <div 
+              <div
                 class="node-item"
                 *ngFor="let item of cycles"
                 [class]="'is-' + item.displayStatus">
@@ -51,8 +51,10 @@ export interface TimelineCycleItem {
                 <span class="date-text">{{ formatDate(item.cycle) }}</span>
               </div>
               <div class="node-item is-upcoming" *ngIf="upcomingCycle">
+                <div class="upcoming-ring"></div>
+                <div class="upcoming-arrow">→</div>
                 <span class="day-text highlight">NEXT</span>
-                <div class="node-circle pulse">
+                <div class="node-circle pulse-glow">
                   <ion-icon name="flash"></ion-icon>
                 </div>
                 <span class="date-text">{{ formatDate(upcomingCycle) }}</span>
@@ -207,12 +209,79 @@ export interface TimelineCycleItem {
     .date-text { font-size: 0.75rem; font-weight: 700; color: var(--ion-text-color); }
     .highlight { color: var(--ion-color-primary); }
 
+    /* Upcoming Cycle Enhancements */
+    .is-upcoming { position: relative; }
+
+    .upcoming-ring {
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      right: -10px;
+      bottom: -10px;
+      border-radius: 20px;
+      border: 2px solid var(--ion-color-primary);
+      opacity: 0.3;
+      animation: ring-pulse 2s ease-in-out infinite;
+    }
+
+    .upcoming-arrow {
+      position: absolute;
+      top: -15px;
+      right: -8px;
+      font-size: 16px;
+      color: var(--ion-color-primary);
+      opacity: 0.8;
+      animation: arrow-bounce 1.5s ease-in-out infinite;
+    }
+
     /* Animations & Overlays */
-    .pulse { animation: pulse-border 2s infinite; }
+    .pulse { animation: pulse-border 2s ease-in-out infinite; }
+    .pulse-glow {
+      animation: pulse-glow 2s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0.6);
+    }
+
+    @keyframes pulse-border {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0.2);
+      }
+      50% {
+        box-shadow: 0 0 0 5px rgba(var(--ion-color-primary-rgb), 0);
+      }
+    }
+
     @keyframes pulse-border {
       0% { box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0.4); }
       70% { box-shadow: 0 0 0 8px rgba(var(--ion-color-primary-rgb), 0); }
       100% { box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0); }
+    }
+
+    @keyframes pulse-glow {
+      0% { box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0.7); }
+      50% { box-shadow: 0 0 0 15px rgba(var(--ion-color-primary-rgb), 0); }
+      100% { box-shadow: 0 0 0 0 rgba(var(--ion-color-primary-rgb), 0); }
+    }
+
+    @keyframes ring-pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 0.3;
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.6;
+      }
+    }
+
+    @keyframes arrow-bounce {
+      0%, 100% {
+        transform: translateX(0);
+        opacity: 0.6;
+      }
+      50% {
+        transform: translateX(5px);
+        opacity: 1;
+      }
     }
 
     .edge-fade {
@@ -242,28 +311,31 @@ export class TaskCycleTimelineComponent implements OnChanges, AfterViewInit {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['cycles'] && !changes['cycles'].firstChange) {
       this.isLoadingMore = false;
-      // When new items arrive (at the start of the list), we need to adjust 
-      // scroll so the user doesn't lose their place, but for simple "history",
-      // we just maintain current view.
     }
+    // Sort by cycle ID ascending (oldest first, newest last)
     this.cycles.sort((a, b) => {
-    if(!a && !b) return 0;
-    if(!a && b != null) return 1;
-    if(a && !b) return -1;
-    let aid = a?.cycle?.id ? a?.cycle?.id: 0;
-    let bid = b?.cycle?.id ? b?.cycle?.id: 0;
-    return aid - bid;
-    })
+      if (!a && !b) return 0;
+      if (!a && b != null) return 1;
+      if (a && !b) return -1;
+      const aid = a?.cycle?.id ? a?.cycle?.id : 0;
+      const bid = b?.cycle?.id ? b?.cycle?.id : 0;
+      return aid - bid;
+    });
+    // Re-scroll to the right whenever data changes
+    setTimeout(() => this.scrollToUpcomingCycle(), 150);
   }
 
   ngAfterViewInit(): void {
-    setTimeout(() => this.scrollToEnd(), 300);
+    setTimeout(() => this.scrollToUpcomingCycle(), 300);
   }
 
-  private scrollToEnd(): void {
+  private scrollToUpcomingCycle(): void {
     if (this.scrollContainer) {
-      const el = this.scrollContainer.nativeElement;
-      el.scrollLeft = el.scrollWidth;
+      const el = this.scrollContainer.nativeElement as HTMLElement;
+      // Cycles are ASC (oldest→newest left→right), upcoming is the last element.
+      // Scroll so the right end (newest + upcoming) is centered in the viewport.
+      const scrollTarget = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = scrollTarget;
       this.updateScrollFlags(el);
     }
   }
@@ -301,8 +373,5 @@ export class TaskCycleTimelineComponent implements OnChanges, AfterViewInit {
       'skipped': 'arrow-forward'
     };
     return icons[status] || 'ellipse';
-  }
-  compareCycles(a:TimelineCycleItem, b:TimelineCycleItem): number{
-    return 0;
   }
 }

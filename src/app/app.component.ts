@@ -1,8 +1,9 @@
-import { Component, NgZone } from '@angular/core';
+import { Component, NgZone, Optional } from '@angular/core';
 import { DatabaseService } from './services/database.service';
-import { Platform, IonicModule, AlertController, NavController } from '@ionic/angular';
+import { Platform, IonicModule, AlertController, NavController, IonRouterOutlet } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterOutlet, Router } from '@angular/router';
+import { App } from '@capacitor/app';
 import { NotificationService } from './services/notification.service';
 import { environment } from '../environments/environment';
 import { SampleDataService } from './services/sample-data.service';
@@ -110,6 +111,11 @@ export class AppComponent {
     return this.isDarkMode ? this.logoDark : this.logoLight;
   }
 
+  /** Whether the app is running in development (non-production) mode. */
+  get isDevMode(): boolean {
+    return !environment.production;
+  }
+
   private isDarkMode = false;
   private darkModeListener: MediaQueryList | null = null;
 
@@ -124,7 +130,8 @@ export class AppComponent {
     private navController: NavController,
     private taskCycleService: TaskCycleService,
     private taskService: TaskService,
-    private ngZone: NgZone
+    private ngZone: NgZone,
+    @Optional() private routerOutlet?: IonRouterOutlet
   ) {
     // Register Ionic icons (required for Ionic 8 - icons must be explicitly registered)
     addIcons({
@@ -351,17 +358,18 @@ export class AppComponent {
     });
 
     // Handle back button (Android) - Ionic best practice
-    this.platform.backButton.subscribeWithPriority(10, () => {
-      // Handle back button if needed
-      // You can add custom back button logic here
-      // Example: Close modals, navigate back, or exit app
-      const currentUrl = this.router.url;
-      if (currentUrl === '/' || currentUrl === '/home') {
-        // If at root, you might want to show exit confirmation
-        // For now, let default behavior handle it
-        return;
+    // Priority 10: Runs after overlays (100) and menu (99), but before navigation (0)
+    // This allows modals/menus to close first, then we handle back navigation
+    this.platform.backButton.subscribeWithPriority(10, async () => {
+      // Check if we can go back in the navigation stack
+      if (this.routerOutlet?.canGoBack()) {
+        // Pop the current view off the navigation stack
+        await this.routerOutlet.pop();
+      } else if (this.router.url !== '/tasks') {
+        // Not on root page and can't go back via outlet — navigate to tasks root
+        await this.navController.navigateRoot('/tasks', { animated: true });
       }
-      // Otherwise, let Ionic handle navigation
+      // If on root page (/tasks), do nothing — don't exit the app
     });
   }
 

@@ -127,7 +127,7 @@ export class TaskFormComponent implements OnInit, OnDestroy {
 
     this.taskForm = this.fb.group({
       title: ['', Validators.required],
-      type: ['Custom', Validators.required],
+      type: ['', Validators.required],
       customerId: [null],
       frequency: ['daily', Validators.required],
       startDate: [this.formatLocalDate(new Date()), Validators.required],

@@ -17,7 +17,7 @@
           </ion-menu-toggle>
         </ion-list>
 
-        <ion-list>
+        <ion-list *ngIf="isDevMode">
           <ion-list-header>Debug</ion-list-header>
           <ion-item button (click)="navigateTo('/db-inspector')">
             <ion-icon name="build-outline" slot="start"></ion-icon>
@@ -34,7 +34,9 @@
         </ion-list>
       </ion-content>
       <ion-footer>
-      
+        <ion-toolbar>
+          <ion-title class="version-text">RoutineLoop v1.0.0</ion-title>
+        </ion-toolbar>
       </ion-footer>
     </ion-menu>
     

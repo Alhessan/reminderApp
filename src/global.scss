@@ -10,6 +10,7 @@
   --ion-color-primary-contrast-rgb: 255, 255, 255;
   --ion-color-primary-shade: #1EABAB;
   --ion-color-primary-tint: #5DD9BE;
+  --app-primary-gradient: linear-gradient(135deg, var(--ion-color-primary) 0%, var(--ion-color-primary-shade) 100%);
 
   --ion-color-secondary: #9c27b0;
   --ion-color-secondary-rgb: 156, 39, 176;
@@ -122,6 +123,7 @@
   :root {
     --ion-background-color: #121212;
     --ion-background-color-rgb: 18, 18, 18;
+    --app-primary-gradient: linear-gradient(135deg, var(--ion-color-primary-shade) 0%, var(--ion-color-primary) 100%);
 
     --ion-text-color: #e0e0e0;
     --ion-text-color-rgb: 224, 224, 224;

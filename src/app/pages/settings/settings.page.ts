@@ -35,6 +35,22 @@ import { RouterModule } from '@angular/router';
             <p>Configure notification methods and preferences</p>
           </ion-label>
         </ion-item>
+
+        <ion-item button (click)="openPrivacyPolicy()" detail>
+          <ion-icon name="document-text-outline" slot="start"></ion-icon>
+          <ion-label>
+            <h2>Privacy Policy</h2>
+            <p>How we handle your data</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item button (click)="openSupport()" detail>
+          <ion-icon name="help-outline" slot="start"></ion-icon>
+          <ion-label>
+            <h2>Help &amp; Support</h2>
+            <p>Contact us or report an issue</p>
+          </ion-label>
+        </ion-item>
       </ion-list>
     </ion-content>
   `
@@ -42,5 +58,13 @@ import { RouterModule } from '@angular/router';
 export class SettingsPage {
   get isChildRoute(): boolean {
     return window.location.pathname !== '/settings';
+  }
+
+  openPrivacyPolicy(): void {
+    window.open('https://routineloop.app/privacy', '_blank');
+  }
+
+  openSupport(): void {
+    window.open('mailto:support@routineloop.app', '_blank');
   }
 } 

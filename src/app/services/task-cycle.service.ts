@@ -625,9 +625,9 @@ export class TaskCycleService {
   /** Delete all tasks and their cycles - used for regenerating sample data */
   async deleteAllTasks(): Promise<void> {
     // Delete in correct order (cycles first due to foreign key)
-    await this.db.executeQuery('DELETE FROM task_cycles WHERE 1=1');
-    await this.db.executeQuery('DELETE FROM task_history WHERE 1=1');
-    await this.db.executeQuery('DELETE FROM tasks WHERE 1=1');
+    await this.db.executeQuery('DELETE FROM task_cycles');
+    await this.db.executeQuery('DELETE FROM task_history');
+    await this.db.executeQuery('DELETE FROM tasks');
   }
 
   /** Delete all cycles for a specific task (used by sample data generation) */

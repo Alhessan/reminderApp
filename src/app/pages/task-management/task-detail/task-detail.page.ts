@@ -259,7 +259,7 @@ get missedCount(): number {
       this.timelineCycles = resolved.map((c) => ({
         cycle: c,
         displayStatus: (c.resolution === "done" ? "completed" : c.resolution === "lapsed" ? "missed" : "skipped") as CycleDisplayStatus,
-      }));
+      })).reverse();
       this.timelineUpcomingCycle = this.currentCycle?.resolution === "open" ? this.currentCycle : null;
     } catch (err) {
       console.error('[TaskDetail] loadTimelineSlice failed', err);
@@ -294,7 +294,7 @@ get missedCount(): number {
       cycle: c,
       displayStatus: (c.resolution === "done" ? "completed" : c.resolution === "lapsed" ? "missed" : "skipped") as CycleDisplayStatus,
     }));
-    this.timelineCycles = [...this.timelineCycles, ...more];
+    this.timelineCycles = [...more.reverse(), ...this.timelineCycles];
     this.timelineHasMore = this.timelineCycles.length < totalCount;
     this.timelineTotalCount = totalCount;
   }
@@ -344,9 +344,9 @@ get missedCount(): number {
     const now = Date.now();
     // No soft deadline (grace period = 0) — allow at or after due time
     if (soft === null || soft === undefined) return due <= now;
-    // Soft deadline set — allow only after soft deadline
+    // Soft deadline set — allow when due time OR soft deadline has passed (covers "Due Now" and "Overdue")
     const softMs = new Date(soft).getTime();
-    return softMs <= now;
+    return due <= now || softMs <= now;
   }
 
   async pauseTask() {

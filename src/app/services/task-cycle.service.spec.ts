@@ -201,7 +201,6 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
       dbExecuteQuerySpy.and.returnValue(
         Promise.resolve({
           values: [
-            mockCycleRow({ id: 0, resolution: 'open', hardDeadline: '2025-02-04T14:00:00.000Z' }),
             mockCycleRow({ id: 3, resolution: 'done', hardDeadline: '2025-02-03T14:00:00.000Z' }),
             mockCycleRow({ id: 2, resolution: 'lapsed', hardDeadline: '2025-02-02T14:00:00.000Z' }),
             mockCycleRow({ id: 1, resolution: 'skipped', hardDeadline: '2025-02-01T14:00:00.000Z' }),
@@ -215,23 +214,21 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
       expect(cycles[2].resolution).toBe('skipped');
       const sql = dbExecuteQuerySpy.calls.mostRecent().args[0];
       expect(sql).toContain('taskId = ?');
-      expect(sql).toContain('ORDER BY cycleStartDate DESC');
+      expect(sql).toContain('ORDER BY COALESCE(hardDeadline, cycleStartDate) DESC');
     });
 
     it('should respect limit and offset', async () => {
       dbExecuteQuerySpy.and.returnValue(
         Promise.resolve({
           values: [
-            mockCycleRow({ id: 1, resolution: 'done', hardDeadline: '2025-02-01T14:00:00.000Z' }),
             mockCycleRow({ id: 2, resolution: 'done', hardDeadline: '2025-02-02T14:00:00.000Z' }),
-            mockCycleRow({ id: 3, resolution: 'skipped', hardDeadline: '2025-02-03T14:00:00.000Z' }),
           ],
         })
       );
       const cycles = await service.getResolvedCycles(1, 1, 1);
       expect(cycles.length).toBe(1);
       expect(cycles[0].id).toBe(2);
-      expect(dbExecuteQuerySpy.calls.mostRecent().args[1]).toEqual([1]);
+      expect(dbExecuteQuerySpy.calls.mostRecent().args[1]).toEqual([1, 1, 1]);
     });
 
     it('should return empty array when no resolved cycles', async () => {
@@ -253,14 +250,19 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
         notificationType: 'push',
         state: 'active' as const,
       } as Task;
-      dbExecuteQuerySpy.and.returnValue(Promise.resolve({ changes: {} }));
+      // Return empty values for loadTaskList queries, { changes: {} } for the archive update
+      dbExecuteQuerySpy.and.callFake((sql: string) => {
+        if (sql.includes('state =') || sql.includes('isArchived =')) {
+          return Promise.resolve({ changes: {} });
+        }
+        return Promise.resolve({ values: [] });
+      });
       await service.createNextCycle(onceTask);
-      const updateCalls = dbExecuteQuerySpy.calls.all().filter(
-        (c: { args: unknown[] }) => typeof c.args[0] === 'string' && (c.args[0] as string).includes("state = 'archived'")
+      // Verify the archive update was called
+      expect(dbExecuteQuerySpy).toHaveBeenCalledWith(
+        "UPDATE tasks SET state = ?, isArchived = ? WHERE id = ?",
+        ['archived', 1, 99]
       );
-      expect(updateCalls.length).toBeGreaterThanOrEqual(1);
-      expect(updateCalls[0].args[0]).toContain("state = 'archived'");
-      expect(updateCalls[0].args[1]).toContain(99);
     });
   });
 

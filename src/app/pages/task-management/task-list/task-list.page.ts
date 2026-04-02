@@ -294,7 +294,7 @@ async navigateToArchive() {
   async deleteTask(taskId: number) {
     const alert = await this.alertController.create({
       header: 'Delete Task',
-      message: `Are you sure you want to delete this task?<br><br>This action cannot be undone and will delete:<br>• The task and all its settings<br>• All cycles and progress history<br>• All associated notifications`,
+      message: `Are you sure you want to delete this task?\n\nThis action cannot be undone and will delete:\n• The task and all its settings\n• All cycles and progress history\n• All associated notifications`,
       cssClass: 'delete-alert',
       buttons: [
         {

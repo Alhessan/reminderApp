@@ -160,6 +160,13 @@ ion-router-outlet {
   }
 }
 
+.version-text {
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--ion-color-medium);
+  padding: 8px 0;
+}
+
 ion-header {
   width: 100% !important;
 }

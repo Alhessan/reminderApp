@@ -6,10 +6,10 @@ const config: CapacitorConfig = {
   webDir: 'www',
   plugins: {
     SplashScreen: {
-      launchShowDuration: 3000, // Give it time to show
+      launchShowDuration: 0, // Skip Capacitor splash — use native splash only
       launchAutoHide: true,
       showSpinner: false,
-      androidScaleType: 'CENTER_CROP', // Use CENTER_CROP to fill the screen
+      androidScaleType: 'CENTER_CROP',
       splashFullScreen: true,
       splashImmersive: true,
     },

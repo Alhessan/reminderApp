@@ -39,7 +39,15 @@ export class TaskListComponent implements OnInit {
   }
 
   async loadTasks() {
-    await this.taskCycleService.loadTaskList(this.currentView);
+    // Map component view names to service view names
+    const viewMap: Record<string, 'all' | 'overdue' | 'due' | 'upcoming' | 'paused'> = {
+      'all': 'all',
+      'overdue': 'overdue',
+      'in_progress': 'due',  // "In Progress" maps to "due" (tasks that need attention now)
+      'upcoming': 'upcoming'
+    };
+    const serviceView = viewMap[this.currentView] || 'all';
+    await this.taskCycleService.loadTaskList(serviceView);
   }
 
   async onViewChange(event: any) {
@@ -229,7 +237,7 @@ export class TaskListComponent implements OnInit {
   async deleteTask(taskItem: TaskListItem) {
     const alert = await this.alertCtrl.create({
       header: 'Delete Task',
-      message: `Are you sure you want to delete this task?<br><br>This action cannot be undone and will delete:<br>• The task and all its settings<br>• All cycles and progress history<br>• All associated notifications`,
+      message: `Are you sure you want to delete this task?\n\nThis action cannot be undone and will delete:\n• The task and all its settings\n• All cycles and progress history\n• All associated notifications`,
       cssClass: 'delete-alert',
       buttons: [
         {
