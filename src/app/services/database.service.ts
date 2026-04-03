@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection, CapacitorSQLitePlugin, DBSQLiteValues, capSQLiteSet } from '@capacitor-community/sqlite';
 import { BehaviorSubject } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 const DEFAULT_NOTIFICATION_TYPES = [
   {
@@ -154,6 +155,10 @@ export class DatabaseService {
 
   private currentVersion = 7; // Increment this when adding new migrations
 
+  private log(...args: any[]) {
+    if (environment.enableConsoleLogs) console.log('[DB]', ...args);
+  }
+
   private readonly tableSchemas: TableSchemas = {
     tasks: [
       { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
@@ -230,7 +235,7 @@ export class DatabaseService {
   constructor() {
     this.sqlite = new SQLiteConnection(CapacitorSQLite);
     this.isNative = Capacitor.isNativePlatform();
-    console.log(`Running on ${this.isNative ? 'native' : 'web'} platform`);
+    this.log(`Running on ${this.isNative ? 'native' : 'web'} platform`);
     
     // DO NOT initialize database in constructor - it blocks the UI thread
     // Initialize lazily when first needed via initializeDatabase()
@@ -269,7 +274,7 @@ export class DatabaseService {
       // Web platform - use in-memory store with localStorage persistence
       await this.initializeWebDatabase();
     }
-    console.log(`Database ${this.dbName} initialized.`);
+    this.log(`Database ${this.dbName} initialized.`);
   }
 
   private async initializeNativeDatabase(): Promise<void> {
@@ -294,7 +299,7 @@ export class DatabaseService {
       await this.runMigrations();
 
       await this.createSchema();
-      console.log(`Native SQLite database ${this.dbName} initialized and schema created.`);
+      this.log(`Native SQLite database ${this.dbName} initialized and schema created.`);
     } catch (err) {
       console.error('Error initializing native database:', err);
       throw err;
@@ -309,7 +314,7 @@ export class DatabaseService {
       if (storedData) {
         try {
           this.webStore = JSON.parse(storedData);
-          console.log('Loaded web database from localStorage:', this.webStore);
+          this.log('Loaded web database from localStorage:', this.webStore);
         } catch (e) {
           console.error('Error parsing stored database, initializing empty database:', e);
           this.initializeEmptyWebStore();
@@ -408,7 +413,7 @@ export class DatabaseService {
       
       // Save the initialized store back to localStorage
       this.saveWebStoreToLocalStorage();
-      console.log('Web database initialized:', this.webStore);
+      this.log('Web database initialized:', this.webStore);
     } catch (error) {
       console.error('Error initializing web database:', error);
       throw error;
@@ -470,7 +475,7 @@ export class DatabaseService {
       isArchived: task.isArchived === 1 || task.isArchived === true || task.isArchived === 'true' ? 1 : 0
     }));
 
-    console.log('Initialized web store with default values:', this.webStore);
+    this.log('Initialized web store with default values:', this.webStore);
     this.saveWebStoreToLocalStorage();
   }
 
@@ -519,7 +524,7 @@ export class DatabaseService {
     try {
       const dataToStore = JSON.stringify(this.webStore);
       localStorage.setItem(this.STORAGE_KEY, dataToStore);
-      console.log('Web store saved to localStorage:', this.webStore);
+      this.log('Web store saved to localStorage:', this.webStore);
     } catch (error) {
       console.error('Error saving web store to localStorage:', error);
     }
@@ -610,7 +615,7 @@ export class DatabaseService {
 
   private async runMigrations() {
     const currentVersion = await this.getCurrentVersion();
-    console.log('[DB] Current version:', currentVersion, 'Latest:', this.currentVersion);
+    this.log('[DB] Current version:', currentVersion, 'Latest:', this.currentVersion);
 
     // Migration versions:
     // v1: Initial schema - creates all tables with full schema (consolidated)
@@ -619,37 +624,37 @@ export class DatabaseService {
     // v6: Task cycle redesign - adds state column, rebuilds task_cycles
     
     if (currentVersion < 1) {
-      console.log('[DB] Running migration v1: Initial schema');
+      this.log('[DB] Running migration v1: Initial schema');
       await this.consolidatedMigration();
       await this.setVersion(1);
     }
 
     if (currentVersion < 2) {
-      console.log('[DB] Running migration v2: Add completion columns');
+      this.log('[DB] Running migration v2: Add completion columns');
       await this.migrateAddTaskCompletionColumns();
       await this.setVersion(2);
     }
 
     if (currentVersion < 6) {
-      console.log('[DB] Running migration v6: Task cycle redesign');
+      this.log('[DB] Running migration v6: Task cycle redesign');
       await this.migrateTaskCycleRedesign();
       await this.setVersion(6);
     }
 
     if (currentVersion < 7) {
-      console.log('[DB] Running migration v7: Replace default task types');
+      this.log('[DB] Running migration v7: Replace default task types');
       await this.migrateTaskTypesV7();
       await this.setVersion(7);
     }
 
     if (currentVersion < this.currentVersion) {
-      console.log('[DB] All migrations complete at version', this.currentVersion);
+      this.log('[DB] All migrations complete at version', this.currentVersion);
     }
   }
 
   /** Migration v6: Task cycle redesign - adds state column, rebuilds task_cycles table */
   private async migrateTaskCycleRedesign(): Promise<void> {
-    console.log('[DB] Migration v6: Adding state column to tasks');
+    this.log('[DB] Migration v6: Adding state column to tasks');
     const isDuplicateColumn = (e: any) =>
       (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
     try {
@@ -659,19 +664,19 @@ export class DatabaseService {
       );
     } catch (e: any) {
       if (isDuplicateColumn(e)) {
-        console.log('[DB] Migration v6: state column already exists, skipping');
+        this.log('[DB] Migration v6: state column already exists, skipping');
       } else {
         throw e;
       }
     }
     
-    console.log('[DB] Migration v6: Syncing isArchived to state');
+    this.log('[DB] Migration v6: Syncing isArchived to state');
     await this.executeQuery(
       "UPDATE tasks SET state = 'archived' WHERE isArchived = 1 OR isArchived = '1'",
       []
     );
     
-    console.log('[DB] Migration v6: Rebuilding task_cycles table');
+    this.log('[DB] Migration v6: Rebuilding task_cycles table');
     await this.executeQuery('DROP TABLE IF EXISTS task_cycles', []);
     await this.executeQuery(
       `CREATE TABLE task_cycles (
@@ -717,7 +722,7 @@ export class DatabaseService {
 
   /** Migration v2: Add isCompleted and lastCompletedDate columns (legacy - columns already in v1 schema) */
   private async migrateAddTaskCompletionColumns(): Promise<void> {
-    console.log('[DB] Migration v2: Adding completion columns');
+    this.log('[DB] Migration v2: Adding completion columns');
     const isDuplicateColumn = (e: any) =>
       (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
     try {
@@ -727,7 +732,7 @@ export class DatabaseService {
       );
     } catch (e: any) {
       if (isDuplicateColumn(e)) {
-        console.log('[DB] Migration v2: isCompleted already exists, skipping');
+        this.log('[DB] Migration v2: isCompleted already exists, skipping');
       } else {
         throw e;
       }
@@ -739,17 +744,17 @@ export class DatabaseService {
       );
     } catch (e: any) {
       if (isDuplicateColumn(e)) {
-        console.log('[DB] Migration v2: lastCompletedDate already exists, skipping');
+        this.log('[DB] Migration v2: lastCompletedDate already exists, skipping');
       } else {
         throw e;
       }
     }
-    console.log('[DB] Migration v2: Complete');
+    this.log('[DB] Migration v2: Complete');
   }
 
   /** Migration v1: Create all tables with full schema */
   private async consolidatedMigration() {
-    console.log('Running consolidated migration');
+    this.log('Running consolidated migration');
     
     try {
       // Create all tables in one go
@@ -911,7 +916,7 @@ export class DatabaseService {
         );
       }
 
-      console.log('Consolidated migration completed successfully');
+      this.log('Consolidated migration completed successfully');
     } catch (error) {
       console.error('Error in consolidated migration:', error);
       throw error;
@@ -961,8 +966,22 @@ export class DatabaseService {
     }
   }
 
+  /**
+   * Batch query tasks by a list of IDs.
+   * Used to avoid N+1 query problems when loading multiple tasks.
+   */
+  async getTasksByIds(ids: number[]): Promise<any[]> {
+    if (ids.length === 0) return [];
+    const placeholders = ids.map(() => '?').join(',');
+    const result = await this.executeQuery(
+      `SELECT * FROM tasks WHERE id IN (${placeholders})`,
+      ids
+    );
+    return result.values || [];
+  }
+
   private async executeWebQuery(statement: string, values?: any[]): Promise<any> {
-    console.log('Executing web query:', statement, 'with values:', values);
+    this.log('Executing web query:', statement, 'with values:', values);
     try {
       let result: any;
       
@@ -991,7 +1010,7 @@ export class DatabaseService {
         this.saveWebStoreToLocalStorage();
       }
 
-      console.log('Web query result:', result);
+      this.log('Web query result:', result);
       return result;
     } catch (error) {
       console.error('Error executing web query:', error);
@@ -1051,7 +1070,7 @@ export class DatabaseService {
 
       // Get the base data
       let data = [...(this.webStore[mainTable] || [])];
-      console.log(`Found table ${mainTable} with ${data.length} records`);
+        this.log(`Found table ${mainTable} with ${data.length} records`);
 
       // Handle LEFT JOIN
       if (statement.includes('LEFT JOIN')) {
@@ -1147,7 +1166,7 @@ export class DatabaseService {
         data = data.slice(offset, offset + limit);
       }
 
-      console.log(`Returning ${data.length} records from table ${mainTable}`);
+      this.log(`Returning ${data.length} records from table ${mainTable}`);
       return { values: data };
     } catch (error) {
       console.error('Error in handleWebSelect:', error);
@@ -1156,7 +1175,7 @@ export class DatabaseService {
   }
 
   private handleWebInsert(statement: string, values: any[]): any {
-    console.log('Handling web insert:', statement, values);
+    this.log('Handling web insert:', statement, values);
     const matches = statement.match(/INSERT INTO (\w+)/i);
     if (!matches) {
       throw new Error('Invalid INSERT statement');
@@ -1185,8 +1204,8 @@ export class DatabaseService {
         .map(col => col.trim().replace(/\n/g, '').replace(/\s+/g, ' '))
         .filter(col => col.length > 0);
       
-      console.log('Extracted columns:', columns);
-      console.log('Values to insert:', values);
+      this.log('Extracted columns:', columns);
+      this.log('Values to insert:', values);
       
       columns.forEach((col, index) => {
         if (index < values.length) {
@@ -1209,11 +1228,11 @@ export class DatabaseService {
     // Add the record to the table
     this.webStore[tableName].push(newRecord);
 
-    console.log(`Inserted new record in ${tableName}:`, newRecord);
+    this.log(`Inserted new record in ${tableName}:`, newRecord);
     return { changes: { lastId: newId, changes: 1 }, values: [newRecord] };
   }
   private handleWebUpdate(statement: string, values: any[]): any {
-    console.log('Handling web update:', statement, values);
+    this.log('Handling web update:', statement, values);
     const matches = statement.match(/UPDATE\s+(\w+)\s+SET/i);
     if (!matches) {
       throw new Error('Invalid UPDATE statement');
@@ -1250,9 +1269,9 @@ export class DatabaseService {
       }
     });
 
-    console.log('Updates to apply:', updates);
-    console.log('Where condition:', whereMatch?.[1]);
-    console.log('Remaining values:', values.slice(valueIndex));
+    this.log('Updates to apply:', updates);
+    this.log('Where condition:', whereMatch?.[1]);
+    this.log('Remaining values:', values.slice(valueIndex));
 
     // Apply updates
     let updatedCount = 0;
@@ -1264,12 +1283,12 @@ export class DatabaseService {
       return record;
     });
 
-    console.log(`Updated ${updatedCount} records in ${tableName}:`, updates);
+    this.log(`Updated ${updatedCount} records in ${tableName}:`, updates);
     return { changes: { changes: updatedCount } };
   }
 
   private handleWebDelete(statement: string, values: any[]): any {
-    console.log('Handling web delete:', statement, values);
+    this.log('Handling web delete:', statement, values);
     const matches = statement.match(/DELETE FROM (\w+)/i);
     if (!matches) {
       throw new Error('Invalid DELETE statement');
@@ -1293,7 +1312,7 @@ export class DatabaseService {
         !this.evaluateWhereCondition(record, whereMatch[1], values));
       deletedCount = initialLength - this.webStore[tableName].length;
     }
-    console.log(`Deleted ${deletedCount} records from ${tableName}`);
+    this.log(`Deleted ${deletedCount} records from ${tableName}`);
     return { changes: { changes: deletedCount } };
   }
 
@@ -1362,7 +1381,7 @@ export class DatabaseService {
           try {
             await this.db.delete();
           } catch (err) {
-            console.warn('[DB] Direct db.delete() failed, trying connection delete fallback:', err);
+            this.log('[DB] Direct db.delete() failed, trying connection delete fallback:', err);
             // Fallback: recreate a RW connection and delete
             const tmp = await this.sqlite.createConnection(
               this.dbName,
@@ -1466,7 +1485,7 @@ export class DatabaseService {
         // Save changes
         this.saveWebStoreToLocalStorage();
         
-        console.log('Reinitialized web database with sample data:', this.webStore);
+        this.log('Reinitialized web database with sample data:', this.webStore);
       }
     } catch (error) {
       console.error('Error reinitializing database:', error);

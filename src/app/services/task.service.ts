@@ -28,7 +28,16 @@ export class TaskService {
     private taskCycleService: TaskCycleService,
     private platform: Platform
   ) {
-    this.loadTasks();
+    // Defer loadTasks() until the database is ready to avoid errors
+    this.dbService.dbReady$.subscribe(async (isReady) => {
+      if (isReady) {
+        try {
+          await this.loadTasks();
+        } catch (error) {
+          console.error('TaskService: Error loading tasks on DB ready:', error);
+        }
+      }
+    });
   }
 
   private async loadTasks() {

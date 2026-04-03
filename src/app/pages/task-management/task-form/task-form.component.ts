@@ -14,7 +14,7 @@ import { Customer } from '../../../models/customer.model';
 import { DatabaseService } from '../../../services/database.service';
 import { TaskTypeDialogComponent } from '../../../components/task-type-dialog/task-type-dialog.component';
 import { CommonModule } from '@angular/common';
-import { map } from 'rxjs/operators';
+import { map, takeUntil } from 'rxjs/operators';
 import { addIcons } from 'ionicons';
 import { 
   checkmarkOutline,
@@ -36,7 +36,8 @@ import {
   close,
   chevronDownOutline
 } from 'ionicons/icons';
-import { Subscription } from 'rxjs';
+import { Subscription, Subject } from 'rxjs';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-task-form',
@@ -70,6 +71,7 @@ export class TaskFormComponent implements OnInit, OnDestroy {
 
   private notificationTypes: NotificationType[] = [];
   private notificationTypesSubscription?: Subscription;
+  private destroy$ = new Subject<void>();
 
   private parseDateInput(input: string): Date {
     if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
@@ -102,7 +104,7 @@ export class TaskFormComponent implements OnInit, OnDestroy {
     private notificationService: NotificationService,
     private toastController: ToastController
   ) {
-    console.log('TaskFormComponent constructor called');
+    if (environment.enableConsoleLogs) console.log('TaskFormComponent constructor called');
     // Register Ionic icons
     addIcons({
       'checkmark-outline': checkmarkOutline,
@@ -158,10 +160,12 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    console.log('TaskFormComponent ngOnDestroy called');
+    if (environment.enableConsoleLogs) console.log('TaskFormComponent ngOnDestroy called');
     if (this.notificationTypesSubscription) {
       this.notificationTypesSubscription.unsubscribe();
     }
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   getNotificationTypeDetails(typeKey: string): NotificationType | undefined {
@@ -190,35 +194,35 @@ export class TaskFormComponent implements OnInit, OnDestroy {
   }
 
   async ngOnInit() {
-    console.log('TaskFormComponent ngOnInit called');
+    if (environment.enableConsoleLogs) console.log('TaskFormComponent ngOnInit called');
     try {
-      console.log('Initializing database...');
+      if (environment.enableConsoleLogs) console.log('Initializing database...');
       await this.databaseService.initializeDatabase();
       
-      console.log('Loading customers...');
+      if (environment.enableConsoleLogs) console.log('Loading customers...');
       await this.loadCustomers();
-      console.log('Customers loaded:', this.customers);
+      if (environment.enableConsoleLogs) console.log('Customers loaded:', this.customers);
 
-      console.log('Loading task types...');
-      this.taskTypes$.subscribe(types => {
-        console.log('Task types loaded:', types);
+      if (environment.enableConsoleLogs) console.log('Loading task types...');
+      this.taskTypes$.pipe(takeUntil(this.destroy$)).subscribe(types => {
+        if (environment.enableConsoleLogs) console.log('Task types loaded:', types);
       });
 
-      console.log('Loading notification types...');
-      this.enabledNotificationTypes$.subscribe(types => {
-        console.log('Notification types loaded:', types);
+      if (environment.enableConsoleLogs) console.log('Loading notification types...');
+      this.enabledNotificationTypes$.pipe(takeUntil(this.destroy$)).subscribe(types => {
+        if (environment.enableConsoleLogs) console.log('Notification types loaded:', types);
       });
 
-      this.route.paramMap.subscribe(async params => {
+      this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(async params => {
         const id = params.get('id');
-        console.log('Route params:', params);
+        if (environment.enableConsoleLogs) console.log('Route params:', params);
         if (id) {
-          console.log('Loading task data for id:', id);
+          if (environment.enableConsoleLogs) console.log('Loading task data for id:', id);
           this.isEditMode = true;
           this.taskId = +id;
           await this.loadTaskData(+id);
         } else {
-          console.log('Creating new task');
+          if (environment.enableConsoleLogs) console.log('Creating new task');
         }
       });
     } catch (error) {

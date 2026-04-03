@@ -5,8 +5,9 @@ import { Platform } from '@ionic/angular';
 import { PermissionState } from '@capacitor/core'; // Import generic PermissionState
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
-import { from, Observable } from 'rxjs';
+import { from, Observable, firstValueFrom } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
+import { AlertController } from '@ionic/angular';
 import { AlarmService } from './alarm.service';
 
 /** Android notification channel ID for task reminders (must exist or notifications won't show on real devices) */
@@ -23,7 +24,8 @@ export class NotificationService {
   constructor(
     private platform: Platform,
     private http: HttpClient,
-    private injector: Injector
+    private injector: Injector,
+    private alertController: AlertController
   ) { }
 
   /**
@@ -255,23 +257,66 @@ export class NotificationService {
         await this.ensureNotificationChannel();
       }
 
-      await LocalNotifications.schedule({
-        notifications: [{
-          id: task.id!,
-          title: task.title,
-          body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
-          channelId: channelId,
-          schedule: {
-            at: notificationDate,
-            allowWhileIdle: true
-          },
-          extra: {
-            taskId: task.id,
-            customerId: task.customerId,
-            notificationType: task.notificationType
+      // H5: Handle SCHEDULE_EXACT_ALARM denial gracefully
+      try {
+        await LocalNotifications.schedule({
+          notifications: [{
+            id: task.id!,
+            title: task.title,
+            body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
+            channelId: channelId,
+            schedule: {
+              at: notificationDate,
+              allowWhileIdle: true
+            },
+            extra: {
+              taskId: task.id,
+              customerId: task.customerId,
+              notificationType: task.notificationType
+            }
+          }]
+        });
+      } catch (error) {
+        // H5: SCHEDULE_EXACT_ALARM permission denied on Android 12+
+        const errorMessage = (error as Error)?.message || '';
+        if (errorMessage.includes('SCHEDULE_EXACT_ALARM') || 
+            errorMessage.includes('exact alarm') ||
+            errorMessage.toLowerCase().includes('permission')) {
+          // Show user-facing alert explaining the situation
+          try {
+            const alert = await this.alertController.create({
+              header: 'Exact Alarms Restricted',
+              message: 'Exact alarm permission was denied. Your reminders will still work but may be slightly delayed by the system. You can change this in your device settings.',
+              buttons: ['OK']
+            });
+            await alert.present();
+          } catch (alertError) {
+            // Silent failure if alert cannot be shown
           }
-        }]
-      });
+
+          // Fall back to inexact scheduling
+          await LocalNotifications.schedule({
+            notifications: [{
+              id: task.id!,
+              title: task.title,
+              body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
+              channelId: channelId,
+              schedule: {
+                at: notificationDate,
+                allowWhileIdle: false
+              },
+              extra: {
+                taskId: task.id,
+                customerId: task.customerId,
+                notificationType: task.notificationType
+              }
+            }]
+          });
+        } else {
+          // Re-throw unrelated errors
+          throw error;
+        }
+      }
 
       // Store alarm task for when notification fires
       if (task.notificationType === 'alarm') {
@@ -364,11 +409,18 @@ export class NotificationService {
       return;
     }
 
+    // C2: Disable external notification types (email, sms, whatsapp, telegram) for v1.0
+    // These types require an external API that is not available yet
+    const externalTypes = ['email', 'sms', 'whatsapp', 'telegram'];
+    if (externalTypes.includes(payload.notificationType)) {
+      return;
+    }
+
     // API is optional (e.g. no backend on localhost). Never throw — callers must not fail.
     try {
-      await this.http.post(`${environment.apiUrl}/notifications/send`, payload).toPromise();
+      await firstValueFrom(this.http.post(`${environment.apiUrl}/notifications/send`, payload));
     } catch (error) {
-      console.warn('Notification API unavailable (ignored):', (error as any)?.message || error);
+      // Silent failure - external APIs are disabled for v1.0
     }
   }
 
@@ -410,14 +462,10 @@ export class NotificationService {
       }
     ];
 
-    try {
-      // Get available notification types from API (SMS, WhatsApp, etc.)
-      const apiTypes = await this.http.get<any[]>(`${environment.apiUrl}/notifications/types`).toPromise();
-      return [...types, ...(apiTypes || [])];
-    } catch (error) {
-      console.error('Error fetching notification types:', error);
-      return types;
-    }
+    // C2: Disable external notification types from API for v1.0
+    // External types (sms, whatsapp, telegram) require an API that is not available
+    // Return only local types - external types are handled separately in notification-types page
+    return types;
   }
 
   // Helper method to format notification body based on task details

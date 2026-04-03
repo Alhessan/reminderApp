@@ -42,6 +42,7 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
   beforeEach(() => {
     const dbMock = {
       executeQuery: jasmine.createSpy('executeQuery').and.returnValue(Promise.resolve({ values: [], changes: {} })),
+      getTasksByIds: jasmine.createSpy('getTasksByIds').and.returnValue(Promise.resolve([])),
     };
     dbExecuteQuerySpy = dbMock.executeQuery as jasmine.Spy;
 

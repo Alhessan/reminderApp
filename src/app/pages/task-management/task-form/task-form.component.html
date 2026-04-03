@@ -66,18 +66,26 @@
               <ion-label position="stacked">Connect to</ion-label>
               <ion-select 
                 formControlName="customerId"
-                [attr.aria-label]="'Assign to contact'">
+                [attr.aria-label]="'Connect to contact'">
                 <ion-select-option [value]="null">No one</ion-select-option>
                 <ion-select-option *ngFor="let customer of customers" [value]="customer.id">
                   {{ customer.name }}
                 </ion-select-option>
               </ion-select>
             </ion-item>
+            <!-- B2 — Coming Soon note for contact-linked notifications -->
+            <div class="contact-notification-note">
+              <ion-icon name="information-circle-outline" aria-hidden="true"></ion-icon>
+              <ion-note>
+                Contact notifications will be activated in a future update.
+                Your contact is saved and will be notified automatically once this feature goes live.
+              </ion-note>
+            </div>
           </ng-container>
           <ng-template #noProfile>
             <ion-button expand="block" fill="outline" (click)="showProfileSelection()" class="profile-button">
               <ion-icon name="person-add-outline" slot="start"></ion-icon>
-              Assign
+              Connect
             </ion-button>
           </ng-template>
         </div>

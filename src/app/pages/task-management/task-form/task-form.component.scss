@@ -445,3 +445,44 @@ ion-chip {
     min-height: 52px;
   }
 }
+
+// B2 — Contact notification "Coming Soon" note
+.contact-notification-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 4px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--ion-color-light);
+  border: 1px solid var(--app-border-light);
+
+  ion-icon {
+    font-size: 18px;
+    color: var(--ion-color-medium);
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  ion-note {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ion-color-medium);
+    font-style: italic;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .contact-notification-note {
+    background: var(--ion-color-step-100);
+    border-color: var(--app-border-light);
+
+    ion-icon {
+      color: var(--ion-color-medium);
+    }
+
+    ion-note {
+      color: var(--ion-color-medium);
+    }
+  }
+}

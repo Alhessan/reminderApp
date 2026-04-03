@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnInit } from "@angular/core";
+import { ChangeDetectorRef, Component, OnInit, OnDestroy } from "@angular/core";
 import { ActivatedRoute, Router, RouterModule } from "@angular/router";
 import { AlertController, NavController, IonicModule } from "@ionic/angular";
 import { addIcons } from "ionicons";
@@ -19,6 +19,8 @@ import { SituationalMessageService } from "../../../services/situational-message
 import { Cycle } from "../../../models/task-cycle.model";
 import { deriveDisplayState, STATUS_CONFIG, CycleDisplayStatus } from "../../../models/cycle-display.model";
 import { AlarmService } from "../../../services/alarm.service";
+import { Subject } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 
 @Component({
   selector: "app-task-detail",
@@ -39,7 +41,7 @@ import { AlarmService } from "../../../services/alarm.service";
     ]),
   ],
 })
-export class TaskDetailPage implements OnInit {
+export class TaskDetailPage implements OnInit, OnDestroy {
   task: Task | null = null;
   currentCycle: Cycle | null = null;
   /** Most recent lapsed cycle for this task (for retroactive "I actually did this"). */
@@ -69,6 +71,7 @@ export class TaskDetailPage implements OnInit {
   heroError = false;
   /** True after first load; used to avoid double load on open and to refresh only on re-enter. */
   private hasLoadedDetailOnce = false;
+  private destroy$ = new Subject<void>();
 
   // Inside your TaskDetailPage class
 
@@ -114,7 +117,7 @@ get missedCount(): number {
       this.isLoading = false;
       return;
     }
-    this.route.paramMap.subscribe((params) => {
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
       const id = params.get("id");
 
       if (id) {
@@ -131,6 +134,11 @@ get missedCount(): number {
         );
       }
     });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async ionViewWillEnter() {

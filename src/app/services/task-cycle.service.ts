@@ -150,7 +150,14 @@ export class TaskCycleService {
       resolution: string;
     }>;
 
+    // Collect all taskIds and fetch in one batch query (fixes N+1 problem)
+    const taskIds = [...new Set(cycles.map(c => c.taskId))];
+    const taskRows = await this.db.getTasksByIds(taskIds);
+    const taskMap = new Map(taskRows.map((t: any) => [Number(t.id), t]));
+
     for (const row of cycles) {
+      const taskRow = taskMap.get(row.taskId);
+      if (!taskRow) continue;
       const task = await this.getTask(row.taskId);
       if (!task || task.state !== 'active') continue;
       const hardMs = new Date(row.hardDeadline).getTime();
@@ -195,9 +202,18 @@ export class TaskCycleService {
         latestCycleByTask.set(taskId, this.mapRowToCycle(row));
       }
 
+      // Batch fetch all tasks to avoid N+1 queries
+      const allTaskIds = taskRows.map((r: any) => Number(r.id));
+      const taskRowsBatch = await this.db.getTasksByIds(allTaskIds);
+      const taskMap = new Map(
+        taskRowsBatch.map((t: any) => [Number(t.id), t as Task])
+      );
+
       const taskList: TaskListItem[] = [];
       for (const row of taskRows) {
-        const task = await this.getTask(row.id);
+        const taskRow = taskMap.get(Number(row.id));
+        if (!taskRow) continue;
+        const task = await this.getTask(Number(row.id));
         if (!task) continue;
         let cycle = latestCycleByTask.get(task.id!);
         if (!cycle) {

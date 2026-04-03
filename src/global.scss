@@ -382,6 +382,66 @@ ion-toolbar ion-back-button {
 }
 
 // ===========================================
+// ONBOARDING PERMISSION ALERT
+// ===========================================
+.onboarding-permission-alert {
+  .alert-wrapper {
+    border-radius: 16px;
+    box-shadow: var(--app-shadow-xl);
+    max-width: 340px;
+    margin: 0 auto;
+    background: var(--ion-background-color);
+  }
+
+  .alert-head {
+    padding: 20px 20px 8px;
+
+    .alert-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ion-text-color);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  }
+
+  .alert-message {
+    padding: 4px 20px 20px;
+    font-size: 14px;
+    color: var(--ion-color-medium);
+    line-height: 1.55;
+  }
+
+  .alert-button-group {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    padding: 0 16px 16px;
+
+    .alert-button {
+      flex: 1;
+      margin: 0;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      min-height: 44px;
+
+      &:first-child {
+        --background: var(--ion-color-light);
+        --color: var(--ion-text-color);
+      }
+
+      &:last-child {
+        --background: var(--ion-color-primary);
+        --color: var(--ion-color-primary-contrast);
+      }
+    }
+  }
+}
+
+// ===========================================
 // CUSTOM ALERTS
 // ===========================================
 .custom-alert {

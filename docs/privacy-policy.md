@@ -18,6 +18,8 @@ RoutineLoop ("we", "our", "us") is committed to protecting your privacy. This Pr
 
 RoutineLoop does **not** collect, transmit, or store any personal data on external servers. All your data — tasks, reminders, cycles, categories, and preferences — is stored exclusively on your device using a local SQLite database.
 
+**v1.0 Scope:** RoutineLoop v1.0 stores all data locally on your device. It does **NOT** transmit any task, contact, reminder, or personal data to external servers. All notifications are delivered locally on your device. External notification types (email, SMS, WhatsApp, Telegram) are not available in v1.0 and no data is sent for these purposes.
+
 ### What we do NOT do:
 - We do not collect personal information (names, emails, phone numbers)
 - We do not track your location

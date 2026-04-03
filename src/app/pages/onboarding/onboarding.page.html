@@ -1,0 +1,95 @@
+<ion-header class="onboarding-header">
+  <ion-toolbar>
+    <ion-buttons slot="end">
+      <ion-button (click)="skip()" class="skip-button" aria-label="Skip onboarding">
+        Skip
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="onboarding-content" [fullscreen]="true">
+  <!-- Slide indicator dots -->
+  <div class="slide-indicators" role="tablist" aria-label="Onboarding progress">
+    <span
+      *ngFor="let slide of slides; let i = index"
+      class="indicator"
+      [class.active]="i === currentIndex"
+      role="tab"
+      [attr.aria-selected]="i === currentIndex"
+      [attr.aria-label]="'Slide ' + (i + 1) + ' of ' + slides.length">
+    </span>
+  </div>
+
+  <!-- Ionic Slides -->
+  <ion-slides
+    #slidesElement
+    pager="true"
+    (ionSlideDidChange)="onSlideDidChange($event)"
+    class="onboarding-slides"
+    [options]="slideOpts">
+
+    <!-- Screen 1: What is RoutineLoop? -->
+    <ion-slide class="onboarding-slide">
+      <div class="slide-content">
+        <div class="slide-icon-wrapper">
+          <ion-icon
+            name="refresh-circle-outline"
+            class="slide-icon"
+            aria-hidden="true">
+          </ion-icon>
+        </div>
+        <h1 class="slide-title">Your routines, on autopilot</h1>
+        <p class="slide-body">
+          RoutineLoop helps you build lasting habits by tracking recurring tasks
+          and reminding you at the right time, every time.
+        </p>
+      </div>
+    </ion-slide>
+
+    <!-- Screen 2: How it works -->
+    <ion-slide class="onboarding-slide">
+      <div class="slide-content">
+        <div class="slide-icon-wrapper">
+          <ion-icon
+            name="time-outline"
+            class="slide-icon"
+            aria-hidden="true">
+          </ion-icon>
+        </div>
+        <h1 class="slide-title">Set it and forget it</h1>
+        <p class="slide-body">
+          Create your routines, set a schedule, and let RoutineLoop handle the
+          reminders. Complete your cycles to build streaks and see your progress
+          over time.
+        </p>
+      </div>
+    </ion-slide>
+
+    <!-- Screen 3: Create your first routine -->
+    <ion-slide class="onboarding-slide">
+      <div class="slide-content">
+        <div class="slide-icon-wrapper">
+          <ion-icon
+            name="add-circle-outline"
+            class="slide-icon"
+            aria-hidden="true">
+          </ion-icon>
+        </div>
+        <h1 class="slide-title">Ready to start?</h1>
+        <p class="slide-body">
+          Tap the + button to create your first routine. We'll guide you through
+          setting up your schedule and reminders.
+        </p>
+        <ion-button
+          expand="block"
+          class="cta-button"
+          (click)="onGetStarted()"
+          aria-label="Let's Go — create your first routine">
+          Let's Go
+          <ion-icon name="chevron-forward-outline" slot="end" aria-hidden="true"></ion-icon>
+        </ion-button>
+      </div>
+    </ion-slide>
+  </ion-slides>
+</ion-content>

@@ -1,4 +1,4 @@
-import { Component, NgZone, Optional } from '@angular/core';
+import { Component, NgZone, Optional, OnDestroy } from '@angular/core';
 import { DatabaseService } from './services/database.service';
 import { Platform, IonicModule, AlertController, NavController, IonRouterOutlet } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
@@ -94,7 +94,7 @@ import {
     RouterOutlet
   ]
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   public appPages = [
     { title: 'Contacts', url: '/customers', icon: 'people-outline' },
     { title: 'Tasks', url: '/tasks', icon: 'checkbox-outline' },
@@ -117,7 +117,10 @@ export class AppComponent {
   }
 
   private isDarkMode = false;
-  private darkModeListener: MediaQueryList | null = null;
+  /** MediaQueryList reference for dark mode listener - stored so it can be removed on destroy */
+  private darkModeMediaQuery: MediaQueryList | null = null;
+  /** Event listener reference for dark mode changes - stored so it can be removed on destroy */
+  private darkModeChangeHandler: ((this: MediaQueryList, ev: MediaQueryListEvent) => void) | null = null;
 
   constructor(
     private platform: Platform,
@@ -220,25 +223,35 @@ export class AppComponent {
   async initializeApp() {
     // Detect and watch dark/light mode for logo switching
     this.updateDarkMode();
-    this.darkModeListener = window.matchMedia('(prefers-color-scheme: dark)');
-    // Wrap in NgZone to trigger Angular change detection when system theme changes
-    this.darkModeListener.addEventListener('change', () => {
+    this.darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    // Store handler reference so it can be removed on destroy
+    this.darkModeChangeHandler = () => {
       this.ngZone.run(() => this.updateDarkMode());
-    });
+    };
+    this.darkModeMediaQuery.addEventListener('change', this.darkModeChangeHandler);
 
     // For web/browser, proceed without waiting for platform ready
     if (!this.platform.is('cordova') && !this.platform.is('capacitor')) {
       await this.performInitialization();
+      this.handleFirstLaunchRouting();
       return;
     }
 
     // Wait for platform to be fully ready (for native platforms)
     await this.platform.ready();
     await this.performInitialization();
+    this.handleFirstLaunchRouting();
   }
 
   private updateDarkMode(): void {
     this.isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  ngOnDestroy() {
+    // Remove dark mode event listener to prevent memory leaks
+    if (this.darkModeMediaQuery && this.darkModeChangeHandler) {
+      this.darkModeMediaQuery.removeEventListener('change', this.darkModeChangeHandler);
+    }
   }
 
   /**
@@ -331,6 +344,19 @@ export class AppComponent {
         }
       });
     });
+  }
+
+  /**
+   * Redirect to onboarding if this is the user's first launch.
+   * Reads the 'onboarding_complete' flag from localStorage.
+   */
+  private handleFirstLaunchRouting(): void {
+    const onboardingComplete = localStorage.getItem('onboarding_complete');
+    if (!onboardingComplete) {
+      // First launch — navigate to onboarding (replaces history so back button doesn't return)
+      this.navController.navigateRoot('/onboarding', { replaceUrl: true });
+    }
+    // else: onboarding already done, app continues to /tasks (default route)
   }
 
   /**

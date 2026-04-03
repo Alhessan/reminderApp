@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AlertController, NavController, IonicModule, ToastController } from '@ionic/angular';
@@ -7,6 +7,8 @@ import { Customer } from '../../../models/customer.model';
 import { DatabaseService } from '../../../services/database.service';
 import { CommonModule } from '@angular/common';
 import { ColorIconPickerComponent } from '../../../components/color-icon-picker/color-icon-picker.component';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 
 @Component({
   selector: 'app-customer-form',
@@ -15,12 +17,13 @@ import { ColorIconPickerComponent } from '../../../components/color-icon-picker/
   standalone: true,
   imports: [IonicModule, CommonModule, ReactiveFormsModule, FormsModule, ColorIconPickerComponent]
 })
-export class CustomerFormComponent implements OnInit {
+export class CustomerFormComponent implements OnInit, OnDestroy {
   customerForm: FormGroup;
   isEditMode = false;
   customerId?: number;
   formInitialized = false;
   isSubmitting = false;
+  private destroy$ = new Subject<void>();
 
   constructor(
     private fb: FormBuilder,
@@ -48,7 +51,7 @@ export class CustomerFormComponent implements OnInit {
     await this.databaseService.initializeDatabase();
     
     // Subscribe to route params
-    this.route.paramMap.subscribe(async params => {
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe(async params => {
       const id = params.get('id');
       if (id) {
         this.isEditMode = true;
@@ -56,6 +59,11 @@ export class CustomerFormComponent implements OnInit {
         await this.loadCustomerData(+id);
       }
     });
+  }
+
+  ngOnDestroy() {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   async loadCustomerData(id: number) {

@@ -1,0 +1,269 @@
+// ===========================================
+// ONBOARDING PAGE STYLES
+// ===========================================
+
+// Header & Skip button
+.onboarding-header {
+  ion-toolbar {
+    --background: transparent;
+    --border-width: 0;
+    box-shadow: none;
+
+    &::after {
+      display: none;
+    }
+  }
+
+  .skip-button {
+    --color: var(--ion-color-medium);
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-right: 4px;
+  }
+}
+
+// Content area
+.onboarding-content {
+  --background: var(--ion-background-color);
+  --padding-start: 0;
+  --padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+// ===========================================
+// SLIDE INDICATORS
+// ===========================================
+.slide-indicators {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 0 8px;
+  flex-shrink: 0;
+
+  .indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ion-color-medium);
+    opacity: 0.4;
+    transition: all 250ms ease;
+    cursor: default;
+
+    &.active {
+      width: 24px;
+      border-radius: 4px;
+      background: var(--ion-color-primary);
+      opacity: 1;
+    }
+  }
+}
+
+// ===========================================
+// SLIDES CONTAINER
+// ===========================================
+.onboarding-slides {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding-bottom: 40px;
+
+  // Override Ionic slides pagination dots color
+  ::part(pagination) {
+    bottom: 0 !important;
+    padding-bottom: 8px;
+  }
+
+  .swiper-pagination-bullet {
+    background: var(--ion-color-medium);
+    opacity: 0.4;
+    width: 8px;
+    height: 8px;
+    margin: 0 3px;
+  }
+
+  .swiper-pagination-bullet-active {
+    background: var(--ion-color-primary);
+    opacity: 1;
+    width: 24px;
+    border-radius: 4px;
+  }
+}
+
+// ===========================================
+// INDIVIDUAL SLIDE
+// ===========================================
+.onboarding-slide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 16px 32px 0;
+  height: 100%;
+  box-sizing: border-box;
+
+  .slide-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: 100%;
+    padding-bottom: 24px;
+  }
+}
+
+// ===========================================
+// ICON WRAPPER
+// ===========================================
+.slide-icon-wrapper {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: var(--ion-color-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 24px auto 32px;
+  position: relative;
+  flex-shrink: 0;
+
+  // Subtle glow ring
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(var(--ion-color-primary-rgb), 0.2);
+  }
+
+  .slide-icon {
+    font-size: 60px;
+    color: var(--ion-color-primary);
+    // Subtle drop shadow
+    filter: drop-shadow(0 2px 8px rgba(var(--ion-color-primary-rgb), 0.35));
+  }
+}
+
+// ===========================================
+// TYPOGRAPHY
+// ===========================================
+.slide-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ion-text-color);
+  margin: 0 0 16px;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+}
+
+.slide-body {
+  font-size: 1rem;
+  color: var(--ion-color-medium);
+  line-height: 1.65;
+  margin: 0;
+  padding: 0 8px;
+}
+
+// ===========================================
+// CTA BUTTON
+// ===========================================
+.cta-button {
+  --border-radius: 14px;
+  font-weight: 600;
+  font-size: 1rem;
+  min-height: 52px;
+  margin: 32px 0 24px;
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  width: 100%;
+  max-width: 280px;
+  letter-spacing: 0.2px;
+
+  ion-icon {
+    font-size: 18px;
+  }
+
+  &:active {
+    opacity: 0.85;
+  }
+}
+
+// ===========================================
+// DARK MODE
+// ===========================================
+@media (prefers-color-scheme: dark) {
+  .slide-icon-wrapper {
+    background: var(--ion-color-step-100, #2a2a2a);
+
+    &::before {
+      border-color: rgba(var(--ion-color-primary-rgb), 0.15);
+    }
+  }
+
+  .slide-title {
+    color: var(--ion-text-color);
+  }
+
+  .slide-body {
+    color: var(--ion-color-medium);
+  }
+}
+
+// ===========================================
+// MOBILE ADJUSTMENTS
+// ===========================================
+@media (max-width: 400px) {
+  .onboarding-slide {
+    padding: 16px 24px 0;
+  }
+
+  .slide-icon-wrapper {
+    width: 100px;
+    height: 100px;
+
+    .slide-icon {
+      font-size: 50px;
+    }
+  }
+
+  .slide-title {
+    font-size: 1.4rem;
+  }
+
+  .slide-body {
+    font-size: 0.95rem;
+  }
+
+  .cta-button {
+    max-width: 240px;
+  }
+}
+
+// ===========================================
+// LANDSCAPE / TABLET
+// ===========================================
+@media (min-height: 600px) {
+  .slide-icon-wrapper {
+    margin-top: 32px;
+  }
+}
+
+// ===========================================
+// GLOBAL SCSS OVERRIDES for permission alert
+// ===========================================
+// Permission alert styles are in global.scss as part of the alert override system
+// Add any onboarding-specific overrides here if needed

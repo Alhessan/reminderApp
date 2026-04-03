@@ -68,6 +68,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/db-inspector/db-inspector.page').then(m => m.DbInspectorPage)
   },
   {
+    path: 'onboarding',
+    loadComponent: () => import('./pages/onboarding/onboarding.page').then(m => m.OnboardingPage)
+  },
+  {
     path: '**',
     redirectTo: 'tasks'
   }

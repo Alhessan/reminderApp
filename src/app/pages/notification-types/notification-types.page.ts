@@ -8,7 +8,7 @@ import { trigger, state, style, transition, animate } from '@angular/animations'
 import { NotificationTypeService } from '../../services/notification-type.service';
 import { NotificationType } from '../../models/notification-type.model';
 import { Observable, take } from 'rxjs';
-import { AlertController } from '@ionic/angular';
+import { AlertController, ToastController } from '@ionic/angular';
 import { map } from 'rxjs/operators';
 
 @Component({
@@ -55,6 +55,7 @@ export class NotificationTypesPage implements OnInit {
     private notificationTypeService: NotificationTypeService,
     private formBuilder: FormBuilder,
     private alertController: AlertController,
+    private toastController: ToastController,
     private location: Location
   ) {
     this.notificationForm = this.formBuilder.group({
@@ -139,6 +140,22 @@ export class NotificationTypesPage implements OnInit {
 
   async onToggleChange(type: NotificationType) {
     const newEnabledState = !this.isTypeEnabled(type.key);
+
+    // B1: Coming Soon gates for external notification types
+    if (newEnabledState) {
+      const externalComingSoonTypes = ['email', 'sms', 'telegram'];
+      const whatsappRoadmapTypes = ['whatsapp'];
+
+      if (externalComingSoonTypes.includes(type.key)) {
+        await this.showComingSoonToast('Email and SMS notifications are coming soon in a future update. Stay tuned!');
+        return; // Do not enable the type
+      }
+
+      if (whatsappRoadmapTypes.includes(type.key)) {
+        await this.showComingSoonToast('WhatsApp notifications are on our roadmap and may be available in an upcoming premium update. We\'ll keep you posted!');
+        return; // Do not enable the type
+      }
+    }
 
     if (newEnabledState && this.getEnabledCount() >= 3) {
       await this.presentToast('You can only enable up to 3 notification methods.', 'warning');
@@ -283,6 +300,24 @@ export class NotificationTypesPage implements OnInit {
     } finally {
       this.isSubmitting = false;
     }
+  }
+
+  // B1: Helper method for Coming Soon toast messages
+  private async showComingSoonToast(message: string): Promise<void> {
+    const toast = await this.toastController.create({
+      message: message,
+      duration: 3500,
+      position: 'middle',
+      cssClass: 'custom-toast coming-soon-toast',
+      buttons: [
+        {
+          side: 'end',
+          icon: 'close-outline',
+          role: 'cancel'
+        }
+      ]
+    });
+    await toast.present();
   }
 
   private async presentToast(message: string, color: 'success' | 'danger' | 'warning' = 'success') {
