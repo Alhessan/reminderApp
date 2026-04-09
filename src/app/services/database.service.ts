@@ -609,7 +609,7 @@ export class DatabaseService {
     ];
 
     for (const statement of statements) {
-      await this.executeQuery(statement, []);
+      await this.runNativeSql(statement, []);
     }
   }
 
@@ -655,30 +655,24 @@ export class DatabaseService {
   /** Migration v6: Task cycle redesign - adds state column, rebuilds task_cycles table */
   private async migrateTaskCycleRedesign(): Promise<void> {
     this.log('[DB] Migration v6: Adding state column to tasks');
-    const isDuplicateColumn = (e: any) =>
-      (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
-    try {
-      await this.executeQuery(
+    if (!(await this.tableHasColumnNative('tasks', 'state'))) {
+      await this.runNativeSql(
         "ALTER TABLE tasks ADD COLUMN state TEXT DEFAULT 'active'",
         []
       );
-    } catch (e: any) {
-      if (isDuplicateColumn(e)) {
-        this.log('[DB] Migration v6: state column already exists, skipping');
-      } else {
-        throw e;
-      }
+    } else {
+      this.log('[DB] Migration v6: state column already exists, skipping');
     }
-    
+
     this.log('[DB] Migration v6: Syncing isArchived to state');
-    await this.executeQuery(
+    await this.runNativeSql(
       "UPDATE tasks SET state = 'archived' WHERE isArchived = 1 OR isArchived = '1'",
       []
     );
-    
+
     this.log('[DB] Migration v6: Rebuilding task_cycles table');
-    await this.executeQuery('DROP TABLE IF EXISTS task_cycles', []);
-    await this.executeQuery(
+    await this.runNativeSql('DROP TABLE IF EXISTS task_cycles', []);
+    await this.runNativeSql(
       `CREATE TABLE task_cycles (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         taskId INTEGER NOT NULL,
@@ -699,12 +693,12 @@ export class DatabaseService {
   /** Migration v7: Replace default task types (Payment/Update/Custom → Health and Sports/Social Activity/Culture and Learning) */
   private async migrateTaskTypesV7(): Promise<void> {
     // Update existing tasks that reference old type names
-    await this.executeQuery("UPDATE tasks SET type = 'Health and Sports' WHERE type = 'Payment'", []);
-    await this.executeQuery("UPDATE tasks SET type = 'Social Activity' WHERE type = 'Update'", []);
-    await this.executeQuery("UPDATE tasks SET type = 'Culture and Learning' WHERE type = 'Custom'", []);
+    await this.runNativeSql("UPDATE tasks SET type = 'Health and Sports' WHERE type = 'Payment'", []);
+    await this.runNativeSql("UPDATE tasks SET type = 'Social Activity' WHERE type = 'Update'", []);
+    await this.runNativeSql("UPDATE tasks SET type = 'Culture and Learning' WHERE type = 'Custom'", []);
 
     // Remove old default task types
-    await this.executeQuery("DELETE FROM task_types WHERE name IN ('Payment', 'Update', 'Custom')", []);
+    await this.runNativeSql("DELETE FROM task_types WHERE name IN ('Payment', 'Update', 'Custom')", []);
 
     // Insert new defaults
     const newTypes = [
@@ -713,7 +707,7 @@ export class DatabaseService {
       { name: 'Culture and Learning', description: 'Cultural events, learning and education', isDefault: 1, icon: 'book-outline', color: '#5260ff' }
     ];
     for (const type of newTypes) {
-      await this.executeQuery(
+      await this.runNativeSql(
         `INSERT OR IGNORE INTO task_types (name, description, isDefault, icon, color) VALUES (?, ?, ?, ?, ?)`,
         [type.name, type.description, type.isDefault, type.icon, type.color]
       );
@@ -723,31 +717,15 @@ export class DatabaseService {
   /** Migration v2: Add isCompleted and lastCompletedDate columns (legacy - columns already in v1 schema) */
   private async migrateAddTaskCompletionColumns(): Promise<void> {
     this.log('[DB] Migration v2: Adding completion columns');
-    const isDuplicateColumn = (e: any) =>
-      (e?.message || e?.toString() || '').toLowerCase().includes('duplicate column');
-    try {
-      await this.executeQuery(
-        'ALTER TABLE tasks ADD COLUMN isCompleted INTEGER DEFAULT 0',
-        []
-      );
-    } catch (e: any) {
-      if (isDuplicateColumn(e)) {
-        this.log('[DB] Migration v2: isCompleted already exists, skipping');
-      } else {
-        throw e;
-      }
+    if (!(await this.tableHasColumnNative('tasks', 'isCompleted'))) {
+      await this.runNativeSql('ALTER TABLE tasks ADD COLUMN isCompleted INTEGER DEFAULT 0', []);
+    } else {
+      this.log('[DB] Migration v2: isCompleted already exists, skipping');
     }
-    try {
-      await this.executeQuery(
-        'ALTER TABLE tasks ADD COLUMN lastCompletedDate TEXT',
-        []
-      );
-    } catch (e: any) {
-      if (isDuplicateColumn(e)) {
-        this.log('[DB] Migration v2: lastCompletedDate already exists, skipping');
-      } else {
-        throw e;
-      }
+    if (!(await this.tableHasColumnNative('tasks', 'lastCompletedDate'))) {
+      await this.runNativeSql('ALTER TABLE tasks ADD COLUMN lastCompletedDate TEXT', []);
+    } else {
+      this.log('[DB] Migration v2: lastCompletedDate already exists, skipping');
     }
     this.log('[DB] Migration v2: Complete');
   }
@@ -840,8 +818,8 @@ export class DatabaseService {
       ];
 
       // Execute all DDL statements
-    for (const statement of statements) {
-      await this.executeQuery(statement, []);
+      for (const statement of statements) {
+        await this.runNativeSql(statement, []);
       }
 
       // Add default notification types
@@ -861,7 +839,7 @@ export class DatabaseService {
 
       for (const type of notificationTypes) {
         // Use INSERT OR IGNORE to prevent UNIQUE constraint errors if types already exist
-        await this.executeQuery(
+        await this.runNativeSql(
           `INSERT OR IGNORE INTO notification_types (
             key, name, description, icon, color, isEnabled, requiresValue,
             valueLabel, validationPattern, validationError, order_num
@@ -909,7 +887,7 @@ export class DatabaseService {
 
       for (const type of defaultTaskTypes) {
         // Use INSERT OR IGNORE to prevent UNIQUE constraint errors if types already exist
-        await this.executeQuery(
+        await this.runNativeSql(
           `INSERT OR IGNORE INTO task_types (name, description, isDefault, icon, color)
            VALUES (?, ?, ?, ?, ?)`,
           [type.name, type.description, type.isDefault, type.icon, type.color]
@@ -923,40 +901,55 @@ export class DatabaseService {
     }
   }
 
-  async executeQuery(statement: string, values?: any[]): Promise<any> {
-    if (this.isNative) {
-      // Native platform - use SQLite with proper transaction handling
-      if (!this.db) {
-        await this.initializeDatabase();
-      }
-      
-      try {
-        // For INSERT statements, use run() instead of query()
-        if (statement.toLowerCase().trim().startsWith('insert')) {
-          const result = await this.db.run(statement, values || []);
-          // Get the last inserted id
-          const lastIdResult = await this.db.query('SELECT last_insert_rowid() as lastId');
-          return {
-            changes: {
-              lastId: lastIdResult.values?.[0]?.lastId,
-              changes: (result as any).changes || 0
-            }
-          };
-        }
-        
-        // For other statements (SELECT, UPDATE, DELETE)
-        const result = await this.db.query(statement, values || []);
+  /**
+   * Run SQL on the native connection without going through initializeDatabase().
+   * Used only while migrations/createSchema run during init (avoids deadlock and races).
+   */
+  private async runNativeSql(statement: string, values?: any[]): Promise<any> {
+    if (!this.db) {
+      throw new Error('[DB] runNativeSql: database connection is not open');
+    }
+    try {
+      const trimmed = statement.toLowerCase().trim();
+      if (trimmed.startsWith('insert')) {
+        const result = await this.db.run(statement, values || []);
+        const lastIdResult = await this.db.query('SELECT last_insert_rowid() as lastId');
         return {
-          values: result.values || [],
-          changes: { 
-            changes: (result as any).changes || 0,
-            lastId: null 
+          changes: {
+            lastId: lastIdResult.values?.[0]?.lastId,
+            changes: (result as any).changes || 0
           }
         };
-      } catch (error) {
-        console.error('Native SQLite error:', error);
-        throw error;
       }
+      const result = await this.db.query(statement, values || []);
+      return {
+        values: result.values || [],
+        changes: {
+          changes: (result as any).changes || 0,
+          lastId: null
+        }
+      };
+    } catch (error: any) {
+      const msg = String(error?.message ?? error).toLowerCase();
+      if (!msg.includes('duplicate column')) {
+        console.error('Native SQLite error:', error);
+      }
+      throw error;
+    }
+  }
+
+  private async tableHasColumnNative(table: string, column: string): Promise<boolean> {
+    const result = await this.runNativeSql(`PRAGMA table_info(${table})`, []);
+    const rows = (result.values || []) as Array<{ name: string }>;
+    return rows.some(r => r.name === column);
+  }
+
+  async executeQuery(statement: string, values?: any[]): Promise<any> {
+    if (this.isNative) {
+      if (!this.isInitialized) {
+        await this.initializeDatabase();
+      }
+      return this.runNativeSql(statement, values);
     } else {
       // Web platform - use in-memory store
       if (!this.isInitialized) {
@@ -1514,14 +1507,23 @@ export class DatabaseService {
 
   private async getCurrentVersion(): Promise<number> {
     try {
-      // Create version table if it doesn't exist
+      if (this.isNative) {
+        await this.runNativeSql(
+          `
+        CREATE TABLE IF NOT EXISTS database_version (
+          version INTEGER PRIMARY KEY
+        )
+      `,
+          []
+        );
+        const result = await this.runNativeSql('SELECT version FROM database_version LIMIT 1', []);
+        return result.values?.length ? result.values[0].version : 0;
+      }
       await this.executeQuery(`
         CREATE TABLE IF NOT EXISTS database_version (
           version INTEGER PRIMARY KEY
         )
       `);
-
-      // Get current database version
       const result = await this.executeQuery('SELECT version FROM database_version LIMIT 1');
       return result.values?.length ? result.values[0].version : 0;
     } catch (error) {
@@ -1532,6 +1534,15 @@ export class DatabaseService {
 
   private async setVersion(version: number): Promise<void> {
     try {
+      if (this.isNative) {
+        const currentVersion = await this.getCurrentVersion();
+        if (currentVersion === 0) {
+          await this.runNativeSql('INSERT INTO database_version (version) VALUES (?)', [version]);
+        } else {
+          await this.runNativeSql('UPDATE database_version SET version = ?', [version]);
+        }
+        return;
+      }
       const currentVersion = await this.getCurrentVersion();
       if (currentVersion === 0) {
         await this.executeQuery('INSERT INTO database_version (version) VALUES (?)', [version]);

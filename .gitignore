@@ -74,3 +74,4 @@ reminderApp - share.zip
 #igonore speckit files
 .specify
 .opencode
+docs/release_script.md

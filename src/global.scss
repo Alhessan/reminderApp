@@ -384,13 +384,25 @@ ion-toolbar ion-back-button {
 // ===========================================
 // ONBOARDING PERMISSION ALERT
 // ===========================================
+// Solid surfaces: Ionic iOS mode + WebView can leave vars unset on ion-alert host; avoid translucent blur.
+ion-alert.onboarding-permission-alert,
 .onboarding-permission-alert {
+  --background: #ffffff;
+  --backdrop-opacity: 0.6;
+  --max-width: min(92vw, 340px);
+  --width: min(92vw, 340px);
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+
   .alert-wrapper {
     border-radius: 16px;
-    box-shadow: var(--app-shadow-xl);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22);
     max-width: 340px;
     margin: 0 auto;
-    background: var(--ion-background-color);
+    background: #ffffff !important;
+    opacity: 1 !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 
   .alert-head {
@@ -399,7 +411,7 @@ ion-toolbar ion-back-button {
     .alert-title {
       font-size: 16px;
       font-weight: 600;
-      color: var(--ion-text-color);
+      color: #1a1a1a !important;
       margin: 0;
       display: flex;
       align-items: center;
@@ -410,7 +422,8 @@ ion-toolbar ion-back-button {
   .alert-message {
     padding: 4px 20px 20px;
     font-size: 14px;
-    color: var(--ion-color-medium);
+    color: #4a4a4a !important;
+    opacity: 1 !important;
     line-height: 1.55;
   }
 
@@ -429,14 +442,38 @@ ion-toolbar ion-back-button {
       min-height: 44px;
 
       &:first-child {
-        --background: var(--ion-color-light);
-        --color: var(--ion-text-color);
+        --background: #eceff1;
+        --color: #1a1a1a;
       }
 
       &:last-child {
-        --background: var(--ion-color-primary);
-        --color: var(--ion-color-primary-contrast);
+        --background: #2cb996;
+        --color: #ffffff;
       }
+    }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  ion-alert.onboarding-permission-alert,
+  .onboarding-permission-alert {
+    --background: #2a2a2e;
+
+    .alert-wrapper {
+      background: #2a2a2e !important;
+    }
+
+    .alert-head .alert-title {
+      color: #f0f0f0 !important;
+    }
+
+    .alert-message {
+      color: #b0b0b8 !important;
+    }
+
+    .alert-button-group .alert-button:first-child {
+      --background: #3a3a42;
+      --color: #f0f0f0;
     }
   }
 }

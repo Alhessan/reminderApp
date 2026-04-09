@@ -103,26 +103,26 @@ export class OnboardingPage implements OnInit {
       header: 'Enable Reminders',
       message: 'RoutineLoop needs to send you reminders so you never miss a routine. Is that okay?',
       cssClass: 'onboarding-permission-alert',
+      mode: 'md',
+      translucent: false,
+      backdropDismiss: false,
       buttons: [
         {
           text: 'Not Now',
-          role: 'cancel',
-          handler: () => {
-            // Deny gracefully — do not block
-            this.completeOnboarding();
-          }
+          role: 'cancel'
         },
         {
           text: 'Enable',
           handler: async () => {
             await this.requestNotificationPermission();
-            this.completeOnboarding();
           }
         }
       ]
     });
 
     await alert.present();
+    await alert.onDidDismiss();
+    this.completeOnboarding();
   }
 
   /**
