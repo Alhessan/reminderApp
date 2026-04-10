@@ -160,11 +160,42 @@ ion-router-outlet {
   }
 }
 
-.version-text {
-  font-size: 0.75rem;
-  text-align: center;
-  color: var(--ion-color-medium);
-  padding: 8px 0;
+// Menu footer: match drawer background; readable in light + dark (toolbar defaults can clash)
+ion-menu .menu-footer {
+  box-shadow: none;
+
+  ion-toolbar {
+    --background: var(--ion-background-color);
+    --color: var(--ion-text-color);
+    --border-width: 1px 0 0 0;
+    --border-color: var(--ion-border-color, rgba(0, 0, 0, 0.08));
+    --min-height: 52px;
+    --padding-top: 0;
+    --padding-bottom: 0;
+  }
+
+  .version-text {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 12px 16px 14px;
+    text-align: center;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--ion-color-step-650, #6b6b73);
+    line-height: 1.35;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  ion-menu .menu-footer ion-toolbar {
+    --border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  ion-menu .menu-footer .version-text {
+    color: var(--ion-color-step-500, #a0a0a8);
+  }
 }
 
 ion-header {

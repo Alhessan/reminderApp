@@ -4,8 +4,33 @@
   background: var(--ion-background-color);
 }
 
+ion-header ion-toolbar {
+  --padding-start: 10px;
+  --padding-end: 10px;
+}
+
+ion-header ion-buttons {
+  min-width: 44px;
+}
+
+ion-header .contacts-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  padding-inline: 8px;
+  text-align: center;
+}
+
+ion-header .contacts-title::part(native) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
 ion-content {
   --background: var(--ion-background-color);
+  --padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 88px);
 }
 
 // Loading
@@ -32,7 +57,7 @@ ion-content {
   background: var(--ion-background-color);
 
   ion-icon {
-    font-size: 64px;
+    font-size: 4rem;
     margin-bottom: 16px;
     opacity: 0.5;
     color: var(--ion-color-primary);
@@ -59,8 +84,13 @@ ion-content {
     min-height: 48px;
     font-weight: 600;
     letter-spacing: 0.3px;
-    --background: var(--ion-color-primary);
+    --background: var(--app-primary-gradient);
     --color: var(--ion-color-primary-contrast);
+    ion-icon {
+      font-size: 2rem;
+      margin-top: 10px;
+      color: var(--ion-color-primary-contrast);
+    }
   }
 }
 
@@ -242,7 +272,15 @@ ion-item-options {
 }
 
 // FAB
-ion-fab {
+ion-fab.customers-fab {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: calc(max(var(--ion-safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px)) + 12px) !important;
+  margin: 0 !important;
+  z-index: 30;
+  transform: none !important;
+  
+
   ion-fab-button {
     --background: var(--app-toolbar-gradient);
     --color: white;
@@ -283,9 +321,18 @@ ion-fab {
     --padding-end: 16px;
   }
 
+  ion-header .contacts-title {
+    padding-inline: 4px;
+  }
+
   ion-content {
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  ion-fab.customers-fab {
+    right: 10px !important;
+    bottom: calc(max(var(--ion-safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px)) + 10px) !important;
   }
 }
 

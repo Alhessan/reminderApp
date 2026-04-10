@@ -109,9 +109,22 @@
 
 ion-content {
   --background: var(--ion-color-light);
+  --padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 88px);
 }
 
 ion-list {
   background: transparent;
   padding: 16px;
-} 
+}
+
+ion-fab {
+  margin-right: 12px;
+  margin-bottom: calc(var(--ion-safe-area-bottom, 0px) + 12px);
+  z-index: 20;
+
+  ion-fab-button {
+    --background: var(--ion-color-primary);
+    --color: var(--ion-color-primary-contrast);
+    --box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  }
+}

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy Policy — RoutineLoop</title>
+<meta name="description" content="RoutineLoop Privacy Policy. We collect nothing. Your data stays on your device.">
+<meta property="og:title" content="Privacy Policy — RoutineLoop">
+<meta property="og:description" content="RoutineLoop Privacy Policy. We collect nothing. Your data stays on your device.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#265e6a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔁</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@600;700&family=Noto+Sans+Arabic:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --c-primary: #265e6a;
+  --c-primary-light: #2d7a8a;
+  --c-primary-dark: #1a424b;
+  --c-accent: #3a9bae;
+  --c-bg: #f7fafa;
+  --c-surface: #fff;
+  --c-text: #1a2e33;
+  --c-text2: #5a7078;
+  --c-text3: #8da0a6;
+  --c-border: #d4e0e3;
+  --c-warm: #e8a54b;
+  --c-teal-bg: #eaf3f5;
+  --ff-heading: 'DM Sans', sans-serif;
+  --ff-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ff-ar: 'Noto Sans Arabic', var(--ff-body);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--ff-body);
+  background: var(--c-bg);
+  color: var(--c-text);
+  line-height: 1.65;
+  font-size: 1rem;
+  -webkit-font-smoothing: antialiased;
+}
+[lang="ar"] body, [lang="ar"] { font-family: var(--ff-ar); }
+h1, h2, h3 { font-family: var(--ff-heading); line-height: 1.3; color: var(--c-primary-dark); }
+h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.4rem; font-weight: 700; margin-top: 2.5rem; margin-bottom: 0.75rem; }
+h3 { font-size: 1.15rem; font-weight: 600; }
+
+[lang="en"], [lang="ar"] { display: none; }
+html[data-lang="en"] [lang="en"] { display: block; }
+html[data-lang="ar"] [lang="ar"] { display: block; }
+html[data-lang="ar"] [lang="ar"] .ar-body { font-family: var(--ff-ar); direction: rtl; text-align: right; }
+html[data-lang="ar"] [lang="ar"] .policy-content { direction: rtl; text-align: right; }
+html[data-lang="ar"] [lang="ar"] .footer-inner { direction: rtl; text-align: right; }
+
+a { color: var(--c-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; border-radius: 3px; }
+
+.container { max-width: 720px; margin: 0 auto; padding: 0 1.25rem; }
+
+/* Nav */
+.site-nav {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(247, 250, 250, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--c-border);
+  padding: 0.75rem 1.25rem;
+}
+.nav-inner {
+  max-width: 720px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-back {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-family: var(--ff-heading); font-weight: 600; font-size: 1rem;
+  color: var(--c-primary); text-decoration: none;
+}
+.nav-back:hover { text-decoration: none; color: var(--c-primary-light); }
+.lang-btns { display: flex; gap: 0.25rem; }
+.lang-btn {
+  background: none; border: 1px solid var(--c-border); border-radius: 6px;
+  padding: 0.3rem 0.65rem; font-size: 0.8rem; cursor: pointer;
+  color: var(--c-text2); transition: all 0.2s; font-family: var(--ff-body);
+}
+.lang-btn:hover, .lang-btn.active {
+  background: var(--c-primary); color: #fff; border-color: var(--c-primary);
+}
+
+/* Policy content */
+.policy-header {
+  padding: 3rem 0 1rem;
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: 1.5rem;
+}
+.policy-header h1 { margin-bottom: 0.35rem; }
+.policy-header .updated {
+  font-size: 0.9rem; color: var(--c-text3);
+}
+
+.policy-content { padding-bottom: 3rem; }
+.policy-content p { margin-bottom: 0.85rem; color: var(--c-text2); }
+.policy-content strong { color: var(--c-text); }
+.policy-content ul {
+  margin: 0.5rem 0 1rem 1.25rem; color: var(--c-text2);
+}
+html[data-lang="ar"] .policy-content ul { margin-left: 0; margin-right: 1.25rem; }
+.policy-content ul li { margin-bottom: 0.4rem; }
+
+.highlight-card {
+  background: var(--c-teal-bg);
+  border: 1px solid rgba(38, 94, 106, 0.12);
+  border-radius: 14px;
+  padding: 1.5rem;
+  margin: 1.25rem 0;
+  text-align: center;
+}
+.highlight-card p {
+  font-size: 1.1rem; color: var(--c-primary-dark);
+  font-weight: 600; margin: 0;
+}
+.highlight-card .hl-icon { font-size: 1.5rem; margin-bottom: 0.5rem; display: block; }
+
+.bold-statement {
+  font-size: 1.15rem; font-weight: 700;
+  color: var(--c-primary-dark); margin: 1rem 0;
+}
+
+.perm-list { list-style: none; margin-left: 0 !important; }
+html[data-lang="ar"] .perm-list { margin-right: 0 !important; }
+.perm-list li {
+  padding: 0.5rem 0 0.5rem 0.5rem;
+  border-bottom: 1px solid var(--c-border);
+}
+.perm-list code {
+  background: var(--c-teal-bg);
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: var(--c-primary);
+}
+.perm-list li:last-child { border-bottom: none; }
+
+.contact-list { list-style: none; margin-left: 0 !important; }
+html[data-lang="ar"] .contact-list { margin-right: 0 !important; }
+.contact-list li { margin-bottom: 0.6rem; }
+.contact-list strong { color: var(--c-text); }
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--c-border);
+  padding: 2rem 0;
+}
+.footer-inner {
+  max-width: 720px; margin: 0 auto; padding: 0 1.25rem;
+  display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 1rem;
+  font-size: 0.875rem; color: var(--c-text3);
+}
+.footer-links { display: flex; gap: 1rem; flex-wrap: wrap; }
+.footer-links a { color: var(--c-text2); font-size: 0.875rem; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.2rem; }
+  .footer-inner { flex-direction: column; text-align: center; }
+}
+</style>
+<script>document.documentElement.dataset.lang=localStorage.getItem('rl-lang')||(navigator.language&&navigator.language.startsWith('ar')?'ar':'en');</script>
+</head>
+<body>
+
+<noscript>
+  <div style="max-width:720px;margin:2rem auto;padding:0 1.25rem;font-family:system-ui,sans-serif;color:#1a2e33;">
+    <a href="index.html" style="color:#265e6a;">&#8592; RoutineLoop</a>
+    <h1 style="font-size:1.8rem;color:#265e6a;margin:1.5rem 0 0.5rem;">Privacy Policy</h1>
+    <p style="color:#8da0a6;font-size:0.9rem;">Last updated: April 2, 2026</p>
+    <div style="background:#eaf3f5;border-radius:14px;padding:1.5rem;margin:1.5rem 0;text-align:center;">
+      <p style="font-weight:600;color:#1a424b;margin:0;">Our core principle: Your data stays on your device.</p>
+    </div>
+    <h2 style="color:#1a424b;margin-top:2rem;">Data Collection</h2>
+    <p style="font-weight:700;color:#1a424b;font-size:1.1rem;">What we collect: Nothing.</p>
+    <p style="color:#5a7078;">RoutineLoop does not collect, transmit, or store any personal data on external servers.</p>
+    <h2 style="color:#1a424b;margin-top:2rem;">Contact</h2>
+    <p style="color:#5a7078;">Email: support@routineloop.app</p>
+  </div>
+</noscript>
+
+<!-- Navigation -->
+<nav class="site-nav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <a href="index.html" class="nav-back" aria-label="Back to RoutineLoop homepage">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      RoutineLoop
+    </a>
+    <div class="lang-btns" role="group" aria-label="Language selection">
+      <button class="lang-btn" onclick="setLang('en')" aria-label="Switch to English">EN</button>
+      <button class="lang-btn" onclick="setLang('ar')" aria-label="التبديل إلى العربية">العربية</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===================== ENGLISH ===================== -->
+<main>
+<div lang="en">
+  <div class="container">
+    <div class="policy-header">
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated: April 2, 2026</p>
+    </div>
+
+    <div class="policy-content">
+      <h2>Introduction</h2>
+      <p>RoutineLoop (&ldquo;we&rdquo;, &ldquo;our&rdquo;, &ldquo;us&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we handle information when you use our mobile application.</p>
+      <div class="highlight-card">
+        <span class="hl-icon" aria-hidden="true">🔒</span>
+        <p>Our core principle: Your data stays on your device.</p>
+      </div>
+
+      <h2>Data Collection</h2>
+      <p class="bold-statement">What we collect: Nothing.</p>
+      <p>RoutineLoop does <strong>not</strong> collect, transmit, or store any personal data on external servers. All your data&thinsp;&mdash;&thinsp;tasks, reminders, cycles, categories, and preferences&thinsp;&mdash;&thinsp;is stored exclusively on your device using a local SQLite database.</p>
+      <p><strong>v1.0 Scope:</strong> RoutineLoop v1.0 stores all data locally on your device. It does <strong>NOT</strong> transmit any task, contact, reminder, or personal data to external servers. All notifications are delivered locally on your device. External notification types (email, SMS, WhatsApp, Telegram) are not available in v1.0 and no data is sent for these purposes.</p>
+      <h3>What we do NOT do:</h3>
+      <ul>
+        <li>We do not collect personal information (names, emails, phone numbers)</li>
+        <li>We do not track your location</li>
+        <li>We do not access your contacts or photos (unless you explicitly link a contact)</li>
+        <li>We do not use cookies or analytics trackers</li>
+        <li>We do not share any data with third parties</li>
+      </ul>
+
+      <h2>Data Storage</h2>
+      <p>All app data is stored locally on your device in a SQLite database file. This includes:</p>
+      <ul>
+        <li>Task definitions and categories</li>
+        <li>Cycle history and completion records</li>
+        <li>Notification preferences</li>
+        <li>App settings</li>
+      </ul>
+      <p><strong>We cannot access your data.</strong> It never leaves your device.</p>
+
+      <h2>Notifications</h2>
+      <p>RoutineLoop uses Android's local notification system to remind you of tasks. These notifications:</p>
+      <ul>
+        <li>Are scheduled and delivered entirely on your device</li>
+        <li>Do not require an internet connection</li>
+        <li>Are not transmitted to any server</li>
+        <li>Can be disabled at any time through your device's notification settings</li>
+      </ul>
+      <h3>Permissions requested:</h3>
+      <ul class="perm-list">
+        <li><code>POST_NOTIFICATIONS</code> &mdash; To display task reminders</li>
+        <li><code>SCHEDULE_EXACT_ALARM</code> &mdash; To deliver reminders at the precise time you set</li>
+        <li><code>RECEIVE_BOOT_COMPLETED</code> &mdash; To reschedule reminders after your device restarts</li>
+      </ul>
+
+      <h2>Data Deletion</h2>
+      <p>Since all data is stored locally on your device:</p>
+      <ul>
+        <li><strong>Uninstalling the app</strong> permanently deletes all your data</li>
+        <li>You can use the &ldquo;Reset Database&rdquo; option in Settings to clear all data without uninstalling</li>
+        <li>We have no ability to recover or access your data</li>
+      </ul>
+
+      <h2>Children's Privacy</h2>
+      <p>RoutineLoop is suitable for all ages. We do not knowingly collect information from children because we do not collect information from anyone.</p>
+
+      <h2>Third-Party Services</h2>
+      <p>RoutineLoop does not integrate with any third-party analytics, advertising, or data collection services.</p>
+
+      <h2>Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time. Changes will be reflected in the &ldquo;Last updated&rdquo; date above. Continued use of the app after changes constitutes acceptance of the updated policy.</p>
+
+      <h2>Contact Us</h2>
+      <p>If you have questions about this Privacy Policy or our practices, please contact us:</p>
+      <ul class="contact-list">
+        <li><strong>Email:</strong> support@routineloop.app</li>
+        <li><strong>In-app:</strong> Settings &rarr; Help &amp; Support</li>
+      </ul>
+
+      <h2>Consent</h2>
+      <p>By using RoutineLoop, you agree to this Privacy Policy. Since we do not collect any data, there is no data processing to consent to&thinsp;&mdash;&thinsp;but we believe in being transparent about what our app does and doesn't do.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ARABIC ===================== -->
+<div lang="ar" dir="rtl">
+  <div class="container">
+    <div class="policy-header ar-body">
+      <h1>سياسة الخصوصية</h1>
+      <p class="updated">آخر تحديث: 2 أبريل 2026</p>
+    </div>
+
+    <div class="policy-content ar-body">
+      <h2>مقدمة</h2>
+      <p>RoutineLoop (&ldquo;نحن&rdquo;) ملتزم بحماية خصوصيتك. تشرح سياسة الخصوصية هذه كيف نتعامل مع المعلومات عند استخدامك لتطبيقنا.</p>
+      <div class="highlight-card">
+        <span class="hl-icon" aria-hidden="true">🔒</span>
+        <p>مبدؤنا الأساسي: بياناتك تبقى على جهازك.</p>
+      </div>
+
+      <h2>جمع البيانات</h2>
+      <p class="bold-statement">ما نجمعه: لا شيء.</p>
+      <p>RoutineLoop <strong>لا</strong> يجمع أو ينقل أو يخزن أي بيانات شخصية على خوادم خارجية. جميع بياناتك&thinsp;&mdash;&thinsp;المهام والتذكيرات والدورات والتصنيفات والتفضيلات&thinsp;&mdash;&thinsp;تُخزن حصرياً على جهازك باستخدام قاعدة بيانات SQLite محلية.</p>
+      <p><strong>نطاق v1.0:</strong> RoutineLoop v1.0 يخزن جميع البيانات محلياً على جهازك. لا ينقل <strong>أي</strong> بيانات مهام أو جهات اتصال أو تذكيرات أو بيانات شخصية إلى خوادم خارجية. جميع الإشعارات يتم تسليمها محلياً على جهازك. أنواع الإشعارات الخارجية (البريد الإلكتروني، الرسائل القصيرة، واتساب، تيليجرام) غير متوفرة في v1.0 ولا يتم إرسال أي بيانات لهذه الأغراض.</p>
+      <h3>ما لا نقوم به:</h3>
+      <ul>
+        <li>لا نجمع معلومات شخصية (أسماء، بريد إلكتروني، أرقام هواتف)</li>
+        <li>لا نتتبع موقعك</li>
+        <li>لا نصل إلى جهات الاتصال أو الصور الخاصة بك (إلا إذا قمت بربط جهة اتصال بشكل صريح)</li>
+        <li>لا نستخدم ملفات تعريف الارتباط أو أدوات التتبع التحليلية</li>
+        <li>لا نشارك أي بيانات مع أطراف ثالثة</li>
+      </ul>
+
+      <h2>تخزين البيانات</h2>
+      <p>جميع بيانات التطبيق مخزنة محلياً على جهازك في ملف قاعدة بيانات SQLite. يشمل ذلك:</p>
+      <ul>
+        <li>تعريفات المهام والتصنيفات</li>
+        <li>سجل الدورات وسجلات الإنجاز</li>
+        <li>تفضيلات الإشعارات</li>
+        <li>إعدادات التطبيق</li>
+      </ul>
+      <p><strong>لا نستطيع الوصول إلى بياناتك.</strong> لا تغادر جهازك أبداً.</p>
+
+      <h2>الإشعارات</h2>
+      <p>يستخدم RoutineLoop نظام الإشعارات المحلي في أندرويد لتذكيرك بمهامك. هذه الإشعارات:</p>
+      <ul>
+        <li>مجدولة ومسلمة بالكامل على جهازك</li>
+        <li>لا تتطلب اتصال بالإنترنت</li>
+        <li>لا تُنقل إلى أي خادم</li>
+        <li>يمكن تعطيلها في أي وقت من إعدادات الإشعارات في جهازك</li>
+      </ul>
+      <h3>الأذونات المطلوبة:</h3>
+      <ul class="perm-list">
+        <li><code>POST_NOTIFICATIONS</code> &mdash; لعرض تذكيرات المهام</li>
+        <li><code>SCHEDULE_EXACT_ALARM</code> &mdash; لتسليم التذكيرات في الوقت الدقيق الذي تحدده</li>
+        <li><code>RECEIVE_BOOT_COMPLETED</code> &mdash; لإعادة جدولة التذكيرات بعد إعادة تشغيل جهازك</li>
+      </ul>
+
+      <h2>حذف البيانات</h2>
+      <p>بما أن جميع البيانات مخزنة محلياً على جهازك:</p>
+      <ul>
+        <li><strong>إلغاء تثبيت التطبيق</strong> يحذف جميع بياناتك بشكل دائم</li>
+        <li>يمكنك استخدام خيار &ldquo;إعادة ضبط قاعدة البيانات&rdquo; في الإعدادات لمسح جميع البيانات دون إلغاء التثبيت</li>
+        <li>ليس لدينا أي قدرة على استعادة أو الوصول إلى بياناتك</li>
+      </ul>
+
+      <h2>خصوصية الأطفال</h2>
+      <p>RoutineLoop مناسب لجميع الأعمار. لا نجمع عن قصد معلومات من الأطفال لأننا لا نجمع معلومات من أي شخص.</p>
+
+      <h2>خدمات الطرف الثالث</h2>
+      <p>RoutineLoop لا يتكامل مع أي خدمات تحليلية أو إعلانية أو خدمات جمع بيانات تابعة لطرف ثالث.</p>
+
+      <h2>التغييرات على هذه السياسة</h2>
+      <p>قد نقوم بتحديث سياسة الخصوصية هذه من وقت لآخر. ستظهر التغييرات في تاريخ &ldquo;آخر تحديث&rdquo; أعلاه. الاستمرار في استخدام التطبيق بعد التغييرات يشكل قبولاً للسياسة المحدثة.</p>
+
+      <h2>اتصل بنا</h2>
+      <p>إذا كان لديك أسئلة حول سياسة الخصوصية هذه أو ممارساتنا، يرجى الاتصال بنا:</p>
+      <ul class="contact-list">
+        <li><strong>البريد الإلكتروني:</strong> support@routineloop.app</li>
+        <li><strong>داخل التطبيق:</strong> الإعدادات &larr; المساعدة والدعم</li>
+      </ul>
+
+      <h2>الموافقة</h2>
+      <p>باستخدامك لـ RoutineLoop، فإنك توافق على سياسة الخصوصية هذه. بما أننا لا نجمع أي بيانات، فلا توجد معالجة بيانات للموافقة عليها&thinsp;&mdash;&thinsp;لكننا نؤمن بالشفافية حول ما يفعله تطبيقنا وما لا يفعله.</p>
+    </div>
+  </div>
+</div>
+</main>
+
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span>&copy; 2026 RoutineLoop</span>
+    <div class="footer-links">
+      <a href="index.html">Home</a>
+      <a href="https://ko-fi.com/routineloop" target="_blank" rel="noopener noreferrer">Ko-fi</a>
+    </div>
+    <div class="lang-btns" role="group" aria-label="Language selection">
+      <button class="lang-btn" onclick="setLang('en')" aria-label="Switch to English">EN</button>
+      <button class="lang-btn" onclick="setLang('ar')" aria-label="التبديل إلى العربية">العربية</button>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function() {
+  function initLang() {
+    var saved = localStorage.getItem('rl-lang');
+    var lang = saved || (navigator.language && navigator.language.startsWith('ar') ? 'ar' : 'en');
+    setLang(lang);
+  }
+  function setLang(lang) {
+    document.documentElement.setAttribute('data-lang', lang);
+    document.documentElement.lang = lang;
+    localStorage.setItem('rl-lang', lang);
+    var btns = document.querySelectorAll('.lang-btn');
+    btns.forEach(function(b) {
+      if ((lang === 'en' && b.textContent.trim() === 'EN') || (lang === 'ar' && b.textContent.trim() === 'العربية')) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+  }
+  window.setLang = setLang;
+  initLang();
+})();
+</script>
+</body>
+</html>

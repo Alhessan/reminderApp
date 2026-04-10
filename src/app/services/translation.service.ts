@@ -9,13 +9,13 @@ export interface TranslationKeys {
 })
 export class TranslationService {
   private translations: TranslationKeys = {
-    // Task Type Dialog
-    'taskType.add.title': 'Add Task Type',
-    'taskType.add.subtitle': 'Create a new task type with custom appearance',
-    'taskType.edit.title': 'Edit Task Type',
-    'taskType.edit.subtitle': 'Modify the task type details',
+    // Category Dialog
+    'taskType.add.title': 'Add Category',
+    'taskType.add.subtitle': 'Create a new category with custom appearance',
+    'taskType.edit.title': 'Edit Category',
+    'taskType.edit.subtitle': 'Modify the category details',
     'taskType.name.label': 'Name',
-    'taskType.name.placeholder': 'Enter task type name',
+    'taskType.name.placeholder': 'Enter category name',
     'taskType.description.label': 'Description',
     'taskType.description.placeholder': 'Enter description (optional)',
     'taskType.appearance': 'Appearance',
@@ -30,9 +30,9 @@ export class TranslationService {
     'common.required': 'This field is required',
     
     // Validation Messages
-    'validation.name.required': 'Name is required for task type',
-    'validation.taskType.create.success': 'Task type created successfully',
-    'validation.taskType.create.error': 'Failed to create task type. Please try again.',
+    'validation.name.required': 'Name is required for category',
+    'validation.taskType.create.success': 'Category created successfully',
+    'validation.taskType.create.error': 'Failed to create category. Please try again.',
     'validation.task.notFound': 'Task not found',
     'validation.task.loadError': 'Failed to load task details',
     'validation.task.saveError': 'Failed to save task. Please try again.',

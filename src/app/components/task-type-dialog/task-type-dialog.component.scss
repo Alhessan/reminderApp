@@ -106,6 +106,13 @@
 }
 
 // Footer buttons
+ion-footer ion-toolbar {
+  --background: var(--ion-background-color) !important;
+  --color: var(--ion-text-color) !important;
+  --border-width: 1px 0 0 0;
+  --border-color: var(--ion-border-color, rgba(0, 0, 0, 0.08));
+}
+
 .footer-buttons {
   display: flex;
   gap: 12px;
@@ -118,13 +125,19 @@
     --border-radius: 12px;
 
     &[fill="clear"] {
-      --color: var(--ion-color-medium);
+      --color: var(--ion-text-color);
+      --background: rgba(var(--ion-color-medium-rgb), 0.12);
+      --background-hover: rgba(var(--ion-color-medium-rgb), 0.18);
     }
   }
 }
 
 // Dark mode
 @media (prefers-color-scheme: dark) {
+  ion-footer ion-toolbar {
+    --border-color: rgba(255, 255, 255, 0.08);
+  }
+
   .form-group {
     ion-item {
       --background: var(--ion-color-step-100, #2a2a2a);

@@ -6,6 +6,7 @@ import { RouterLink, RouterOutlet, Router } from '@angular/router';
 import { App } from '@capacitor/app';
 import { NotificationService } from './services/notification.service';
 import { environment } from '../environments/environment';
+import packageJson from '../../package.json';
 import { SampleDataService } from './services/sample-data.service';
 import { TaskCycleService } from './services/task-cycle.service';
 import { TaskService } from './services/task.service';
@@ -95,10 +96,13 @@ import {
   ]
 })
 export class AppComponent implements OnDestroy {
+  /** Shown in side menu; keep in sync with releases by bumping root `package.json` `version`. */
+  readonly appVersion = packageJson.version;
+
   public appPages = [
     { title: 'Contacts', url: '/customers', icon: 'people-outline' },
     { title: 'Tasks', url: '/tasks', icon: 'checkbox-outline' },
-    { title: 'Task Types', url: '/settings/task-types', icon: 'settings-outline' },
+    { title: 'Task Categories', url: '/settings/task-types', icon: 'settings-outline' },
     { title: 'Notification Methods', url: '/settings/notification-types', icon: 'notifications-outline' }
   ];
 

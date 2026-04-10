@@ -12,7 +12,9 @@
         <item name="windowNoTitle">true</item>
         <item name="android:windowBackground">@null</item>
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
+        <!-- Keep status bar visible in light mode by avoiding transparent/white blend -->
+        <item name="android:statusBarColor">@color/colorPrimary</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
     <!-- Android 12+ system splash: use transparent icon so no centered circle is shown -->

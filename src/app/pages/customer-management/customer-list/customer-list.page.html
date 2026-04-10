@@ -3,7 +3,7 @@
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
-    <ion-title>Contacts</ion-title>
+    <ion-title class="contacts-title">Contacts</ion-title>
     <ion-buttons slot="end">
       <ion-button (click)="navigateToAddCustomer()">
         <ion-icon slot="icon-only" name="add-circle-outline"></ion-icon>
@@ -97,7 +97,7 @@
   </div>
 
   <!-- Floating Action Button -->
-  <ion-fab vertical="bottom" horizontal="end" slot="fixed">
+  <ion-fab class="page-fab customers-fab" vertical="bottom" horizontal="end" slot="fixed">
     <ion-fab-button (click)="navigateToAddCustomer()">
       <ion-icon name="add"></ion-icon>
     </ion-fab-button>

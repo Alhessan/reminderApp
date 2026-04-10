@@ -1,5 +1,29 @@
 // Task Types Page Styles - Clean and functional styling
 
+ion-header ion-toolbar {
+  --padding-start: 10px;
+  --padding-end: 10px;
+}
+
+ion-header ion-buttons {
+  min-width: 44px;
+}
+
+ion-header .task-types-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  padding-inline: 8px;
+  text-align: center;
+}
+
+ion-header .task-types-title::part(native) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+
 .page-header {
   text-align: center;
   margin-bottom: 24px;

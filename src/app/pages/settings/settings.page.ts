@@ -24,8 +24,8 @@ import { Browser } from '@capacitor/browser';
         <ion-item routerLink="task-types" detail>
           <ion-icon name="list-outline" slot="start"></ion-icon>
           <ion-label>
-            <h2>Task Types</h2>
-            <p>Manage task categories and types</p>
+            <h2>Categories</h2>
+            <p>Manage routine categories</p>
           </ion-label>
         </ion-item>
 

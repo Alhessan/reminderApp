@@ -56,7 +56,7 @@
         <div *ngIf="taskForm.get('type')?.invalid && (taskForm.get('type')?.dirty || taskForm.get('type')?.touched)" 
              class="error-message"
              role="alert">
-          <small *ngIf="taskForm.get('type')?.errors?.['required']">Type is required.</small>
+          <small *ngIf="taskForm.get('type')?.errors?.['required']">Category is required.</small>
         </div>
 
         <!-- Profile/Customer Selection -->
@@ -295,7 +295,7 @@
       <ion-card-content>
         <div class="notification-preview">
           <h2>Reminder: {{ taskForm.get('title')?.value }}</h2>
-          <p>Type: {{ taskForm.get('type')?.value }}</p>
+          <p>Category: {{ taskForm.get('type')?.value }}</p>
           <p>Time: {{ formatTime(taskForm.get('notificationTime')?.value) }}</p>
           <p *ngIf="taskForm.get('notes')?.value">Notes: {{ taskForm.get('notes')?.value }}</p>
         </div>

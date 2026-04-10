@@ -29,7 +29,7 @@ import {
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Task Types</ion-title>
+        <ion-title class="task-types-title">Categories</ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="addTaskType()">
             <ion-icon name="add" slot="icon-only"></ion-icon>
@@ -42,10 +42,10 @@ import {
       <!-- Page Header -->
       <div class="page-header">
         <h2>Task Categories</h2>
-        <p>Manage your custom task types and categories</p>
+        <p>Manage your custom categories</p>
       </div>
 
-      <!-- Task Types List -->
+      <!-- Categories List -->
       <ion-list>
         <ion-item-sliding *ngFor="let type of taskTypes$ | async; trackBy: trackByTaskType">
           <ion-item>
@@ -80,11 +80,11 @@ import {
       <!-- Empty State -->
       <div *ngIf="(taskTypes$ | async)?.length === 0" class="empty-state">
         <ion-icon name="folder-open-outline" color="medium"></ion-icon>
-        <h3>No Custom Task Types</h3>
-        <p>Create your first custom task type to get started</p>
+        <h3>No Custom Categories</h3>
+        <p>Create your first custom category to get started</p>
         <ion-button (click)="addTaskType()" fill="outline">
           <ion-icon name="add" slot="start"></ion-icon>
-          Add Task Type
+          Add Category
         </ion-button>
       </div>
     </ion-content>
@@ -161,7 +161,7 @@ export class TaskTypesPage implements OnInit {
         // Show success message
         const successAlert = await this.alertController.create({
           header: 'Success',
-          message: 'Task type created successfully!',
+          message: 'Category created successfully!',
           buttons: ['OK']
         });
         await successAlert.present();
@@ -169,7 +169,7 @@ export class TaskTypesPage implements OnInit {
         // Show error message
         const errorAlert = await this.alertController.create({
           header: 'Error',
-          message: 'Failed to create task type. Please try again.',
+          message: 'Failed to create category. Please try again.',
           buttons: ['OK']
         });
         await errorAlert.present();
@@ -200,7 +200,7 @@ export class TaskTypesPage implements OnInit {
         // Show success message
         const successAlert = await this.alertController.create({
           header: 'Success',
-          message: 'Task type updated successfully!',
+          message: 'Category updated successfully!',
           buttons: ['OK']
         });
         await successAlert.present();
@@ -208,7 +208,7 @@ export class TaskTypesPage implements OnInit {
         // Show error message
         const errorAlert = await this.alertController.create({
           header: 'Error',
-          message: 'Failed to update task type. Please try again.',
+          message: 'Failed to update category. Please try again.',
           buttons: ['OK']
         });
         await errorAlert.present();

@@ -318,6 +318,25 @@ ion-toolbar ion-back-button {
   --color: var(--app-toolbar-color) !important;
 }
 
+// Prevent toolbar titles from showing ellipsis (e.g. "T..."/"C...")
+// and keep enough usable space between start/end button groups.
+ion-header ion-toolbar ion-buttons[slot="start"],
+ion-header ion-toolbar ion-buttons[slot="end"] {
+  flex: 0 0 auto;
+}
+
+ion-header ion-toolbar ion-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-inline: 8px;
+}
+
+ion-header ion-toolbar ion-title::part(native) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
 // ===========================================
 // UNIFIED PAGE HEADER
 // ===========================================
@@ -872,5 +891,26 @@ ion-progress-bar {
   .compact-modal {
     --width: 400px !important;
     --height: 40vh !important;
+  }
+}
+
+
+ion-fab {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: calc(max(var(--ion-safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px)) + 12px) !important;
+  margin: 0 !important;
+  z-index: 30;
+  transform: none !important;
+
+  ion-fab-button {
+    --background: var(--app-primary-gradient) !important;
+    --color: white;
+    --border-radius: 50%;
+    --box-shadow: 0 6px 16px rgba(124, 77, 255, 0.35);
+
+    ion-icon {
+      font-size: 24px;
+    }
   }
 }

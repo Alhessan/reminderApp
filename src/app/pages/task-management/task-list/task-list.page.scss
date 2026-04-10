@@ -21,6 +21,7 @@ ion-content {
   --padding-start: 0;
   --padding-end: 0;
   --padding-top: 0;
+  --padding-bottom: calc(var(--ion-safe-area-bottom, 0px) + 88px);
   --overflow: auto;
   --background: var(--ion-background-color);
   &.ion-content-scroll-host { overflow: auto; }
@@ -153,7 +154,14 @@ ion-toolbar {
 }
 
 // FAB
-ion-fab {
+ion-fab.page-fab {
+  position: fixed !important;
+  right: 12px !important;
+  bottom: calc(max(var(--ion-safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px)) + 12px) !important;
+  margin: 0 !important;
+  z-index: 30;
+  transform: none !important;
+
   ion-fab-button {
     --background: var(--app-primary-gradient);
     --color: white;
@@ -236,6 +244,11 @@ ion-fab {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+  }
+
+  ion-fab.page-fab {
+    right: 10px !important;
+    bottom: calc(max(var(--ion-safe-area-bottom, 0px), env(safe-area-inset-bottom, 0px)) + 10px) !important;
   }
 }
 

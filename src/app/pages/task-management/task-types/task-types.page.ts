@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { ColorIconPickerComponent } from '../../../components/color-icon-picker/color-icon-picker.component';
 import { Clipboard } from '@capacitor/clipboard';
 import { Capacitor } from '@capacitor/core';
-import { environment } from '../../../environments/environment';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-task-types',
@@ -93,7 +93,7 @@ export class TaskTypesPage implements OnInit {
     if (taskType.isDefault) {
       const alert = await this.alertCtrl.create({
         header: 'Cannot Delete',
-        message: 'Default routine types cannot be deleted.',
+        message: 'Default categories cannot be deleted.',
         buttons: ['OK'],
         cssClass: 'custom-alert'
       });
@@ -203,7 +203,7 @@ export class TaskTypesPage implements OnInit {
   template: `
     <ion-header>
       <ion-toolbar>
-        <ion-title>{{ mode === 'add' ? 'Add Routine Type' : 'Edit Routine Type' }}</ion-title>
+        <ion-title>{{ mode === 'add' ? 'Add Category' : 'Edit Category' }}</ion-title>
         <ion-buttons slot="end">
           <ion-button (click)="dismiss()">
             <ion-icon name="close"></ion-icon>
@@ -238,8 +238,8 @@ export class TaskTypesPage implements OnInit {
           <ion-item lines="none">
             <ion-icon [name]="icon" slot="start" [style.color]="color"></ion-icon>
             <ion-label>
-              <h2>{{ name || 'Type Name' }}</h2>
-              <p>{{ description || 'Type description will appear here' }}</p>
+              <h2>{{ name || 'Category Name' }}</h2>
+              <p>{{ description || 'Category description will appear here' }}</p>
             </ion-label>
           </ion-item>
         </div>
