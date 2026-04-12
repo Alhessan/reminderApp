@@ -47,12 +47,14 @@ h1 { font-size: 2rem; font-weight: 700; letter-spacing: -0.01em; }
 h2 { font-size: 1.4rem; font-weight: 700; margin-top: 2.5rem; margin-bottom: 0.75rem; }
 h3 { font-size: 1.15rem; font-weight: 600; }
 
-[lang="en"], [lang="ar"] { display: none; }
-html[data-lang="en"] [lang="en"] { display: block; }
-html[data-lang="ar"] [lang="ar"] { display: block; }
-html[data-lang="ar"] [lang="ar"] .ar-body { font-family: var(--ff-ar); direction: rtl; text-align: right; }
-html[data-lang="ar"] [lang="ar"] .policy-content { direction: rtl; text-align: right; }
-html[data-lang="ar"] [lang="ar"] .footer-inner { direction: rtl; text-align: right; }
+/* Hide language sections by default — JS will show the correct one */
+/* scoped to div to avoid matching <html lang="en"> which would hide the entire page */
+div[lang="en"], div[lang="ar"] { display: none; }
+html[data-lang="en"] div[lang="en"] { display: block; }
+html[data-lang="ar"] div[lang="ar"] { display: block; }
+html[data-lang="ar"] div[lang="ar"] .ar-body { font-family: var(--ff-ar); direction: rtl; text-align: right; }
+html[data-lang="ar"] div[lang="ar"] .policy-content { direction: rtl; text-align: right; }
+html[data-lang="ar"] div[lang="ar"] .footer-inner { direction: rtl; text-align: right; }
 
 a { color: var(--c-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }

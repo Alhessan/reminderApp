@@ -48,11 +48,12 @@ h2 { font-size: 1.75rem; font-weight: 700; }
 h3 { font-size: 1.25rem; font-weight: 600; }
 
 /* Hide language sections by default — JS will show the correct one */
-[lang="en"], [lang="ar"] { display: none; }
-html[data-lang="en"] [lang="en"] { display: block; }
-html[data-lang="ar"] [lang="ar"] { display: block; }
-html[data-lang="ar"] [lang="ar"] .ar-body { font-family: var(--ff-ar); direction: rtl; text-align: right; }
-html[data-lang="ar"] [lang="ar"] .hero, html[data-lang="ar"] [lang="ar"] .footer-inner { direction: rtl; text-align: right; }
+/* scoped to div to avoid matching <html lang="en"> which would hide the entire page */
+div[lang="en"], div[lang="ar"] { display: none; }
+html[data-lang="en"] div[lang="en"] { display: block; }
+html[data-lang="ar"] div[lang="ar"] { display: block; }
+html[data-lang="ar"] div[lang="ar"] .ar-body { font-family: var(--ff-ar); direction: rtl; text-align: right; }
+html[data-lang="ar"] div[lang="ar"] .hero, html[data-lang="ar"] div[lang="ar"] .footer-inner { direction: rtl; text-align: right; }
 
 a { color: var(--c-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
