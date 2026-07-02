@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { TaskCycleService } from './task-cycle.service';
 import { DatabaseService } from './database.service';
+import { CycleRepository } from '../repositories/cycle.repository';
 import { TaskService } from './task.service';
 import { Task } from '../models/task.model';
 import { Cycle } from '../models/task-cycle.model';
@@ -46,11 +47,16 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
     };
     dbExecuteQuerySpy = dbMock.executeQuery as jasmine.Spy;
 
+    const taskServiceStub = {
+      rescheduleAllPendingNotifications: jasmine.createSpy('rescheduleAll').and.returnValue(Promise.resolve()),
+    };
+
     TestBed.configureTestingModule({
       providers: [
         TaskCycleService,
+        CycleRepository,
         { provide: DatabaseService, useValue: dbMock },
-        { provide: TaskService, useValue: {} },
+        { provide: TaskService, useValue: taskServiceStub },
       ],
     });
     service = TestBed.inject(TaskCycleService);
@@ -96,19 +102,21 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
         .withArgs(jasmine.stringContaining('SELECT * FROM tasks WHERE id = ?'), jasmine.any(Array))
         .and.returnValue(Promise.resolve({ values: [mockTaskRow()] }));
       dbExecuteQuerySpy
-        .withArgs(jasmine.stringContaining('UPDATE task_cycles SET resolution = ?, completedAt = ?'), jasmine.any(Array))
+        .withArgs(jasmine.stringContaining('UPDATE task_cycles SET resolution = ?, completedAt = ?, skippedAt = NULL'), jasmine.any(Array))
         .and.returnValue(Promise.resolve({ changes: {} }));
       dbExecuteQuerySpy
         .withArgs(jasmine.stringContaining('SELECT * FROM task_cycles WHERE taskId = ?'), jasmine.any(Array))
         .and.returnValue(Promise.resolve({ values: [] }));
       dbExecuteQuerySpy
-        .withArgs(jasmine.stringContaining('INSERT INTO task_cycles'), jasmine.any(Array))
-        .and.returnValue(Promise.resolve({ changes: { lastId: 11 } }));
+        .withArgs(jasmine.stringContaining('INSERT OR IGNORE INTO task_cycles'), jasmine.any(Array))
+        .and.returnValue(Promise.resolve({ changes: { lastId: 11, changes: 1 } }));
 
       await service.resolveCycle(10, 'done');
 
       const updateCalls = dbExecuteQuerySpy.calls.all().filter(
-        (c: { args: unknown[] }) => typeof c.args[0] === 'string' && (c.args[0] as string).includes('UPDATE task_cycles SET resolution = ?, completedAt = ?')
+        (c: { args: unknown[] }) =>
+          typeof c.args[0] === 'string' &&
+          (c.args[0] as string).includes('UPDATE task_cycles SET resolution = ?, completedAt = ?, skippedAt = NULL')
       );
       expect(updateCalls.length).toBeGreaterThanOrEqual(1);
       expect(updateCalls[0].args[1][0]).toBe('done');
@@ -144,8 +152,8 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
         if (sql.includes('SELECT * FROM task_cycles WHERE taskId = ?')) {
           return Promise.resolve({ values: [] }); // no current cycle
         }
-        if (sql.includes('INSERT INTO task_cycles')) {
-          return Promise.resolve({ changes: { lastId: 1 } });
+        if (sql.includes('INSERT OR IGNORE INTO task_cycles')) {
+          return Promise.resolve({ changes: { lastId: 1, changes: 1 } });
         }
         return Promise.resolve({ values: [], changes: {} });
       });
@@ -153,7 +161,7 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
       await service.ensureOpenCyclesForActiveTasks();
 
       const insertCalls = dbExecuteQuerySpy.calls.all().filter(
-        (c: { args: unknown[] }) => typeof c.args[0] === 'string' && (c.args[0] as string).includes('INSERT INTO task_cycles')
+        (c: { args: unknown[] }) => typeof c.args[0] === 'string' && (c.args[0] as string).includes('INSERT OR IGNORE INTO task_cycles')
       );
       expect(insertCalls.length).toBeGreaterThanOrEqual(1);
     });
@@ -286,6 +294,97 @@ describe('TaskCycleService (Phase 2 & 4)', () => {
       const list = await service.getArchivedTasks();
       expect(list.length).toBe(1);
       expect(list[0].task.state).toBe('archived');
+    });
+  });
+
+  describe('Bug 2 fix: createNextCycle deduplication', () => {
+    it('should return existing cycle id when INSERT OR IGNORE conflicts on (taskId, periodDay)', async () => {
+      const existingOpenId = 42;
+      dbExecuteQuerySpy.and.callFake((sql: string) => {
+        if (sql.includes('SELECT * FROM task_cycles WHERE taskId = ? ORDER BY')) {
+          return Promise.resolve({ values: [] });
+        }
+        if (sql.includes('INSERT OR IGNORE INTO task_cycles')) {
+          return Promise.resolve({ changes: { changes: 0 } });
+        }
+        if (sql.includes('SELECT * FROM task_cycles WHERE taskId = ? AND periodDay = ?')) {
+          return Promise.resolve({
+            values: [{
+              id: existingOpenId,
+              taskId: 1,
+              cycleStartDate: '2025-02-01T00:00:00.000Z',
+              dueAt: '2025-02-01T09:00:00.000Z',
+              softDeadline: '2025-02-01T09:30:00.000Z',
+              hardDeadline: '2025-02-01T14:00:00.000Z',
+              resolution: 'open',
+            }],
+          });
+        }
+        return Promise.resolve({ values: [], changes: {} });
+      });
+
+      const result = await service.createNextCycle({
+        id: 1,
+        title: 'Test',
+        type: 'Custom',
+        frequency: 'daily',
+        startDate: '2025-01-01',
+        notificationTime: '09:00',
+        notificationType: 'push',
+        state: 'active',
+      } as any);
+
+      expect(result).toBe(existingOpenId);
+
+      const insertCalls = dbExecuteQuerySpy.calls.all().filter(
+        (c: any) => typeof c.args[0] === 'string' && (c.args[0] as string).includes('INSERT OR IGNORE INTO task_cycles')
+      );
+      expect(insertCalls.length).toBe(1);
+    });
+
+    it('should create exactly one next cycle when resolving an open cycle to done', async () => {
+      let insertCount = 0;
+      dbExecuteQuerySpy.and.callFake((sql: string, params?: any[]) => {
+        if (sql.includes('SELECT * FROM task_cycles WHERE id = ?')) {
+          return Promise.resolve({
+            values: [{
+              id: 10, taskId: 1, cycleStartDate: '2025-02-01T00:00:00.000Z',
+              dueAt: '2025-02-01T09:00:00.000Z', softDeadline: '2025-02-01T09:30:00.000Z',
+              hardDeadline: '2025-02-01T14:00:00.000Z', resolution: 'open',
+              startedAt: null, completedAt: null, skippedAt: null,
+            }]
+          });
+        }
+        if (sql.includes('SELECT * FROM tasks WHERE id = ?') && !sql.includes('SELECT id FROM tasks')) {
+          return Promise.resolve({
+            values: [{
+              id: 1, title: 'Test', type: 'Custom', frequency: 'daily',
+              startDate: '2025-01-01T00:00:00.000Z', notificationTime: '09:00',
+              notificationType: 'push', state: 'active', isArchived: 0,
+            }]
+          });
+        }
+        if (sql.includes('UPDATE task_cycles SET resolution = ?, completedAt = ?, skippedAt = NULL')) {
+          return Promise.resolve({ changes: {} });
+        }
+        // getCurrentCycle after resolve — return done cycle
+        if (sql.includes('SELECT * FROM task_cycles WHERE taskId = ? ORDER BY') && params?.[0] === 1) {
+          return Promise.resolve({ values: [] }); // no current open cycle
+        }
+        // Deduplication guard — no existing open cycle
+        if (sql.includes("resolution = 'open'")) {
+          return Promise.resolve({ values: [] });
+        }
+        if (sql.includes('INSERT OR IGNORE INTO task_cycles')) {
+          insertCount++;
+          return Promise.resolve({ changes: { lastId: 11, changes: 1 } });
+        }
+        return Promise.resolve({ values: [], changes: {} });
+      });
+
+      await service.resolveCycle(10, 'done');
+
+      expect(insertCount).toBe(1);
     });
   });
 });

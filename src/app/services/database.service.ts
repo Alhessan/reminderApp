@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
+import { periodDayFromDueAt } from '../utils/cycle-timestamps.util';
 import { CapacitorSQLite, SQLiteConnection, SQLiteDBConnection, CapacitorSQLitePlugin, DBSQLiteValues, capSQLiteSet } from '@capacitor-community/sqlite';
 import { BehaviorSubject } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -153,7 +154,7 @@ export class DatabaseService {
   private initializationPromise: Promise<void> | null = null;
   private isInitialized = false;
 
-  private currentVersion = 7; // Increment this when adding new migrations
+  private currentVersion = 9; // Increment this when adding new migrations
 
   private log(...args: any[]) {
     if (environment.enableConsoleLogs) console.log('[DB]', ...args);
@@ -184,7 +185,8 @@ export class DatabaseService {
       { cid: 6, name: 'resolution', type: 'TEXT', notnull: 1, dflt_value: "'open'", pk: 0 },
       { cid: 7, name: 'startedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
       { cid: 8, name: 'completedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
-      { cid: 9, name: 'skippedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
+      { cid: 9, name: 'skippedAt', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 },
+      { cid: 10, name: 'periodDay', type: 'TEXT', notnull: 0, dflt_value: null, pk: 0 }
     ],
     task_types: [
       { cid: 0, name: 'id', type: 'INTEGER', notnull: 1, dflt_value: null, pk: 1 },
@@ -338,6 +340,8 @@ export class DatabaseService {
       }
       // Align task_cycles with current schema (resolution, dueAt, softDeadline, hardDeadline)
       this.normalizeWebStoreTaskCycles();
+      this.dedupeWebOpenTaskCycles();
+      this.migrateWebTaskCyclesV9();
 
       // Migration v7: Replace default task types
       if (this.webStore['task_types'] && Array.isArray(this.webStore['task_types'])) {
@@ -517,6 +521,46 @@ export class DatabaseService {
           return d.toISOString();
         })();
       }
+      if (row.periodDay == null || row.periodDay === undefined) {
+        row.periodDay = periodDayFromDueAt(row.dueAt);
+      }
+    }
+  }
+
+  /** Web v9: backfill periodDay and remove duplicate (taskId, periodDay) rows. */
+  private migrateWebTaskCyclesV9(): void {
+    const cycles = (this.webStore['task_cycles'] || []) as any[];
+    if (!cycles.length) return;
+
+    for (const row of cycles) {
+      if (row.dueAt && (row.periodDay == null || row.periodDay === undefined)) {
+        row.periodDay = periodDayFromDueAt(row.dueAt);
+      }
+    }
+
+    const groups = new Map<string, any[]>();
+    for (const row of cycles) {
+      if (!row.periodDay) continue;
+      const key = `${row.taskId}:${row.periodDay}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(row);
+    }
+
+    const toRemove = new Set<number>();
+    for (const group of groups.values()) {
+      if (group.length <= 1) continue;
+      group.sort((a, b) => {
+        const d = this.resolutionRank(String(b.resolution || 'open')) - this.resolutionRank(String(a.resolution || 'open'));
+        return d !== 0 ? d : Number(a.id) - Number(b.id);
+      });
+      for (let i = 1; i < group.length; i++) {
+        toRemove.add(Number(group[i].id));
+      }
+    }
+
+    if (toRemove.size > 0) {
+      this.webStore['task_cycles'] = cycles.filter((c) => !toRemove.has(Number(c.id)));
+      this.saveWebStoreToLocalStorage();
     }
   }
 
@@ -622,6 +666,7 @@ export class DatabaseService {
     // v2: (legacy - columns already in v1, kept for older DBs)
     // v3-v5: (legacy - no longer needed)
     // v6: Task cycle redesign - adds state column, rebuilds task_cycles
+    // v8: Dedupe multiple open cycles per task + partial unique index uq_open_cycle_per_task
     
     if (currentVersion < 1) {
       this.log('[DB] Running migration v1: Initial schema');
@@ -645,6 +690,18 @@ export class DatabaseService {
       this.log('[DB] Running migration v7: Replace default task types');
       await this.migrateTaskTypesV7();
       await this.setVersion(7);
+    }
+
+    if (currentVersion < 8) {
+      this.log('[DB] Running migration v8: Dedupe open task_cycles + unique index');
+      await this.migrateTaskCyclesV8OpenCycleUnique();
+      await this.setVersion(8);
+    }
+
+    if (currentVersion < 9) {
+      this.log('[DB] Running migration v9: periodDay column + unique (taskId, periodDay)');
+      await this.migrateTaskCyclesV9PeriodDay();
+      await this.setVersion(9);
     }
 
     if (currentVersion < this.currentVersion) {
@@ -686,6 +743,79 @@ export class DatabaseService {
         skippedAt TEXT,
         FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
       )`,
+      []
+    );
+  }
+
+  /** Migration v9: One cycle per task per calendar day (local due date). */
+  private async migrateTaskCyclesV9PeriodDay(): Promise<void> {
+    if (!(await this.tableHasColumnNative('task_cycles', 'periodDay'))) {
+      await this.runNativeSql('ALTER TABLE task_cycles ADD COLUMN periodDay TEXT', []);
+    }
+
+    const rows = await this.runNativeSql('SELECT id, taskId, dueAt, resolution FROM task_cycles', []);
+    for (const row of (rows.values || []) as Array<{ id: number; dueAt: string }>) {
+      const periodDay = periodDayFromDueAt(row.dueAt);
+      await this.runNativeSql('UPDATE task_cycles SET periodDay = ? WHERE id = ?', [periodDay, row.id]);
+    }
+
+    await this.dedupeNativeTaskCyclesByPeriod();
+
+    await this.runNativeSql(
+      `CREATE UNIQUE INDEX IF NOT EXISTS uq_task_cycle_period ON task_cycles (taskId, periodDay)`,
+      []
+    );
+  }
+
+  private resolutionRank(resolution: string): number {
+    switch (resolution) {
+      case 'done': return 4;
+      case 'skipped': return 3;
+      case 'open': return 2;
+      case 'lapsed': return 1;
+      default: return 0;
+    }
+  }
+
+  private async dedupeNativeTaskCyclesByPeriod(): Promise<void> {
+    const result = await this.runNativeSql(
+      'SELECT id, taskId, periodDay, resolution FROM task_cycles WHERE periodDay IS NOT NULL',
+      []
+    );
+    const groups = new Map<string, Array<{ id: number; resolution: string }>>();
+    for (const row of (result.values || []) as Array<{ id: number; taskId: number; periodDay: string; resolution: string }>) {
+      const key = `${row.taskId}:${row.periodDay}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push({ id: row.id, resolution: row.resolution || 'open' });
+    }
+    for (const group of groups.values()) {
+      if (group.length <= 1) continue;
+      const sorted = group.slice().sort((a, b) => {
+        const d = this.resolutionRank(b.resolution) - this.resolutionRank(a.resolution);
+        return d !== 0 ? d : a.id - b.id;
+      });
+      const keepId = sorted[0].id;
+      for (const row of group) {
+        if (row.id !== keepId) {
+          await this.runNativeSql('DELETE FROM task_cycles WHERE id = ?', [row.id]);
+        }
+      }
+    }
+  }
+
+  /** Migration v8: At most one open cycle per task — dedupe existing rows, then partial unique index. */
+  private async migrateTaskCyclesV8OpenCycleUnique(): Promise<void> {
+    await this.runNativeSql(
+      `UPDATE task_cycles SET resolution = 'lapsed', completedAt = NULL
+       WHERE resolution = 'open'
+         AND id NOT IN (
+           SELECT MIN(id) FROM task_cycles WHERE resolution = 'open' GROUP BY taskId
+         )`,
+      []
+    );
+    await this.runNativeSql(
+      `CREATE UNIQUE INDEX IF NOT EXISTS uq_open_cycle_per_task
+       ON task_cycles (taskId) WHERE resolution = 'open'`,
       []
     );
   }
@@ -1167,12 +1297,33 @@ export class DatabaseService {
     }
   }
 
+  /** Web has no DB unique index — keep at most one open cycle per task (matches native v8 + INSERT OR IGNORE). */
+  private dedupeWebOpenTaskCycles(): void {
+    const cycles = (this.webStore['task_cycles'] || []) as any[];
+    const openByTask = new Map<number, any[]>();
+    for (const c of cycles) {
+      if (String(c.resolution || 'open') !== 'open') continue;
+      const tid = Number(c.taskId);
+      if (!openByTask.has(tid)) openByTask.set(tid, []);
+      openByTask.get(tid)!.push(c);
+    }
+    for (const arr of openByTask.values()) {
+      if (arr.length <= 1) continue;
+      arr.sort((a, b) => Number(a.id) - Number(b.id));
+      for (let i = 1; i < arr.length; i++) {
+        arr[i].resolution = 'lapsed';
+        arr[i].completedAt = null;
+      }
+    }
+  }
+
   private handleWebInsert(statement: string, values: any[]): any {
     this.log('Handling web insert:', statement, values);
-    const matches = statement.match(/INSERT INTO (\w+)/i);
+    const matches = statement.match(/INSERT\s+(?:OR\s+IGNORE\s+)?INTO\s+(\w+)/i);
     if (!matches) {
       throw new Error('Invalid INSERT statement');
     }
+    const isOrIgnore = /\bOR\s+IGNORE\b/i.test(statement);
   
     const tableName = matches[1].toLowerCase();
     if (!this.webStore[tableName]) {
@@ -1189,7 +1340,7 @@ export class DatabaseService {
     
     // Extract column names from the statement - fix the regex to handle multiline
     // Match everything between the first ( and ) that contains column names
-    const columnsMatch = statement.match(/INSERT INTO \w+\s*\(\s*([\s\S]*?)\s*\)\s*VALUES/i);
+    const columnsMatch = statement.match(/INSERT\s+(?:OR\s+IGNORE\s+)?INTO\s+\w+\s*\(\s*([\s\S]*?)\s*\)\s*VALUES/i);
     if (columnsMatch) {
       const columnsString = columnsMatch[1];
       const columns = columnsString
@@ -1216,6 +1367,26 @@ export class DatabaseService {
       this.webStore[tableName] = this.webStore[tableName].filter(
         (nv: any) => nv['notification_type_key'] !== newRecord['notification_type_key']
       );
+    }
+
+    if (tableName === 'task_cycles') {
+      const periodDay =
+        newRecord['periodDay'] ??
+        (newRecord['dueAt'] ? periodDayFromDueAt(String(newRecord['dueAt'])) : null);
+      if (periodDay) {
+        newRecord['periodDay'] = periodDay;
+        const existing = (this.webStore['task_cycles'] as any[]).find(
+          (c: any) =>
+            Number(c.taskId) === Number(newRecord['taskId']) &&
+            String(c.periodDay) === String(periodDay)
+        );
+        if (existing) {
+          if (isOrIgnore) {
+            return { changes: { lastId: existing.id, changes: 0 }, values: [] };
+          }
+          throw new Error(`Duplicate cycle for task ${newRecord['taskId']} on ${periodDay} (web store)`);
+        }
+      }
     }
   
     // Add the record to the table

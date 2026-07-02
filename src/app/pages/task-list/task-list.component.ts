@@ -180,8 +180,6 @@ export class TaskListComponent implements OnInit {
           await toast.present();
         }
 
-        // Create next cycle
-        await this.taskCycleService.createNextCycle(taskItem.task, taskItem.currentCycle);
       }
     } catch (error) {
       console.error('Error updating task status:', error);

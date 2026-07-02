@@ -15,6 +15,16 @@ function formatLocalDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/** Local calendar date (YYYY-MM-DD) for cycle uniqueness — one row per task per due day. */
+export function periodDayFromDueAt(dueAt: string): string {
+  const d = new Date(dueAt);
+  if (isNaN(d.getTime())) {
+    const m = /^\d{4}-\d{2}-\d{2}/.exec(String(dueAt));
+    return m ? m[0] : '1970-01-01';
+  }
+  return formatLocalDate(d);
+}
+
 function toUtcMidnightIsoFromLocalDate(date: Date): string {
   return `${formatLocalDate(date)}T00:00:00.000Z`;
 }
@@ -138,6 +148,31 @@ export function calculateNextCycleStart(previousStart: string, frequency: Freque
       return start.toISOString();
     default:
       start.setDate(start.getDate() + 1);
+  }
+  return start.toISOString();
+}
+
+/** Inverse of calculateNextCycleStart: period start immediately before `currentStart`. */
+export function calculatePreviousCycleStart(currentStart: string, frequency: Frequency): string {
+  const start = new Date(currentStart);
+  if (isNaN(start.getTime())) return new Date().toISOString();
+  switch (frequency) {
+    case 'daily':
+      start.setDate(start.getDate() - 1);
+      break;
+    case 'weekly':
+      start.setDate(start.getDate() - 7);
+      break;
+    case 'monthly':
+      start.setMonth(start.getMonth() - 1);
+      break;
+    case 'yearly':
+      start.setFullYear(start.getFullYear() - 1);
+      break;
+    case 'once':
+      return start.toISOString();
+    default:
+      start.setDate(start.getDate() - 1);
   }
   return start.toISOString();
 }

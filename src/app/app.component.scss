@@ -183,7 +183,7 @@ ion-menu .menu-footer {
     font-size: 0.8125rem;
     font-weight: 500;
     letter-spacing: 0.02em;
-    color: var(--ion-color-step-650, #6b6b73);
+    color: var(--ion-toolbar-color, var(--color));
     line-height: 1.35;
   }
 }

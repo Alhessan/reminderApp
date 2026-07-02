@@ -1,6 +1,8 @@
 import { Injectable, Injector } from '@angular/core';
 import { LocalNotifications, ScheduleOptions, ScheduleResult, PendingResult, PermissionStatus as LocalNotificationPermissionStatus, LocalNotificationDescriptor } from '@capacitor/local-notifications'; // Use alias for PermissionStatus from local-notifications, Import LocalNotificationDescriptor
-import { Task, NotificationPayload } from '../models/task.model';
+import { Task, NotificationPayload, Frequency } from '../models/task.model';
+import { Cycle } from '../models/task-cycle.model';
+import { calculateDueAt, calculateNextCycleStart } from '../utils/cycle-timestamps.util';
 import { Platform } from '@ionic/angular';
 import { PermissionState } from '@capacitor/core'; // Import generic PermissionState
 import { HttpClient } from '@angular/common/http';
@@ -13,6 +15,25 @@ import { AlarmService } from './alarm.service';
 /** Android notification channel ID for task reminders (must exist or notifications won't show on real devices) */
 const REMINDERS_CHANNEL_ID = 'reminders';
 
+/** Local notification IDs = taskId * multiplier + slot (0..COUNT-1). Legacy single-id = taskId still cancelled in cancelNotification. */
+export const NOTIFICATION_ID_SLOT_MULTIPLIER = 100;
+export const NOTIFICATION_SLOT_COUNT = 20;
+
+export function advanceOccurrenceCount(frequency: Frequency): number {
+  switch (frequency) {
+    case 'daily':
+      return 7;
+    case 'weekly':
+      return 4;
+    case 'monthly':
+      return 3;
+    case 'yearly':
+      return 3;
+    default:
+      return 7;
+  }
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -20,6 +41,8 @@ export class NotificationService {
   private readonly API_URL = environment.apiUrl + '/notifications/send';
   private channelCreated = false;
   private alarmChannelCreated = false;
+  /** Web: pending timeouts keyed by notification id (taskId * multiplier + slot, or legacy taskId). */
+  private notificationTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
 
   constructor(
     private platform: Platform,
@@ -217,7 +240,7 @@ export class NotificationService {
                 // In test mode, schedule next notification after the repeat interval
                 const nextNotification = new Date(Date.now() + repeatInterval);
                 const timeoutId = setTimeout(scheduleNextNotification, repeatInterval);
-                this.notificationTimeouts.set(task.id!, timeoutId);
+                this.notificationTimeouts.set(task.id! * NOTIFICATION_ID_SLOT_MULTIPLIER, timeoutId);
               } else {
                 // In normal mode, schedule for next day
                 const nextNotification = new Date(notificationDate);
@@ -234,16 +257,15 @@ export class NotificationService {
         // Calculate initial timeout
         const timeoutMs = notificationDate.getTime() - now.getTime();
 
-        // Clear any existing timeout for this task
-        const existingTimeoutId = this.notificationTimeouts.get(task.id!);
+        const slotKey = task.id! * NOTIFICATION_ID_SLOT_MULTIPLIER;
+        const existingTimeoutId = this.notificationTimeouts.get(slotKey);
         if (existingTimeoutId) {
           clearTimeout(existingTimeoutId);
-          this.notificationTimeouts.delete(task.id!);
+          this.notificationTimeouts.delete(slotKey);
         }
 
-        // Schedule the initial notification
         const timeoutId = setTimeout(scheduleNextNotification, timeoutMs);
-        this.notificationTimeouts.set(task.id!, timeoutId);
+        this.notificationTimeouts.set(slotKey, timeoutId);
         return;
       }
 
@@ -261,7 +283,7 @@ export class NotificationService {
       try {
         await LocalNotifications.schedule({
           notifications: [{
-            id: task.id!,
+            id: task.id! * NOTIFICATION_ID_SLOT_MULTIPLIER,
             title: task.title,
             body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
             channelId: channelId,
@@ -297,7 +319,7 @@ export class NotificationService {
           // Fall back to inexact scheduling
           await LocalNotifications.schedule({
             notifications: [{
-              id: task.id!,
+              id: task.id! * NOTIFICATION_ID_SLOT_MULTIPLIER,
               title: task.title,
               body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
               channelId: channelId,
@@ -328,20 +350,163 @@ export class NotificationService {
     }
   }
 
-  // Add this at the class level
-  private notificationTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+  /**
+   * Schedule the next N future occurrences (advance scheduling). Cancels all prior slots for this task first.
+   */
+  async scheduleUpcomingNotifications(task: Task, openCycle: Cycle, isTestMode = false): Promise<void> {
+    if (task.state === 'paused') return;
+
+    await this.cancelNotification(task.id!);
+
+    if (isTestMode) {
+      await this.scheduleNotification(task, true);
+      return;
+    }
+
+    try {
+      if (this.platform.is('capacitor')) {
+        const hasPermission = await this.hasNotificationPermissions();
+        if (!hasPermission) {
+          throw new Error(NotificationService.NOTIFICATION_PERMISSION_DENIED);
+        }
+      }
+
+      if (!this.platform.is('capacitor')) {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') {
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') return;
+        }
+      }
+
+      const nowMs = Date.now();
+      const n = advanceOccurrenceCount(task.frequency);
+      let startDate = openCycle.cycleStartDate;
+      let guard = 0;
+      while (guard++ < 400) {
+        const dueIso = calculateDueAt(startDate, task.notificationTime);
+        if (new Date(dueIso).getTime() > nowMs) break;
+        startDate = calculateNextCycleStart(startDate, task.frequency);
+      }
+
+      const dates: Date[] = [];
+      let cursor = startDate;
+      for (let i = 0; i < n; i++) {
+        const dueIso = calculateDueAt(cursor, task.notificationTime);
+        const d = new Date(dueIso);
+        if (d.getTime() > nowMs) dates.push(d);
+        cursor = calculateNextCycleStart(cursor, task.frequency);
+      }
+
+      if (dates.length === 0) return;
+
+      if (!this.platform.is('capacitor')) {
+        for (let i = 0; i < dates.length; i++) {
+          const slotKey = task.id! * NOTIFICATION_ID_SLOT_MULTIPLIER + i;
+          const delay = Math.max(0, dates[i].getTime() - nowMs);
+          const existing = this.notificationTimeouts.get(slotKey);
+          if (existing) {
+            clearTimeout(existing);
+            this.notificationTimeouts.delete(slotKey);
+          }
+          const timeoutId = setTimeout(async () => {
+            try {
+              await this.showBrowserNotification(task.title, {
+                body: task.notes || 'Task reminder',
+                icon: '/assets/icon/favicon.png',
+                tag: `task-${task.id}-${i}`,
+                requireInteraction: true,
+                data: { taskId: task.id, customerId: task.customerId },
+              });
+            } catch (e) {
+              console.error('NotificationService: web scheduled notification error', e);
+            }
+          }, delay);
+          this.notificationTimeouts.set(slotKey, timeoutId);
+        }
+        return;
+      }
+
+      const channelId = task.notificationType === 'alarm' ? 'alarm' : REMINDERS_CHANNEL_ID;
+      if (task.notificationType === 'alarm') {
+        await this.ensureAlarmChannel();
+      } else {
+        await this.ensureNotificationChannel();
+      }
+
+      const notifications = dates.map((at, i) => ({
+        id: task.id! * NOTIFICATION_ID_SLOT_MULTIPLIER + i,
+        title: task.title,
+        body: task.notificationType === 'alarm' ? (task.notes || 'Alarm!') : (task.notes || 'Task reminder'),
+        channelId,
+        schedule: { at, allowWhileIdle: true as const },
+        extra: {
+          taskId: task.id,
+          customerId: task.customerId,
+          notificationType: task.notificationType,
+        },
+      }));
+
+      try {
+        await LocalNotifications.schedule({ notifications });
+      } catch (error) {
+        const errorMessage = (error as Error)?.message || '';
+        if (
+          errorMessage.includes('SCHEDULE_EXACT_ALARM') ||
+          errorMessage.includes('exact alarm') ||
+          errorMessage.toLowerCase().includes('permission')
+        ) {
+          try {
+            const alert = await this.alertController.create({
+              header: 'Exact Alarms Restricted',
+              message:
+                'Exact alarm permission was denied. Your reminders will still work but may be slightly delayed by the system. You can change this in your device settings.',
+              buttons: ['OK'],
+            });
+            await alert.present();
+          } catch {
+            /* ignore */
+          }
+          await LocalNotifications.schedule({
+            notifications: notifications.map((n) => ({
+              ...n,
+              schedule: { ...n.schedule, allowWhileIdle: false },
+            })),
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      if (task.notificationType === 'alarm') {
+        this.injector.get(AlarmService).storeAlarmTask(task);
+      }
+    } catch (error) {
+      console.error('NotificationService: Error scheduling upcoming notifications:', error);
+      throw error;
+    }
+  }
 
   async cancelNotification(taskId: number): Promise<void> {
     try {
       if (this.platform.is('capacitor')) {
-        await LocalNotifications.cancel({
-          notifications: [{ id: taskId }]
-        });
-        } else {
-        // Clear any pending web notification timeout
-        const timeoutId = this.notificationTimeouts.get(taskId);
-        if (timeoutId) {
-          clearTimeout(timeoutId);
+        const notifications: { id: number }[] = [{ id: taskId }];
+        for (let i = 0; i < NOTIFICATION_SLOT_COUNT; i++) {
+          notifications.push({ id: taskId * NOTIFICATION_ID_SLOT_MULTIPLIER + i });
+        }
+        await LocalNotifications.cancel({ notifications });
+      } else {
+        for (let i = 0; i < NOTIFICATION_SLOT_COUNT; i++) {
+          const key = taskId * NOTIFICATION_ID_SLOT_MULTIPLIER + i;
+          const tid = this.notificationTimeouts.get(key);
+          if (tid) {
+            clearTimeout(tid);
+            this.notificationTimeouts.delete(key);
+          }
+        }
+        const legacy = this.notificationTimeouts.get(taskId);
+        if (legacy) {
+          clearTimeout(legacy);
           this.notificationTimeouts.delete(taskId);
         }
       }

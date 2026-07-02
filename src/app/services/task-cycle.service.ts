@@ -1,5 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
 import { DatabaseService } from './database.service';
+import { CycleRepository } from '../repositories/cycle.repository';
 import { Cycle, CycleResolution, TaskListItem } from '../models/task-cycle.model';
 import { Task, Frequency } from '../models/task.model';
 import { deriveDisplayState, CycleDisplayStatus } from '../models/cycle-display.model';
@@ -8,8 +9,13 @@ import {
   calculateSoftDeadline,
   calculateHardDeadline,
   calculateNextCycleStart,
+  calculatePreviousCycleStart,
+  getFirstCycleStartDate,
 } from '../utils/cycle-timestamps.util';
 import { BehaviorSubject } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { TaskService } from './task.service';
+
 interface DbRow {
   id: number;
   title: string;
@@ -83,74 +89,59 @@ export class TaskCycleService {
   private taskListSubject = new BehaviorSubject<TaskListItem[]>([]);
   public taskList$ = this.taskListSubject.asObservable();
 
-  constructor(private db: DatabaseService) {}
+  constructor(
+    private db: DatabaseService,
+    private cycleRepo: CycleRepository,
+    private injector: Injector
+  ) {}
 
-  /**
-   * First cycle start date so that due (start + notificationTime) is not in the past.
-   * Used when creating the initial cycle for a new task and when displaying a task with no cycles.
-   */
-  getFirstCycleStartDate(task: Task): string {
-    const start = new Date(task.startDate);
-    if (isNaN(start.getTime())) return new Date().toISOString();
-    const [h, m] = (task.notificationTime || '00:00').split(':').map(Number);
-    const setDue = (d: Date) => { d.setHours(h ?? 0, m ?? 0, 0, 0); };
-    const now = new Date();
-    let due = new Date(start);
-    setDue(due);
-    if (due.getTime() >= now.getTime()) return start.toISOString();
-    const maxIter = 1000;
-    let iter = 0;
-    while (due.getTime() < now.getTime() && iter++ < maxIter) {
-      switch (task.frequency) {
-        case 'daily':
-          start.setDate(start.getDate() + 1);
-          break;
-        case 'weekly':
-          start.setDate(start.getDate() + 7);
-          break;
-        case 'monthly':
-          start.setMonth(start.getMonth() + 1);
-          break;
-        case 'yearly':
-          start.setFullYear(start.getFullYear() + 1);
-          break;
-        default:
-          start.setDate(start.getDate() + 1);
-      }
-      due = new Date(start);
-      setDue(due);
+  private async maybeRescheduleAllNotifications(): Promise<void> {
+    try {
+      const taskService = this.injector.get(TaskService);
+      await taskService.rescheduleAllPendingNotifications();
+    } catch (e) {
+      console.warn('[TaskCycleService] reschedule after loadTaskList:', e);
     }
-    return start.toISOString();
   }
 
   /**
-   * Due datetime for a cycle: cycle start date + task notification time (HH:mm).
-   * Returns ISO string so list can show the real due time, not a fixed midnight.
+   * After shifting open-cycle timestamps backward (dev only), runs lapse + backfill + list reload.
    */
+  async simulateDaysElapsed(days: number): Promise<void> {
+    if (environment.production) {
+      console.warn('[TaskCycleService] simulateDaysElapsed disabled in production');
+      return;
+    }
+    if (days <= 0 || !Number.isFinite(days)) return;
+    const ms = days * 86400000;
+    const shiftIso = (iso: string) => {
+      const t = new Date(iso).getTime();
+      if (isNaN(t)) return iso;
+      return new Date(t - ms).toISOString();
+    };
+    const openCycles = await this.cycleRepo.findOpenCycles();
+    for (const row of openCycles) {
+      await this.cycleRepo.shiftOpenCycleDates(
+        row.id!,
+        shiftIso(row.cycleStartDate),
+        shiftIso(row.dueAt),
+        shiftIso(row.softDeadline),
+        shiftIso(row.hardDeadline)
+      );
+    }
+    await this.loadTaskList();
+  }
+
   /**
-   * Auto-lapse open cycles past hardDeadline (mark as lapsed = missed) and create next cycle.
-   * Skips tasks that are paused. Max 365 iterations to handle multi-day offline.
+   * Auto-lapse open cycles past hardDeadline (mark as lapsed = missed), backfill missed periods, create next open cycle.
+   * @returns number of cycles that were auto-lapsed in this pass.
    */
-  private async closeLapsedCycles(): Promise<void> {
+  private async closeLapsedCycles(): Promise<number> {
     const now = Date.now();
+    let lapsedCount = 0;
 
-    // Single pass: find all open cycles past their hardDeadline and lapse them.
-    // createNextCycle will jump to the current period if the next cycle would also be in the past,
-    // so we only need one pass — no cascading loop required.
-    const cyclesResult = await this.db.executeQuery(
-      "SELECT * FROM task_cycles WHERE resolution = 'open'"
-    );
-    const cycles = (cyclesResult.values || []) as Array<{
-      id: number;
-      taskId: number;
-      cycleStartDate: string;
-      dueAt: string;
-      softDeadline: string;
-      hardDeadline: string;
-      resolution: string;
-    }>;
+    const cycles = await this.cycleRepo.findOpenCycles();
 
-    // Collect all taskIds and fetch in one batch query (fixes N+1 problem)
     const taskIds = [...new Set(cycles.map(c => c.taskId))];
     const taskRows = await this.db.getTasksByIds(taskIds);
     const taskMap = new Map(taskRows.map((t: any) => [Number(t.id), t]));
@@ -162,21 +153,70 @@ export class TaskCycleService {
       if (!task || task.state !== 'active') continue;
       const hardMs = new Date(row.hardDeadline).getTime();
       if (now <= hardMs) continue;
-      await this.db.executeQuery(
-        'UPDATE task_cycles SET resolution = ?, completedAt = NULL WHERE id = ?',
-        ['lapsed', row.id]
-      );
-      const cycleObj: Cycle = {
-        id: row.id,
-        taskId: row.taskId,
-        cycleStartDate: row.cycleStartDate,
-        dueAt: row.dueAt,
-        softDeadline: row.softDeadline,
-        hardDeadline: row.hardDeadline,
-        resolution: 'lapsed',
-      };
-      await this.createNextCycle(task, cycleObj, true);
+
+      await this.cycleRepo.updateResolution(row.id!, 'lapsed');
+      lapsedCount++;
+
+      const cycleObj: Cycle = { ...row, resolution: 'lapsed' };
+      const previousForCreate = await this.backfillMissedLapsedRows(task, cycleObj, now);
+      await this.createNextCycle(task, previousForCreate, true);
     }
+
+    return lapsedCount;
+  }
+
+  /**
+   * Insert lapsed rows for each fully missed period after `lapsedCycle`, until the current period.
+   * Returns the synthetic or last-inserted cycle to pass as `previousCycle` into createNextCycle.
+   */
+  private async backfillMissedLapsedRows(task: Task, lapsedCycle: Cycle, nowMs: number): Promise<Cycle> {
+    let lastInserted: Cycle = { ...lapsedCycle, resolution: 'lapsed' };
+    let cursorStart = calculateNextCycleStart(lapsedCycle.cycleStartDate, task.frequency);
+    const maxFill = 30;
+
+    for (let i = 0; i < maxFill; i++) {
+      const dueAt = calculateDueAt(cursorStart, task.notificationTime);
+      const softDeadline = calculateSoftDeadline(dueAt, task.frequency);
+      const hardDeadline = calculateHardDeadline(dueAt, task.frequency);
+      const hardT = new Date(hardDeadline).getTime();
+
+      if (hardT >= nowMs) {
+        const prevStart = calculatePreviousCycleStart(cursorStart, task.frequency);
+        return {
+          ...lapsedCycle,
+          id: lapsedCycle.id,
+          taskId: task.id!,
+          resolution: 'lapsed',
+          cycleStartDate: prevStart,
+          dueAt,
+          softDeadline,
+          hardDeadline,
+        };
+      }
+
+      const { id, inserted } = await this.cycleRepo.insertOrIgnore({
+        taskId: task.id!,
+        cycleStartDate: cursorStart,
+        dueAt,
+        softDeadline,
+        hardDeadline,
+        resolution: 'lapsed',
+      });
+      if (inserted) {
+        lastInserted = {
+          id,
+          taskId: task.id!,
+          cycleStartDate: cursorStart,
+          dueAt,
+          softDeadline,
+          hardDeadline,
+          resolution: 'lapsed',
+        };
+      }
+      cursorStart = calculateNextCycleStart(cursorStart, task.frequency);
+    }
+
+    return lastInserted;
   }
 
   async loadTaskList(view: 'all' | 'overdue' | 'due' | 'upcoming' | 'paused' = 'all'): Promise<void> {
@@ -199,10 +239,9 @@ export class TaskCycleService {
       for (const row of allCycles) {
         const taskId = row.taskId;
         if (latestCycleByTask.has(taskId)) continue;
-        latestCycleByTask.set(taskId, this.mapRowToCycle(row));
+        latestCycleByTask.set(taskId, this.cycleRepo.mapRowToCycle(row));
       }
 
-      // Batch fetch all tasks to avoid N+1 queries
       const allTaskIds = taskRows.map((r: any) => Number(r.id));
       const taskRowsBatch = await this.db.getTasksByIds(allTaskIds);
       const taskMap = new Map(
@@ -217,7 +256,11 @@ export class TaskCycleService {
         if (!task) continue;
         let cycle = latestCycleByTask.get(task.id!);
         if (!cycle) {
-          const firstStart = this.getFirstCycleStartDate(task);
+          const firstStart = getFirstCycleStartDate(
+            task.startDate,
+            task.notificationTime,
+            task.frequency
+          );
           const dueAt = calculateDueAt(firstStart, task.notificationTime);
           cycle = {
             taskId: task.id!,
@@ -250,7 +293,6 @@ export class TaskCycleService {
             : undefined,
           lastMissedDate,
         };
-        // FR-006: paused tasks are hidden from main views (all, due, upcoming, overdue) — only shown in 'paused' tab
         if (view === 'all' && task.state !== 'paused') taskList.push(item);
         else if (view === 'due' && displayStatus === 'due' && task.state !== 'paused') taskList.push(item);
         else if (view === 'upcoming' && displayStatus === 'upcoming' && task.state !== 'paused') taskList.push(item);
@@ -267,39 +309,25 @@ export class TaskCycleService {
       });
 
       this.taskListSubject.next(taskList);
+      await this.maybeRescheduleAllNotifications();
     } catch (error) {
       console.error('Error loading task list:', error);
       throw error;
     }
   }
 
+  /** @deprecated Use cycleRepo.mapRowToCycle directly in new code. */
   private mapRowToCycle(row: any): Cycle {
-    let resolution = row.resolution;
-    if (!resolution && row.status === 'completed') resolution = 'done';
-    if (!resolution) resolution = 'open';
-    return {
-      id: row.id,
-      taskId: row.taskId,
-      cycleStartDate: row.cycleStartDate,
-      dueAt: row.dueAt ?? row.cycleStartDate,
-      softDeadline: row.softDeadline ?? row.cycleStartDate,
-      hardDeadline: row.hardDeadline ?? row.cycleEndDate ?? row.cycleStartDate,
-      resolution: resolution as CycleResolution,
-      startedAt: row.startedAt,
-      completedAt: row.completedAt,
-      skippedAt: row.skippedAt,
-    };
+    return this.cycleRepo.mapRowToCycle(row);
   }
 
   /** Resolve a cycle (done or skipped). For lapsed cycles, only 'done' is allowed (retroactive). */
   async resolveCycle(cycleId: number, resolution: 'done' | 'skipped'): Promise<void> {
-    const res = await this.db.executeQuery('SELECT * FROM task_cycles WHERE id = ?', [cycleId]);
-    if (!res.values?.length) {
+    const cycle = await this.cycleRepo.findById(cycleId);
+    if (!cycle) {
       console.error('[TaskCycleService] resolveCycle: cycle not found', cycleId);
       throw new Error('Cycle not found');
     }
-    const row = res.values[0] as any;
-    const cycle = this.mapRowToCycle(row);
     const task = await this.getTask(cycle.taskId);
     if (!task) {
       console.error('[TaskCycleService] resolveCycle: task not found', cycle.taskId);
@@ -308,16 +336,10 @@ export class TaskCycleService {
 
     const now = new Date().toISOString();
     if (resolution === 'done') {
-      await this.db.executeQuery(
-        'UPDATE task_cycles SET resolution = ?, completedAt = ? WHERE id = ?',
-        ['done', now, cycleId]
-      );
+      await this.cycleRepo.updateResolution(cycleId, 'done', { completedAt: now });
     } else {
       if (cycle.resolution === 'lapsed') throw new Error('Cannot skip a lapsed cycle');
-      await this.db.executeQuery(
-        'UPDATE task_cycles SET resolution = ?, skippedAt = ? WHERE id = ?',
-        ['skipped', now, cycleId]
-      );
+      await this.cycleRepo.updateResolution(cycleId, 'skipped', { skippedAt: now });
     }
 
     if (cycle.resolution === 'open') {
@@ -335,10 +357,7 @@ export class TaskCycleService {
 
   /** Mark a specific cycle as lapsed (used for retroactive correction + sample data). */
   async markCycleLapsed(cycleId: number): Promise<void> {
-    await this.db.executeQuery(
-      'UPDATE task_cycles SET resolution = ?, completedAt = NULL WHERE id = ?',
-      ['lapsed', cycleId]
-    );
+    await this.cycleRepo.updateResolution(cycleId, 'lapsed');
   }
 
   async createNextCycle(task: Task, previousCycle?: Cycle, skipReload?: boolean): Promise<number> {
@@ -353,36 +372,30 @@ export class TaskCycleService {
       return 0;
     }
 
-    const latestCycle = await this.getCurrentCycle(task.id);
+    const latestCycle = await this.cycleRepo.getCurrentCycle(task.id);
     if (latestCycle && latestCycle.resolution === 'open') return latestCycle.id!;
 
     let startDate = previousCycle
       ? (previousCycle.resolution === 'skipped' || previousCycle.resolution === 'lapsed'
           ? calculateNextCycleStart(previousCycle.cycleStartDate, task.frequency)
           : calculateNextCycleStart(previousCycle.hardDeadline, task.frequency))
-      : this.getFirstCycleStartDate(task);
+      : getFirstCycleStartDate(task.startDate, task.notificationTime, task.frequency);
 
-    // If the computed next cycle's hardDeadline is already in the past, jump directly
-    // to the current period instead of creating a cycle that will immediately be lapsed again.
-    // This prevents the closeLapsedCycles cascade that freezes the app for tasks with old sample data.
-    let dueAt = calculateDueAt(startDate, task.notificationTime);
-    let hardDeadline = calculateHardDeadline(dueAt, task.frequency);
-    if (new Date(hardDeadline).getTime() < Date.now()) {
-      startDate = this.getFirstCycleStartDate(task);
-      dueAt = calculateDueAt(startDate, task.notificationTime);
-      hardDeadline = calculateHardDeadline(dueAt, task.frequency);
-    }
-
+    const dueAt = calculateDueAt(startDate, task.notificationTime);
+    const hardDeadline = calculateHardDeadline(dueAt, task.frequency);
     const softDeadline = calculateSoftDeadline(dueAt, task.frequency);
 
-    const insertResult = await this.db.executeQuery(
-      `INSERT INTO task_cycles (taskId, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution)
-       VALUES (?, ?, ?, ?, ?, 'open')`,
-      [task.id, startDate, dueAt, softDeadline, hardDeadline]
-    );
-    const newCycleId = insertResult.changes?.lastId;
-    if (!newCycleId) throw new Error('Failed to get new cycle ID');
+    const { id: newCycleId } = await this.cycleRepo.insertOrIgnore({
+      taskId: task.id,
+      cycleStartDate: startDate,
+      dueAt,
+      softDeadline,
+      hardDeadline,
+      resolution: 'open',
+    });
+
     if (!skipReload) await this.loadTaskList();
+
     return newCycleId;
   }
 
@@ -416,7 +429,6 @@ export class TaskCycleService {
 
   async createTask(task: Task): Promise<number> {
     try {
-      // Insert the task
       const state = task.state || 'active';
       const result = await this.db.executeQuery(`
         INSERT INTO tasks (
@@ -443,16 +455,13 @@ export class TaskCycleService {
         task.notificationValue,
         task.notes,
         state === 'archived' ? 1 : 0,
-        state
+        state,
       ]);
 
       const taskId = result.changes?.lastId;
       if (!taskId) throw new Error('Failed to get inserted task ID');
 
-      // Create the first cycle for this task
       await this.createNextCycle({ ...task, id: taskId });
-
-      // Reload the task list
       await this.loadTaskList();
 
       return taskId;
@@ -494,22 +503,22 @@ export class TaskCycleService {
         task.notes,
         state,
         isArchived,
-        task.id
+        task.id,
       ]);
 
-      // Update current cycle timestamps if frequency changed and cycle is open
-      const currentCycle = await this.getCurrentCycle(task.id);
+      const currentCycle = await this.cycleRepo.getCurrentCycle(task.id);
       if (currentCycle && currentCycle.resolution === 'open') {
         const dueAt = calculateDueAt(currentCycle.cycleStartDate, task.notificationTime);
         const softDeadline = calculateSoftDeadline(dueAt, task.frequency);
         const hardDeadline = calculateHardDeadline(dueAt, task.frequency);
-        await this.db.executeQuery(
-          'UPDATE task_cycles SET dueAt = ?, softDeadline = ?, hardDeadline = ? WHERE id = ?',
-          [dueAt, softDeadline, hardDeadline, currentCycle.id]
+        await this.cycleRepo.updateOpenCycleTimestamps(
+          currentCycle.id!,
+          dueAt,
+          softDeadline,
+          hardDeadline
         );
       }
 
-      // Reload the task list
       await this.loadTaskList();
     } catch (error) {
       console.error('Error updating task:', error);
@@ -518,16 +527,9 @@ export class TaskCycleService {
   }
 
   async getCurrentCycle(taskId: number): Promise<Cycle | null> {
-    const result = await this.db.executeQuery(
-      `SELECT * FROM task_cycles WHERE taskId = ? ORDER BY CASE WHEN resolution = 'open' THEN 0 ELSE 1 END, cycleStartDate DESC LIMIT 1`,
-      [taskId]
-    );
-    if (!result.values?.length) return null;
-    return this.mapRowToCycle(result.values[0]);
+    return this.cycleRepo.getCurrentCycle(taskId);
   }
 
-  /** Most recent cycle with resolution=lapsed for this task (for retroactive "I actually did this").
-   * Returns the most recent missed cycle ordered by hardDeadline DESC. */
   async getMostRecentLapsedCycle(taskId: number): Promise<Cycle | null> {
     const result = await this.db.executeQuery(
       `SELECT * FROM task_cycles WHERE taskId = ? AND resolution = 'lapsed' ORDER BY hardDeadline DESC LIMIT 1`,
@@ -537,11 +539,6 @@ export class TaskCycleService {
     return this.mapRowToCycle(result.values[0]);
   }
 
-  /**
-   * Resolved cycles (done, lapsed, skipped) for a task, most recent first.
-   * Used by timeline (default limit 10) and situational message achievement rate.
-   * Includes legacy rows (status 'completed') so timeline shows full history.
-   */
   async getResolvedCycles(taskId: number, limit: number = 10, offset: number = 0): Promise<Cycle[]> {
     const result = await this.db.executeQuery(
       `SELECT * FROM task_cycles WHERE taskId = ? AND resolution IN ('done','lapsed','skipped')
@@ -552,7 +549,6 @@ export class TaskCycleService {
     return rows.map((row: any) => this.mapRowToCycle(row));
   }
 
-  /** Count of resolved cycles for a task (for pagination / "load more"). */
   async getResolvedCyclesCount(taskId: number): Promise<number> {
     const result = await this.db.executeQuery(
       `SELECT COUNT(*) as cnt FROM task_cycles WHERE taskId = ? AND resolution IN ('done','lapsed','skipped')`,
@@ -584,10 +580,6 @@ export class TaskCycleService {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
-  /**
-   * After DB migration (v6), ensure every active task has exactly one open cycle.
-   * Call once on app launch so upgraded users get initial cycles.
-   */
   async ensureOpenCyclesForActiveTasks(): Promise<void> {
     const result = await this.db.executeQuery(
       `SELECT id FROM tasks WHERE (state = 'active' OR (state IS NULL AND (isArchived = 0 OR isArchived IS NULL))) AND frequency != 'once'`,
@@ -599,10 +591,9 @@ export class TaskCycleService {
       if (!task) continue;
       const cycle = await this.getCurrentCycle(task.id!);
       if (!cycle || cycle.resolution !== 'open') {
-        await this.createNextCycle(task);
+        await this.createNextCycle(task, undefined, true);
       }
     }
-    await this.loadTaskList();
   }
 
   async getArchivedTasks(): Promise<TaskListItem[]> {
@@ -616,12 +607,17 @@ export class TaskCycleService {
       const task = await this.getTask(row.id);
       if (!task) continue;
       const cycle = await this.getCurrentCycle(task.id!);
+      const firstStart = getFirstCycleStartDate(
+        task.startDate,
+        task.notificationTime,
+        task.frequency
+      );
       const currentCycle: Cycle = cycle || {
         taskId: task.id!,
-        cycleStartDate: task.startDate,
-        dueAt: calculateDueAt(task.startDate, task.notificationTime),
-        softDeadline: calculateDueAt(task.startDate, task.notificationTime),
-        hardDeadline: calculateHardDeadline(calculateDueAt(task.startDate, task.notificationTime), task.frequency),
+        cycleStartDate: firstStart,
+        dueAt: calculateDueAt(firstStart, task.notificationTime),
+        softDeadline: calculateSoftDeadline(calculateDueAt(firstStart, task.notificationTime), task.frequency),
+        hardDeadline: calculateHardDeadline(calculateDueAt(firstStart, task.notificationTime), task.frequency),
         resolution: 'open',
       };
       list.push({
@@ -638,15 +634,12 @@ export class TaskCycleService {
     return list;
   }
 
-  /** Delete all tasks and their cycles - used for regenerating sample data */
   async deleteAllTasks(): Promise<void> {
-    // Delete in correct order (cycles first due to foreign key)
     await this.db.executeQuery('DELETE FROM task_cycles');
     await this.db.executeQuery('DELETE FROM task_history');
     await this.db.executeQuery('DELETE FROM tasks');
   }
 
-  /** Delete all cycles for a specific task (used by sample data generation) */
   async deleteCyclesForTask(taskId: number): Promise<void> {
     await this.db.executeQuery('DELETE FROM task_cycles WHERE taskId = ?', [taskId]);
   }

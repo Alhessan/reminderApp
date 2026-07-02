@@ -7,6 +7,7 @@ import {
   calculateSoftDeadline,
   calculateHardDeadline,
   calculateNextCycleStart,
+  periodDayFromDueAt,
 } from '../utils/cycle-timestamps.util';
 
 interface CycleSpec {
@@ -152,10 +153,11 @@ export class SampleDataService {
         // lapsed and open: leave completedAt and skippedAt null
 
         await this.db.executeQuery(
-          `INSERT INTO task_cycles (taskId, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution, startedAt, completedAt, skippedAt)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO task_cycles (taskId, periodDay, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution, startedAt, completedAt, skippedAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             taskId,
+            periodDayFromDueAt(dueAt),
             cycleStart,
             dueAt,
             softDeadline,

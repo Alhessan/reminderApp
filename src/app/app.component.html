@@ -31,6 +31,15 @@
             <ion-icon name="add-circle-outline" slot="start"></ion-icon>
             <ion-label>Generate Sample Data</ion-label>
           </ion-item>
+          <ion-item lines="full">
+            <ion-label position="stacked">Simulate days elapsed</ion-label>
+            <ion-input type="number" inputmode="numeric" min="1" max="90"
+              [(ngModel)]="devSimulateDaysElapsed" name="devSimulateDays"></ion-input>
+          </ion-item>
+          <ion-item button (click)="devSimulateElapsed()">
+            <ion-icon name="hourglass-outline" slot="start"></ion-icon>
+            <ion-label>Run time simulation</ion-label>
+          </ion-item>
         </ion-list>
       </ion-content>
       <ion-footer class="menu-footer">

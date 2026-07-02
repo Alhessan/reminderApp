@@ -5,6 +5,7 @@ import { NotificationService } from './notification.service';
 import { TaskCycleService } from './task-cycle.service';
 import { Platform } from '@ionic/angular';
 import { Task } from '../models/task.model';
+import { Subject } from 'rxjs';
 
 describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
   let service: TaskService;
@@ -28,6 +29,7 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
   beforeEach(() => {
     const dbMock = {
       executeQuery: jasmine.createSpy('executeQuery').and.returnValue(Promise.resolve({ values: [], changes: {} })),
+      dbReady$: new Subject<boolean>(),
     };
     dbExecuteQuerySpy = dbMock.executeQuery as jasmine.Spy;
 
@@ -40,8 +42,10 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
     scheduleNotificationSpy = jasmine.createSpy('scheduleNotification').and.returnValue(Promise.resolve());
     sendNotificationSpy = jasmine.createSpy('sendNotification').and.returnValue(Promise.resolve());
     cancelNotificationSpy = jasmine.createSpy('cancelNotification').and.returnValue(Promise.resolve());
+    const scheduleUpcomingSpy = jasmine.createSpy('scheduleUpcomingNotifications').and.returnValue(Promise.resolve());
     const notificationMock = {
       scheduleNotification: scheduleNotificationSpy,
+      scheduleUpcomingNotifications: scheduleUpcomingSpy,
       sendNotification: sendNotificationSpy,
       cancelNotification: cancelNotificationSpy,
     };
@@ -56,6 +60,50 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
       ],
     });
     service = TestBed.inject(TaskService);
+  });
+
+  describe('createTask (cycle engine)', () => {
+    it('should insert task then delegate first cycle to taskCycleService.createNextCycle', async () => {
+      dbExecuteQuerySpy.and.callFake((query: string) => {
+        if (query.includes('INSERT INTO tasks')) {
+          return Promise.resolve({ changes: { lastId: 42 } });
+        }
+        if (query === 'SELECT * FROM tasks WHERE id = ?') {
+          return Promise.resolve({
+            values: [{
+              id: 42,
+              title: 'New',
+              type: 'Custom',
+              frequency: 'daily',
+              startDate: '2025-06-01',
+              notificationTime: '09:00',
+              notificationType: 'push',
+              state: 'active',
+              isArchived: 0,
+            }],
+          });
+        }
+        return Promise.resolve({ values: [], changes: {} });
+      });
+      taskCycleServiceSpy.createNextCycle.calls.reset();
+
+      await service.createTask({
+        title: 'New',
+        type: 'Custom',
+        frequency: 'daily',
+        startDate: '2025-06-01',
+        notificationType: 'push',
+        notificationTime: '09:00',
+      });
+
+      expect(taskCycleServiceSpy.createNextCycle).toHaveBeenCalledWith(
+        jasmine.objectContaining({ id: 42, title: 'New' })
+      );
+      const insertCalls = dbExecuteQuerySpy.calls.all().filter(
+        (c: { args: unknown[] }) => typeof c.args[0] === 'string' && (c.args[0] as string).includes('INSERT INTO task_cycles')
+      );
+      expect(insertCalls.length).toBe(0);
+    });
   });
 
   describe('getTaskById (state mapping)', () => {
@@ -109,6 +157,12 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
         "UPDATE tasks SET state = ? WHERE id = ?",
         ['paused', 1]
       );
+    });
+
+    it('should cancel scheduled notification when pausing', async () => {
+      dbExecuteQuerySpy.and.returnValue(Promise.resolve({ changes: {} }));
+      await service.pauseTask(1);
+      expect(cancelNotificationSpy).toHaveBeenCalledWith(1);
     });
   });
 
@@ -190,7 +244,7 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
       expect(tasks[1].id).toBe(2);
     });
 
-    it('rescheduleAllPendingNotifications should call scheduleNotification with dueAt when cycle is open', async () => {
+    it('rescheduleAllPendingNotifications should call scheduleUpcomingNotifications when cycle is open', async () => {
       dbExecuteQuerySpy.and.returnValue(
         Promise.resolve({
           values: [
@@ -199,27 +253,41 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
         })
       );
       const dueAt = '2025-02-15T09:00:00.000Z';
-      taskCycleServiceSpy.getCurrentCycle.and.returnValue(
-        Promise.resolve({
-          id: 10,
-          taskId: 1,
-          cycleStartDate: '2025-02-15',
-          dueAt,
-          softDeadline: '2025-02-15T09:30:00.000Z',
-          hardDeadline: '2025-02-15T14:00:00.000Z',
-          resolution: 'open',
-        })
-      );
+      const openCycle = {
+        id: 10,
+        taskId: 1,
+        cycleStartDate: '2025-02-15',
+        dueAt,
+        softDeadline: '2025-02-15T09:30:00.000Z',
+        hardDeadline: '2025-02-15T14:00:00.000Z',
+        resolution: 'open' as const,
+      };
+      taskCycleServiceSpy.getCurrentCycle.and.returnValue(Promise.resolve(openCycle));
       await service.rescheduleAllPendingNotifications();
-      expect(scheduleNotificationSpy).toHaveBeenCalledWith(jasmine.anything(), false, jasmine.any(Date));
-      const scheduledAt = scheduleNotificationSpy.calls.mostRecent().args[2] as Date;
-      expect(scheduledAt.toISOString()).toBe(dueAt);
+      const notif = TestBed.inject(NotificationService) as any;
+      expect(notif.scheduleUpcomingNotifications).toHaveBeenCalledWith(
+        jasmine.objectContaining({ id: 1 }),
+        openCycle,
+        false
+      );
     });
 
     it('scheduleTaskNotification should treat alarm as local scheduling path', async () => {
       scheduleNotificationSpy.calls.reset();
       sendNotificationSpy.calls.reset();
-      taskCycleServiceSpy.getCurrentCycle.and.returnValue(Promise.resolve(null));
+      const notif = TestBed.inject(NotificationService) as any;
+      notif.scheduleUpcomingNotifications.calls.reset();
+      taskCycleServiceSpy.getCurrentCycle.and.returnValue(
+        Promise.resolve({
+          id: 10,
+          taskId: 22,
+          cycleStartDate: '2025-02-01',
+          dueAt: '2025-02-01T09:00:00.000Z',
+          softDeadline: '2025-02-01T09:30:00.000Z',
+          hardDeadline: '2025-02-01T14:00:00.000Z',
+          resolution: 'open',
+        })
+      );
 
       const alarmTask: Task = {
         ...mockTask,
@@ -230,13 +298,14 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
 
       await (service as any).scheduleTaskNotification(alarmTask);
 
-      expect(scheduleNotificationSpy).toHaveBeenCalledTimes(1);
-      expect(scheduleNotificationSpy.calls.mostRecent().args[0].notificationType).toBe('alarm');
+      expect(notif.scheduleUpcomingNotifications).toHaveBeenCalledTimes(1);
+      expect(notif.scheduleUpcomingNotifications.calls.mostRecent().args[0].notificationType).toBe('alarm');
       expect(sendNotificationSpy).not.toHaveBeenCalled();
     });
 
     it('updateTask should cancel existing local notification and reschedule when switching push <-> alarm', async () => {
-      scheduleNotificationSpy.calls.reset();
+      const notif = TestBed.inject(NotificationService) as any;
+      notif.scheduleUpcomingNotifications.calls.reset();
       cancelNotificationSpy.calls.reset();
 
       let currentType: 'push' | 'alarm' = 'alarm';
@@ -264,19 +333,32 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
         return Promise.resolve({ values: [], changes: {} });
       });
 
+      taskCycleServiceSpy.getCurrentCycle.and.returnValue(
+        Promise.resolve({
+          id: 10,
+          taskId: 1,
+          cycleStartDate: '2025-02-01',
+          dueAt: '2025-02-01T09:00:00.000Z',
+          softDeadline: '2025-02-01T09:30:00.000Z',
+          hardDeadline: '2025-02-01T14:00:00.000Z',
+          resolution: 'open',
+        })
+      );
+
       await service.updateTask({ ...mockTask, id: 1, notificationType: 'alarm', state: 'active' });
       expect(cancelNotificationSpy).toHaveBeenCalledWith(1);
-      expect(scheduleNotificationSpy.calls.mostRecent().args[0].notificationType).toBe('alarm');
+      expect(notif.scheduleUpcomingNotifications.calls.mostRecent().args[0].notificationType).toBe('alarm');
 
       currentType = 'push';
       await service.updateTask({ ...mockTask, id: 1, notificationType: 'push', state: 'active' });
       expect(cancelNotificationSpy).toHaveBeenCalledTimes(2);
-      expect(scheduleNotificationSpy.calls.count()).toBe(2);
-      expect(scheduleNotificationSpy.calls.mostRecent().args[0].notificationType).toBe('push');
+      expect(notif.scheduleUpcomingNotifications.calls.count()).toBe(2);
+      expect(notif.scheduleUpcomingNotifications.calls.mostRecent().args[0].notificationType).toBe('push');
     });
 
     it('updateTask should cancel local pending notification and not reschedule when updated to silent', async () => {
-      scheduleNotificationSpy.calls.reset();
+      const notif = TestBed.inject(NotificationService) as any;
+      notif.scheduleUpcomingNotifications.calls.reset();
       cancelNotificationSpy.calls.reset();
 
       dbExecuteQuerySpy.and.callFake((query: string) => {
@@ -306,7 +388,7 @@ describe('TaskService (Phase 2 & 4: pause, resume, complete)', () => {
       await service.updateTask({ ...mockTask, id: 1, notificationType: 'silent', state: 'active' });
 
       expect(cancelNotificationSpy).toHaveBeenCalledWith(1);
-      expect(scheduleNotificationSpy).not.toHaveBeenCalled();
+      expect(notif.scheduleUpcomingNotifications).not.toHaveBeenCalled();
     });
   });
 });

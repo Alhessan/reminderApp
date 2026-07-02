@@ -3,7 +3,9 @@ import {
   calculateSoftDeadline,
   calculateHardDeadline,
   calculateNextCycleStart,
+  calculatePreviousCycleStart,
   getFirstCycleStartDate,
+  periodDayFromDueAt,
   BUFFER_MINUTES,
   GRACE_HOURS,
 } from './cycle-timestamps.util';
@@ -111,6 +113,14 @@ describe('cycle-timestamps.util (Phase 1: timestamp calculations)', () => {
     });
   });
 
+  describe('calculatePreviousCycleStart', () => {
+    it('should subtract one day for daily', () => {
+      const cur = '2025-02-15T00:00:00.000Z';
+      const prev = calculatePreviousCycleStart(cur, 'daily');
+      expect(new Date(prev).getUTCDate()).toBe(14);
+    });
+  });
+
   describe('getFirstCycleStartDate', () => {
     it('should return start date when due (start + time) is in the future', () => {
       const future = new Date();
@@ -145,6 +155,14 @@ describe('cycle-timestamps.util (Phase 1: timestamp calculations)', () => {
       const result = getFirstCycleStartDate(startDate, notifTime, 'daily');
       const resultDate = new Date(result);
       expect(resultDate.getTime()).toBeGreaterThanOrEqual(new Date().setHours(0, 0, 0, 0));
+    });
+  });
+
+  describe('periodDayFromDueAt', () => {
+    it('should return local YYYY-MM-DD from dueAt ISO string', () => {
+      const dueAt = '2025-05-27T09:00:00.000Z';
+      const expected = formatLocalDate(new Date(dueAt));
+      expect(periodDayFromDueAt(dueAt)).toBe(expected);
     });
   });
 });

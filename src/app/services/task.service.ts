@@ -5,12 +5,6 @@ import { NotificationService } from "./notification.service";
 import { TaskCycleService } from "./task-cycle.service";
 import { Platform } from '@ionic/angular';
 import { BehaviorSubject } from 'rxjs';
-import {
-  getFirstCycleStartDate,
-  calculateDueAt,
-  calculateSoftDeadline,
-  calculateHardDeadline,
-} from '../utils/cycle-timestamps.util';
 
 @Injectable({
   providedIn: "root"
@@ -97,22 +91,12 @@ export class TaskService {
     const taskId = result.changes?.lastId;
     if (!taskId) throw new Error('Failed to get inserted task ID');
 
-    const firstStart = getFirstCycleStartDate(normalizedStartDate, normalizedNotificationTime, taskData.frequency);
-    const dueAt = calculateDueAt(firstStart, normalizedNotificationTime);
-    const softDeadline = calculateSoftDeadline(dueAt, taskData.frequency);
-    const hardDeadline = calculateHardDeadline(dueAt, taskData.frequency);
-    await this.dbService.executeQuery(
-      `INSERT INTO task_cycles (taskId, cycleStartDate, dueAt, softDeadline, hardDeadline, resolution)
-       VALUES (?, ?, ?, ?, ?, 'open')`,
-      [taskId, firstStart, dueAt, softDeadline, hardDeadline]
-    );
-
     const task = await this.getTaskById(taskId);
-    if (task && this.shouldScheduleLocalNotification(task)) {
-      this.scheduleTaskNotification(task).catch(err =>
-        console.warn('TaskService: Could not schedule notification for new task', err)
-      );
+    if (task) {
+      await this.taskCycleService.createNextCycle(task);
     }
+
+    await this.loadTasks();
     return taskId;
   }
 
@@ -121,6 +105,7 @@ export class TaskService {
     try {
       // Use parameterized ? for the SET value so handleWebUpdate can extract it correctly
       const result = await this.dbService.executeQuery("UPDATE tasks SET state = ? WHERE id = ?", ['paused', id]);
+      await this.notificationService.cancelNotification(id);
       // History is non-critical; don't block the operation if it fails
       this.addHistoryEntry(id, 'paused').catch(err => console.warn('[TaskService] pauseTask history:', err));
     } catch (err) {
@@ -270,13 +255,9 @@ export class TaskService {
   private async scheduleTaskNotification(task: Task): Promise<void> {
     if (task.state === 'paused' || task.state === 'archived') return;
     try {
-      let scheduledAt: Date | undefined;
       const cycle = await this.taskCycleService.getCurrentCycle(task.id!);
-      if (cycle?.resolution === 'open' && cycle.dueAt) scheduledAt = new Date(cycle.dueAt);
-      if (this.isLocalNotificationType(task.notificationType) && this.platform.is('capacitor')) {
-        await this.notificationService.scheduleNotification(task, false, scheduledAt);
-      } else if (this.isLocalNotificationType(task.notificationType)) {
-        await this.notificationService.scheduleNotification(task, false, scheduledAt);
+      if (this.isLocalNotificationType(task.notificationType) && cycle?.resolution === 'open' && cycle.dueAt) {
+        await this.notificationService.scheduleUpcomingNotifications(task, cycle, false);
       } else if (task.notificationType !== 'silent') {
         // Send other types of notifications through the API
         const payload = {

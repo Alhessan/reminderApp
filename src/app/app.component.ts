@@ -2,6 +2,7 @@ import { Component, NgZone, Optional, OnDestroy } from '@angular/core';
 import { DatabaseService } from './services/database.service';
 import { Platform, IonicModule, AlertController, NavController, IonRouterOutlet } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { RouterLink, RouterOutlet, Router } from '@angular/router';
 import { App } from '@capacitor/app';
 import { NotificationService } from './services/notification.service';
@@ -90,7 +91,8 @@ import {
   standalone: true,
   imports: [
     IonicModule, 
-    CommonModule, 
+    CommonModule,
+    FormsModule,
     RouterLink,
     RouterOutlet
   ]
@@ -98,6 +100,9 @@ import {
 export class AppComponent implements OnDestroy {
   /** Shown in side menu; keep in sync with releases by bumping root `package.json` `version`. */
   readonly appVersion = packageJson.version;
+
+  /** Dev menu: number of days to shift open cycles into the past (cycle engine QA). */
+  devSimulateDaysElapsed = 5;
 
   public appPages = [
     { title: 'Contacts', url: '/customers', icon: 'people-outline' },
@@ -292,6 +297,9 @@ export class AppComponent implements OnDestroy {
           await this.taskCycleService.ensureOpenCyclesForActiveTasks().catch(err =>
             console.warn('[App] ensureOpenCyclesForActiveTasks:', err)
           );
+          await this.taskCycleService.loadTaskList().catch(err =>
+            console.warn('[App] loadTaskList after startup:', err)
+          );
           if (shouldLog) {
             console.log('[App] Database initialized');
           }
@@ -320,11 +328,7 @@ export class AppComponent implements OnDestroy {
             console.warn('[App] Preload alarm:', err)
           );
 
-          // Reschedule all push notifications (e.g. after app restart)
-          await this.taskService.rescheduleAllPendingNotifications().catch(err =>
-            console.warn('[App] Reschedule notifications:', err)
-          );
-          if (shouldLog) console.log('[App] Pending notifications rescheduled');
+          // loadTaskList (above) already reschedules notifications via TaskService
           
           if (shouldLog) {
             console.log('[App] Initialization complete');
@@ -378,13 +382,15 @@ export class AppComponent implements OnDestroy {
       // Example: Save current form data, pause background tasks
     });
 
-    // Handle app resume (when user returns to the app)
-    this.platform.resume.subscribe(() => {
+    this.platform.resume.subscribe(async () => {
       if (shouldLog) {
         console.log('[App] App resumed');
       }
-      // You can refresh data, restart timers, etc. here
-      // Example: Refresh task list, check for new notifications
+      try {
+        await this.taskCycleService.loadTaskList();
+      } catch (e) {
+        console.warn('[App] Resume refresh:', e);
+      }
     });
 
     // Handle back button (Android) - Ionic best practice
@@ -413,6 +419,29 @@ export class AppComponent implements OnDestroy {
       });
     } catch (error) {
       console.error('Navigation error:', error);
+    }
+  }
+
+  /** Dev-only: shift all open cycle deadlines back N days and run lapse/backfill (see Cycle Engine plan). */
+  async devSimulateElapsed(): Promise<void> {
+    const raw = Number(this.devSimulateDaysElapsed);
+    const days = Math.min(90, Math.max(1, Math.floor(Number.isFinite(raw) ? raw : 1)));
+    try {
+      await this.taskCycleService.simulateDaysElapsed(days);
+      const ok = await this.alertController.create({
+        header: 'Dev',
+        message: `Simulated ${days} day(s): open cycles moved back; lapse/backfill ran.`,
+        buttons: ['OK'],
+      });
+      await ok.present();
+    } catch (error) {
+      console.error('[App] devSimulateElapsed:', error);
+      const err = await this.alertController.create({
+        header: 'Error',
+        message: 'Simulate failed. See console.',
+        buttons: ['OK'],
+      });
+      await err.present();
     }
   }
 
