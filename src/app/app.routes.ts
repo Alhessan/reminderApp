@@ -37,6 +37,10 @@ export const routes: Routes = [
     path: 'settings',
     children: [
       {
+        path: '',
+        loadComponent: () => import('./pages/settings/settings.page').then(m => m.SettingsPage)
+      },
+      {
         path: 'task-types',
         loadComponent: () => import('./pages/settings/task-types/task-types.page').then(m => m.TaskTypesPage)
       },

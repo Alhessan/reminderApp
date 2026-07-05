@@ -108,7 +108,8 @@ export class AppComponent implements OnDestroy {
     { title: 'Contacts', url: '/customers', icon: 'people-outline' },
     { title: 'Tasks', url: '/tasks', icon: 'checkbox-outline' },
     { title: 'Task Categories', url: '/settings/task-types', icon: 'settings-outline' },
-    { title: 'Notification Methods', url: '/settings/notification-types', icon: 'notifications-outline' }
+    { title: 'Notification Methods', url: '/settings/notification-types', icon: 'notifications-outline' },
+    { title: 'Settings', url: '/settings', icon: 'cog-outline' }
   ];
 
   // Logo images for branding — switches between dark/light mode (Phase 6 US4)
