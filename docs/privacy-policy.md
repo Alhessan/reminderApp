@@ -87,7 +87,7 @@ We may update this Privacy Policy from time to time. Changes will be reflected i
 
 If you have questions about this Privacy Policy or our practices, please contact us:
 
-- **Email:** support@routineloop.app
+- **Email:** engalhessan@gmail.com
 - **In-app:** Settings → Help & Support
 
 ---

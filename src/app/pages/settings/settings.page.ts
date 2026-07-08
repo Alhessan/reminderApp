@@ -2,7 +2,6 @@ import { Component } from '@angular/core';
 import { IonicModule } from '@ionic/angular';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { Browser } from '@capacitor/browser';
 
 @Component({
   selector: 'app-settings',
@@ -52,14 +51,6 @@ import { Browser } from '@capacitor/browser';
             <p>Contact us or report an issue</p>
           </ion-label>
         </ion-item>
-
-        <ion-item button (click)="openSupportPage()" detail>
-          <ion-icon name="cafe-outline" slot="start"></ion-icon>
-          <ion-label>
-            <h2>Support the App ☕</h2>
-            <p>Buy me a coffee to help keep RoutineLoop going</p>
-          </ion-label>
-        </ion-item>
       </ion-list>
     </ion-content>
   `
@@ -70,20 +61,10 @@ export class SettingsPage {
   }
 
   openPrivacyPolicy(): void {
-    window.open('https://routineloop.app/privacy', '_blank');
+    window.open('https://alhessan.github.io/reminderApp/privacy-policy.html', '_blank');
   }
 
   openSupport(): void {
-    window.open('mailto:support@routineloop.app', '_blank');
-  }
-
-  async openSupportPage(): Promise<void> {
-    try {
-      await Browser.open({ url: 'https://ko-fi.com/routineloop' });
-    } catch (error) {
-      console.error('Error opening support page:', error);
-      // Fallback to window.open if Browser fails
-      window.open('https://ko-fi.com/routineloop', '_blank');
-    }
+    window.open('mailto:engalhessan@gmail.com', '_blank');
   }
 } 
