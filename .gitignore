@@ -70,6 +70,9 @@ testem.log
 Thumbs.db
 reminderApp - share.zip
 
+# Android signing — never commit secrets
+*.keystore
+android/keystore.properties
 
 #igonore speckit files
 .specify

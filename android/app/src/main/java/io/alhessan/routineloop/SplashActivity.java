@@ -1,4 +1,4 @@
-package io.ionic.routineloop;
+package io.alhessan.routineloop;
 
 import android.app.Activity;
 import android.content.Intent;
